@@ -35,6 +35,11 @@ class VRChatController:
         self.is_voice_listening = False
         self.voice_thread: Optional[threading.Thread] = None
         
+        # 录制模式配置
+        self.use_fallback_mode = False  # 是否使用纯音频检测模式
+        self.vrc_detection_timeout = 30.0  # VRChat检测超时时间(秒)
+        self.fallback_mode_active = False
+        
         # 回调函数
         self.voice_result_callback: Optional[Callable] = None
         self.status_change_callback: Optional[Callable] = None
@@ -133,13 +138,45 @@ class VRChatController:
         last_recognition_time = 0
         recognition_interval = 1.0  # 至少间隔1秒进行下一次识别
         
+        # VRChat检测监控
+        vrc_detection_start_time = time.time()
+        last_vrc_activity_time = time.time()
+        
         while self.is_voice_listening:
             try:
                 current_time = time.time()
                 
-                # 重要：只有当VRChat检测到说话时才录制和识别
-                if not self.osc_client.get_vrc_speaking_state():
-                    time.sleep(0.1)  # VRChat未检测到语音，继续等待
+                # 检查是否收到VRChat语音参数
+                received_params = self.osc_client.get_received_voice_parameters()
+                if received_params:
+                    last_vrc_activity_time = current_time
+                    if self.fallback_mode_active:
+                        print("检测到VRChat语音参数，退出备用模式")
+                        self.fallback_mode_active = False
+                
+                # 检查是否需要启用备用模式
+                if (not self.fallback_mode_active and 
+                    current_time - vrc_detection_start_time > self.vrc_detection_timeout and
+                    not received_params):
+                    print("VRChat语音参数检测超时，启用纯音频检测备用模式")
+                    self.fallback_mode_active = True
+                
+                # 决定录制条件
+                should_record = False
+                record_reason = ""
+                
+                if self.fallback_mode_active or self.use_fallback_mode:
+                    # 备用模式：使用纯音频检测
+                    should_record = True
+                    record_reason = "备用模式(纯音频检测)"
+                else:
+                    # 正常模式：依赖VRChat状态
+                    if self.osc_client.get_vrc_speaking_state():
+                        should_record = True
+                        record_reason = "VRChat语音状态"
+                
+                if not should_record:
+                    time.sleep(0.1)
                     continue
                 
                 # 防止过于频繁的识别
@@ -147,7 +184,7 @@ class VRChatController:
                     time.sleep(0.1)
                     continue
                 
-                print(f"VRChat检测到语音状态，开始录制...")
+                print(f"开始录制 ({record_reason})...")
                 
                 # 使用动态语音检测录制音频
                 audio_data = self.speech_engine.record_audio_dynamic()
@@ -165,24 +202,19 @@ class VRChatController:
                 def recognize():
                     nonlocal consecutive_failures
                     try:
-                        # 再次确认VRChat状态（防止状态在录制期间改变）
-                        if not self.osc_client.get_vrc_speaking_state():
-                            print("VRChat语音状态已结束，跳过识别")
-                            return
-                        
                         # 检测语音活动
                         if not self.speech_engine.detect_voice_activity(audio_data):
                             print("录制的音频中未检测到语音活动")
                             return
                         
-                        print("VRChat语音状态确认，开始语音识别...")
+                        print(f"开始语音识别 ({record_reason})...")
                         
                         # 识别语音
                         text = self.speech_engine.recognize_audio(audio_data, 16000, language)
                         
                         if text and text.strip():
                             consecutive_failures = 0
-                            print(f"VRC语音识别结果: {text.strip()}")
+                            print(f"语音识别成功: {text.strip()} (模式: {record_reason})")
                             if self.voice_result_callback:
                                 self.voice_result_callback(text.strip())
                         else:
@@ -219,6 +251,10 @@ class VRChatController:
         """设置语音激活阈值"""
         self.speech_engine.set_voice_threshold(threshold)
     
+    def set_sentence_pause_threshold(self, threshold: float):
+        """设置句子间停顿阈值"""
+        self.speech_engine.set_sentence_pause_threshold(threshold)
+    
     def stop_current_recording(self):
         """停止当前录制"""
         self.speech_engine.stop_recording()
@@ -230,7 +266,40 @@ class VRChatController:
             "vrc_speaking": self.osc_client.get_vrc_speaking_state(),
             "vrc_voice_level": self.osc_client.get_vrc_voice_level(),
             "voice_listening": self.is_voice_listening,
-            "speech_engine_ready": self.speech_engine.is_model_loaded()
+            "speech_engine_ready": self.speech_engine.is_model_loaded(),
+            "fallback_mode_active": self.fallback_mode_active,
+            "use_fallback_mode": self.use_fallback_mode,
+            "received_voice_parameters": list(self.osc_client.get_received_voice_parameters())
+        }
+    
+    def set_debug_mode(self, enabled: bool):
+        """设置调试模式"""
+        self.osc_client.set_debug_mode(enabled)
+    
+    def set_fallback_mode(self, enabled: bool):
+        """设置是否强制使用备用模式"""
+        self.use_fallback_mode = enabled
+        if enabled:
+            print("已启用强制备用模式 - 将使用纯音频检测")
+        else:
+            print("已禁用强制备用模式 - 将优先使用VRChat状态检测")
+    
+    def get_debug_info(self) -> dict:
+        """获取详细的调试信息"""
+        osc_debug = self.osc_client.get_debug_info()
+        return {
+            "osc": osc_debug,
+            "speech_engine": {
+                "model_loaded": self.speech_engine.is_model_loaded(),
+                "voice_threshold": self.speech_engine.voice_threshold,
+                "device": self.speech_engine.device
+            },
+            "controller": {
+                "is_voice_listening": self.is_voice_listening,
+                "fallback_mode_active": self.fallback_mode_active,
+                "use_fallback_mode": self.use_fallback_mode,
+                "vrc_detection_timeout": self.vrc_detection_timeout
+            }
         }
     
     def cleanup(self):

@@ -194,21 +194,53 @@ class VRChatOSCGUI:
         self.upload_voice_btn = ttk.Button(voice_frame, text="上传语音", command=self.upload_voice_file)
         self.upload_voice_btn.grid(row=0, column=5, padx=(0, 5))
         
+        # 第二行：调试和模式控制
+        debug_frame = ttk.Frame(message_frame)
+        debug_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        # 调试模式开关
+        self.debug_var = tk.BooleanVar(value=False)
+        debug_check = ttk.Checkbutton(debug_frame, text="OSC调试模式", 
+                                     variable=self.debug_var, command=self.toggle_debug_mode)
+        debug_check.grid(row=0, column=0, padx=(0, 10))
+        
+        # 强制备用模式开关
+        self.fallback_var = tk.BooleanVar(value=False)
+        fallback_check = ttk.Checkbutton(debug_frame, text="强制备用模式", 
+                                        variable=self.fallback_var, command=self.toggle_fallback_mode)
+        fallback_check.grid(row=0, column=1, padx=(0, 10))
+        
+        # 状态显示按钮
+        self.status_btn = ttk.Button(debug_frame, text="显示状态", command=self.show_debug_status)
+        self.status_btn.grid(row=0, column=2, padx=(0, 5))
+        
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
         threshold_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         ttk.Label(threshold_frame, text="语音阈值:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.threshold_var = tk.DoubleVar(value=0.02)
-        threshold_scale = ttk.Scale(threshold_frame, from_=0.005, to=0.1, 
+        self.threshold_var = tk.DoubleVar(value=0.015)
+        threshold_scale = ttk.Scale(threshold_frame, from_=0.005, to=0.05, 
                                    variable=self.threshold_var, orient='horizontal',
                                    command=self.update_voice_threshold)
         threshold_scale.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
         
-        self.threshold_label = ttk.Label(threshold_frame, text="0.020")
-        self.threshold_label.grid(row=0, column=2)
+        self.threshold_label = ttk.Label(threshold_frame, text="0.015")
+        self.threshold_label.grid(row=0, column=2, padx=(0, 15))
+        
+        # 断句检测设置
+        ttk.Label(threshold_frame, text="断句间隔:").grid(row=0, column=3, sticky=tk.W, padx=(0, 5))
+        self.pause_var = tk.DoubleVar(value=0.5)
+        pause_scale = ttk.Scale(threshold_frame, from_=0.2, to=1.0, 
+                               variable=self.pause_var, orient='horizontal',
+                               command=self.update_pause_threshold)
+        pause_scale.grid(row=0, column=4, sticky=(tk.W, tk.E), padx=(0, 10))
+        
+        self.pause_label = ttk.Label(threshold_frame, text="0.5s")
+        self.pause_label.grid(row=0, column=5)
         
         threshold_frame.columnconfigure(1, weight=1)
+        threshold_frame.columnconfigure(4, weight=1)
         
         
         # 参数设置框架
@@ -641,6 +673,14 @@ class VRChatOSCGUI:
         self.threshold_label.config(text=f"{threshold:.3f}")
         self.log(f"语音阈值已设置为: {threshold:.3f}")
     
+    def update_pause_threshold(self, value):
+        """更新断句间隔阈值"""
+        threshold = float(value)
+        if self.client and hasattr(self.client, 'set_sentence_pause_threshold'):
+            self.client.set_sentence_pause_threshold(threshold)
+        self.pause_label.config(text=f"{threshold:.1f}s")
+        self.log(f"断句间隔已设置为: {threshold:.1f}秒")
+    
     def on_closing(self):
         """窗口关闭事件处理"""
         try:
@@ -726,6 +766,100 @@ class VRChatOSCGUI:
         except Exception as e:
             self.log(f"❌ 音频文件加载失败: {e}")
             messagebox.showerror("文件错误", f"无法加载音频文件: {e}")
+    
+    def toggle_debug_mode(self):
+        """切换调试模式"""
+        if not self.is_connected:
+            messagebox.showwarning("警告", "请先连接到VRChat")
+            self.debug_var.set(False)
+            return
+        
+        debug_enabled = self.debug_var.get()
+        self.client.set_debug_mode(debug_enabled)
+        status = "启用" if debug_enabled else "禁用"
+        self.log(f"OSC调试模式已{status}")
+    
+    def toggle_fallback_mode(self):
+        """切换强制备用模式"""
+        if not self.is_connected:
+            messagebox.showwarning("警告", "请先连接到VRChat")
+            self.fallback_var.set(False)
+            return
+        
+        fallback_enabled = self.fallback_var.get()
+        self.client.set_fallback_mode(fallback_enabled)
+        status = "启用" if fallback_enabled else "禁用"
+        self.log(f"强制备用模式已{status}")
+    
+    def show_debug_status(self):
+        """显示调试状态信息"""
+        if not self.is_connected:
+            messagebox.showwarning("警告", "请先连接到VRChat")
+            return
+        
+        try:
+            # 获取详细状态信息
+            status = self.client.get_status()
+            debug_info = self.client.get_debug_info()
+            
+            # 创建状态信息窗口
+            status_window = tk.Toplevel(self.root)
+            status_window.title("系统状态信息")
+            status_window.geometry("600x500")
+            status_window.resizable(True, True)
+            
+            # 创建文本框显示状态
+            status_text = scrolledtext.ScrolledText(status_window, font=("Consolas", 9))
+            status_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # 格式化状态信息
+            status_info = "=== VRChat OSC 系统状态 ===\n\n"
+            
+            # 基本状态
+            status_info += "【连接状态】\n"
+            status_info += f"OSC服务器: {'运行中' if status['osc_connected'] else '未运行'}\n"
+            status_info += f"VRChat语音状态: {'说话中' if status['vrc_speaking'] else '静音'}\n"
+            status_info += f"VRChat语音强度: {status['vrc_voice_level']:.4f}\n"
+            status_info += f"语音监听: {'运行中' if status['voice_listening'] else '未运行'}\n"
+            status_info += f"语音引擎: {'就绪' if status['speech_engine_ready'] else '未就绪'}\n\n"
+            
+            # 模式状态
+            status_info += "【录制模式】\n"
+            status_info += f"备用模式激活: {'是' if status['fallback_mode_active'] else '否'}\n"
+            status_info += f"强制备用模式: {'是' if status['use_fallback_mode'] else '否'}\n\n"
+            
+            # VRChat参数
+            status_info += "【检测到的VRChat语音参数】\n"
+            if status['received_voice_parameters']:
+                for param in status['received_voice_parameters']:
+                    status_info += f"- {param}\n"
+            else:
+                status_info += "未检测到任何VRChat语音参数\n"
+            status_info += "\n"
+            
+            # 监听的参数列表
+            status_info += "【监听的参数列表】\n"
+            for param in debug_info['osc']['monitoring_parameters']:
+                status_info += f"- {param}\n"
+            status_info += "\n"
+            
+            # 语音引擎信息
+            status_info += "【语音引擎】\n"
+            status_info += f"计算设备: {debug_info['speech_engine']['device']}\n"
+            status_info += f"语音阈值: {debug_info['speech_engine']['voice_threshold']}\n"
+            status_info += f"模型已加载: {'是' if debug_info['speech_engine']['model_loaded'] else '否'}\n\n"
+            
+            # 调试信息
+            status_info += "【调试设置】\n"
+            status_info += f"OSC调试模式: {'启用' if debug_info['osc']['debug_mode'] else '禁用'}\n"
+            status_info += f"VRChat检测超时: {debug_info['controller']['vrc_detection_timeout']}秒\n"
+            
+            status_text.insert(tk.END, status_info)
+            status_text.config(state=tk.DISABLED)
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"获取状态信息失败: {e}")
+            self.log(f"显示状态失败: {e}")
     
     def on_language_changed(self, event=None):
         """语言选择框改变事件"""

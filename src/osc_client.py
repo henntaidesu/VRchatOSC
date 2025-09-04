@@ -47,6 +47,18 @@ class OSCClient:
         self.vrc_is_speaking = False
         self.vrc_voice_level = 0.0
         
+        # 调试设置
+        self.debug_mode = False
+        self.voice_parameters_received = set()  # 记录收到的语音相关参数
+        
+        # 扩展语音参数监听列表
+        self.voice_parameter_names = [
+            "Voice", "VoiceLevel", "Viseme", "MouthOpen", "VoiceGain",
+            "VoiceThreshold", "MicLevel", "IsSpeaking", "IsListening",
+            "VRC_Voice", "VRC_VoiceLevel", "VRC_Viseme", "Speech",
+            "Talking", "MouthMove", "VoiceActivity"
+        ]
+        
         print(f"OSC客户端初始化完成")
         print(f"发送地址: {host}:{send_port}")
         print(f"接收端口: {receive_port}")
@@ -79,21 +91,46 @@ class OSCClient:
             parameter_name = address.split("/")[-1]
             value = args[0]
             
+            # 调试模式：记录所有参数
+            if self.debug_mode:
+                print(f"[OSC调试] 参数: {parameter_name} = {value} (地址: {address})")
+            
             # 处理语音相关参数
-            if parameter_name in ["Voice", "VoiceLevel", "Viseme"]:
-                self.vrc_voice_level = float(value) if value else 0.0
-                was_speaking = self.vrc_is_speaking
-                self.vrc_is_speaking = self.vrc_voice_level > 0.01
+            if parameter_name in self.voice_parameter_names:
+                # 记录收到的语音参数
+                self.voice_parameters_received.add(parameter_name)
+                
+                # 更新语音状态和强度
+                old_speaking = self.vrc_is_speaking
+                old_level = self.vrc_voice_level
+                
+                # 尝试从不同参数获取语音强度
+                if parameter_name in ["Voice", "VoiceLevel", "MicLevel", "VRC_VoiceLevel"]:
+                    self.vrc_voice_level = float(value) if value else 0.0
+                elif parameter_name in ["IsSpeaking", "Talking", "VoiceActivity", "Speech"]:
+                    # 布尔类型的语音状态
+                    self.vrc_is_speaking = bool(value)
+                    if self.vrc_is_speaking and self.vrc_voice_level <= 0.01:
+                        self.vrc_voice_level = 0.5  # 设置默认强度
+                elif parameter_name in ["Viseme", "MouthOpen", "MouthMove"]:
+                    # 嘴部动作参数，可能表示说话
+                    mouth_value = float(value) if value else 0.0
+                    if mouth_value > 0.1:
+                        self.vrc_voice_level = max(self.vrc_voice_level, mouth_value)
+                
+                # 更新说话状态 (使用更灵活的阈值)
+                if parameter_name not in ["IsSpeaking", "Talking", "VoiceActivity", "Speech"]:
+                    self.vrc_is_speaking = self.vrc_voice_level > 0.005  # 降低阈值
                 
                 # 调试输出语音状态变化
-                if self.vrc_is_speaking != was_speaking:
+                if self.debug_mode or (self.vrc_is_speaking != old_speaking):
                     status_text = "开始说话" if self.vrc_is_speaking else "停止说话"
-                    print(f"VRChat语音状态变化: {status_text} (Level: {self.vrc_voice_level:.3f})")
+                    print(f"VRChat语音状态: {status_text} (参数: {parameter_name}, 值: {value}, Level: {self.vrc_voice_level:.4f})")
                 
                 # 通知状态变化
                 if self.parameter_callback:
                     self.parameter_callback(parameter_name, value)
-                    if self.vrc_is_speaking != was_speaking:
+                    if self.vrc_is_speaking != old_speaking:
                         self.parameter_callback("vrc_speaking_state", self.vrc_is_speaking)
             
             # 通知所有参数变化
@@ -173,3 +210,26 @@ class OSCClient:
     def get_vrc_voice_level(self) -> float:
         """获取VRChat语音强度"""
         return self.vrc_voice_level
+    
+    def set_debug_mode(self, enabled: bool):
+        """设置调试模式"""
+        self.debug_mode = enabled
+        if enabled:
+            print("OSC调试模式已启用")
+        else:
+            print("OSC调试模式已禁用")
+    
+    def get_received_voice_parameters(self) -> set:
+        """获取已接收到的语音参数列表"""
+        return self.voice_parameters_received.copy()
+    
+    def get_debug_info(self) -> dict:
+        """获取调试信息"""
+        return {
+            "debug_mode": self.debug_mode,
+            "is_running": self.is_running,
+            "vrc_is_speaking": self.vrc_is_speaking,
+            "vrc_voice_level": self.vrc_voice_level,
+            "received_voice_parameters": list(self.voice_parameters_received),
+            "monitoring_parameters": self.voice_parameter_names
+        }
