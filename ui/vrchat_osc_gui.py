@@ -15,15 +15,23 @@ import soundfile as sf
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.vrchat_controller import VRChatController
+from src.config_manager import config_manager
+from settings_window import SettingsWindow
 
 
 class VRChatOSCGUI:
     """VRChat OSC GUI界面类"""
     
     def __init__(self):
+        # 加载配置
+        self.config = config_manager
+        
         self.root = tk.Tk()
         self.root.title("VRChat OSC 通信工具")
-        self.root.geometry("800x900")  # 增大窗口以适应新的语音输出框
+        
+        # 从配置文件设置窗口大小
+        window_size = f"{self.config.window_width}x{self.config.window_height}"
+        self.root.geometry(window_size)
         self.root.resizable(True, True)
         
         # OSC客户端
@@ -31,13 +39,13 @@ class VRChatOSCGUI:
         self.is_connected = False
         self.is_listening = False
         
-        # 设置变量
-        self.host_var = tk.StringVar(value="127.0.0.1")
-        self.send_port_var = tk.StringVar(value="9000")
-        self.receive_port_var = tk.StringVar(value="9001")
-        self.language_var = tk.StringVar(value="ja-JP")
-        self.device_var = tk.StringVar(value="auto")
-        self.ui_language = tk.StringVar(value="zh")  # 界面语言：zh=中文, ja=日语
+        # 从配置文件加载设置变量
+        self.host_var = tk.StringVar(value=self.config.osc_host)
+        self.send_port_var = tk.StringVar(value=str(self.config.osc_send_port))
+        self.receive_port_var = tk.StringVar(value=str(self.config.osc_receive_port))
+        self.language_var = tk.StringVar(value=self.config.voice_language)
+        self.device_var = tk.StringVar(value=self.config.voice_device)
+        self.ui_language = tk.StringVar(value=self.config.ui_language)  # 界面语言：zh=中文, ja=日语
         
         # 语音文件相关变量
         self.uploaded_audio_data = None
@@ -199,50 +207,54 @@ class VRChatOSCGUI:
         debug_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         # 调试模式开关
-        self.debug_var = tk.BooleanVar(value=False)
+        self.debug_var = tk.BooleanVar(value=self.config.osc_debug_mode)
         debug_check = ttk.Checkbutton(debug_frame, text="OSC调试模式", 
                                      variable=self.debug_var, command=self.toggle_debug_mode)
         debug_check.grid(row=0, column=0, padx=(0, 10))
         
         # 强制备用模式开关
-        self.fallback_var = tk.BooleanVar(value=False)
+        self.fallback_var = tk.BooleanVar(value=self.config.use_fallback_mode)
         fallback_check = ttk.Checkbutton(debug_frame, text="强制备用模式", 
                                         variable=self.fallback_var, command=self.toggle_fallback_mode)
         fallback_check.grid(row=0, column=1, padx=(0, 10))
         
         # 禁用备用模式开关
-        self.disable_fallback_var = tk.BooleanVar(value=True)  # 默认禁用备用模式
+        self.disable_fallback_var = tk.BooleanVar(value=self.config.disable_fallback_mode)
         disable_fallback_check = ttk.Checkbutton(debug_frame, text="禁用备用模式", 
                                                  variable=self.disable_fallback_var, command=self.toggle_disable_fallback_mode)
         disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
         
+        # 高级设置按钮
+        self.settings_btn = ttk.Button(debug_frame, text="高级设置", command=self.open_settings)
+        self.settings_btn.grid(row=0, column=3, padx=(0, 5))
+        
         # 状态显示按钮
         self.status_btn = ttk.Button(debug_frame, text="显示状态", command=self.show_debug_status)
-        self.status_btn.grid(row=0, column=3, padx=(0, 5))
+        self.status_btn.grid(row=0, column=4, padx=(0, 5))
         
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
         threshold_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         ttk.Label(threshold_frame, text="语音阈值:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.threshold_var = tk.DoubleVar(value=0.015)
+        self.threshold_var = tk.DoubleVar(value=self.config.voice_threshold)
         threshold_scale = ttk.Scale(threshold_frame, from_=0.005, to=0.05, 
                                    variable=self.threshold_var, orient='horizontal',
                                    command=self.update_voice_threshold)
         threshold_scale.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
         
-        self.threshold_label = ttk.Label(threshold_frame, text="0.015")
+        self.threshold_label = ttk.Label(threshold_frame, text=f"{self.config.voice_threshold:.3f}")
         self.threshold_label.grid(row=0, column=2, padx=(0, 15))
         
         # 断句检测设置
         ttk.Label(threshold_frame, text="断句间隔:").grid(row=0, column=3, sticky=tk.W, padx=(0, 5))
-        self.pause_var = tk.DoubleVar(value=0.5)
+        self.pause_var = tk.DoubleVar(value=self.config.sentence_pause_threshold)
         pause_scale = ttk.Scale(threshold_frame, from_=0.2, to=1.0, 
                                variable=self.pause_var, orient='horizontal',
                                command=self.update_pause_threshold)
         pause_scale.grid(row=0, column=4, sticky=(tk.W, tk.E), padx=(0, 10))
         
-        self.pause_label = ttk.Label(threshold_frame, text="0.5s")
+        self.pause_label = ttk.Label(threshold_frame, text=f"{self.config.sentence_pause_threshold:.1f}s")
         self.pause_label.grid(row=0, column=5)
         
         threshold_frame.columnconfigure(1, weight=1)
@@ -452,8 +464,19 @@ class VRChatOSCGUI:
             # 在后台线程中连接，避免界面卡顿
             def connect_thread():
                 try:
-                    # 创建OSC客户端，传递设备选择
-                    self.client = VRChatController(host, send_port, receive_port, speech_device=device)
+                    # 创建OSC客户端，传递参数（如果与配置不同）
+                    use_config_host = host == self.config.osc_host
+                    use_config_ports = (send_port == self.config.osc_send_port and 
+                                       receive_port == self.config.osc_receive_port)
+                    use_config_device = device == self.config.voice_device
+                    
+                    # 只传递与配置不同的参数
+                    self.client = VRChatController(
+                        host=None if use_config_host else host,
+                        send_port=None if use_config_ports else send_port,
+                        receive_port=None if use_config_ports else receive_port,
+                        speech_device=None if use_config_device else device
+                    )
                     
                     # 设置回调函数
                     self.client.set_status_change_callback(self.on_status_change)
@@ -688,8 +711,68 @@ class VRChatOSCGUI:
         threshold = float(value)
         if self.client and hasattr(self.client, 'set_sentence_pause_threshold'):
             self.client.set_sentence_pause_threshold(threshold)
+        # 同时更新配置
+        self.config.set('Recording', 'sentence_pause_threshold', threshold)
         self.pause_label.config(text=f"{threshold:.1f}s")
         self.log(f"断句间隔已设置为: {threshold:.1f}秒")
+    
+    def open_settings(self):
+        """打开高级设置窗口"""
+        SettingsWindow(self.root, callback=self.on_settings_changed)
+    
+    def on_settings_changed(self, apply_only=False):
+        """设置更改后的回调"""
+        try:
+            # 更新当前界面的变量
+            self.host_var.set(self.config.osc_host)
+            self.send_port_var.set(str(self.config.osc_send_port))
+            self.receive_port_var.set(str(self.config.osc_receive_port))
+            self.language_var.set(self.config.voice_language)
+            self.device_var.set(self.config.voice_device)
+            
+            # 更新阈值显示
+            self.threshold_var.set(self.config.voice_threshold)
+            self.threshold_label.config(text=f"{self.config.voice_threshold:.3f}")
+            self.pause_var.set(self.config.sentence_pause_threshold)
+            self.pause_label.config(text=f"{self.config.sentence_pause_threshold:.1f}s")
+            
+            # 更新复选框状态
+            self.debug_var.set(self.config.osc_debug_mode)
+            self.fallback_var.set(self.config.use_fallback_mode)
+            self.disable_fallback_var.set(self.config.disable_fallback_mode)
+            
+            # 如果有活动连接，应用新设置
+            if self.is_connected and self.client:
+                # 应用语音设置
+                self.client.set_voice_threshold(self.config.voice_threshold)
+                self.client.set_sentence_pause_threshold(self.config.sentence_pause_threshold)
+                
+                # 应用模式设置
+                self.client.set_fallback_mode(self.config.use_fallback_mode)
+                self.client.set_disable_fallback_mode(self.config.disable_fallback_mode)
+                self.client.set_debug_mode(self.config.osc_debug_mode)
+                
+            # 更新窗口大小（如果需要）
+            current_geometry = self.root.geometry()
+            new_size = f"{self.config.window_width}x{self.config.window_height}"
+            if new_size not in current_geometry:
+                self.root.geometry(new_size)
+            
+            action = "应用" if apply_only else "保存"
+            self.log(f"✅ 设置已{action}并生效")
+            
+        except Exception as e:
+            self.log(f"❌ 应用设置时出错: {e}")
+    
+    def update_voice_threshold(self, value):
+        """更新语音阈值"""
+        threshold = float(value)
+        if self.client:
+            self.client.set_voice_threshold(threshold)
+        # 同时更新配置
+        self.config.set('Voice', 'voice_threshold', threshold)
+        self.threshold_label.config(text=f"{threshold:.3f}")
+        self.log(f"语音阈值已设置为: {threshold:.3f}")
     
     def on_closing(self):
         """窗口关闭事件处理"""

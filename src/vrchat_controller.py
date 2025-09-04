@@ -9,36 +9,44 @@ import numpy as np
 from typing import Optional, Callable
 from .osc_client import OSCClient
 from .voice import SpeechEngine
+from .config_manager import config_manager
 
 
 class VRChatController:
     """VRChat控制器 - 协调OSC通信和语音识别的主控制器"""
     
-    def __init__(self, host: str = "127.0.0.1", send_port: int = 9000, receive_port: int = 9001, 
-                 speech_device: str = "auto"):
+    def __init__(self, host: str = None, send_port: int = None, receive_port: int = None, 
+                 speech_device: str = None):
         """
         初始化VRChat控制器
         
         Args:
-            host: VRChat主机地址
-            send_port: 发送端口
-            receive_port: 接收端口
-            speech_device: 语音识别设备 ("auto", "cuda", "cpu")
+            host: VRChat主机地址（None时使用配置文件）
+            send_port: 发送端口（None时使用配置文件）
+            receive_port: 接收端口（None时使用配置文件）
+            speech_device: 语音识别设备（None时使用配置文件）
         """
+        # 从配置文件获取参数
+        self.config = config_manager
+        host = host or self.config.osc_host
+        send_port = send_port or self.config.osc_send_port
+        receive_port = receive_port or self.config.osc_receive_port
+        speech_device = speech_device or self.config.voice_device
+        
         # 创建OSC客户端
         self.osc_client = OSCClient(host, send_port, receive_port)
         
-        # 创建语音引擎，使用指定设备
-        self.speech_engine = SpeechEngine(device=speech_device)
+        # 创建语音引擎，使用配置的参数
+        self.speech_engine = SpeechEngine(device=speech_device, config=self.config)
         
         # 语音识别状态
         self.is_voice_listening = False
         self.voice_thread: Optional[threading.Thread] = None
         
-        # 录制模式配置
-        self.use_fallback_mode = False  # 是否强制使用纯音频检测模式
-        self.disable_fallback_mode = True  # 默认禁用备用模式
-        self.vrc_detection_timeout = 30.0  # VRChat检测超时时间(秒)
+        # 从配置文件加载录制模式配置
+        self.use_fallback_mode = self.config.use_fallback_mode
+        self.disable_fallback_mode = self.config.disable_fallback_mode
+        self.vrc_detection_timeout = self.config.vrc_detection_timeout
         self.fallback_mode_active = False
         
         # 回调函数

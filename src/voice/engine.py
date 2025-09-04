@@ -19,42 +19,55 @@ from typing import Optional, Callable
 class SpeechEngine:
     """语音识别引擎类 - 负责所有语音相关的处理"""
     
-    def __init__(self, model_size: str = "medium", device: str = "auto"):
+    def __init__(self, model_size: str = "medium", device: str = "auto", config=None):
         """
         初始化语音识别引擎
         
         Args:
             model_size: Whisper模型大小 ("tiny", "base", "small", "medium", "large")
             device: 计算设备 ("auto", "cuda", "cpu")
+            config: 配置管理器实例
         """
+        self.config = config
         self.whisper_model = None
-        self.voice_threshold = 0.015  # 降低声音激活阈值
         self.model_size = model_size
         
         # GPU支持检查和设备选择
         self.device = self._detect_device(device)
         print(f"使用计算设备: {self.device}")
         
-        # 动态录制相关参数
+        # 从配置文件加载参数（如果有配置）
+        if self.config:
+            self.voice_threshold = self.config.voice_threshold
+            self.energy_threshold = self.config.energy_threshold
+            self.max_speech_duration = self.config.max_speech_duration
+            self.min_speech_duration = self.config.min_speech_duration
+            self.silence_duration = self.config.silence_duration
+            self.sentence_pause_threshold = self.config.sentence_pause_threshold
+            self.phrase_pause_threshold = self.config.phrase_pause_threshold
+            self.energy_drop_ratio = self.config.get('Advanced', 'energy_drop_ratio')
+            self.recent_energy_window = self.config.get('Advanced', 'recent_energy_window')
+            self.zero_crossing_threshold = self.config.get('Advanced', 'zero_crossing_threshold')
+        else:
+            # 默认参数（向后兼容）
+            self.voice_threshold = 0.015
+            self.energy_threshold = 0.01
+            self.max_speech_duration = 8.0
+            self.min_speech_duration = 0.3
+            self.silence_duration = 0.8
+            self.sentence_pause_threshold = 0.5
+            self.phrase_pause_threshold = 0.3
+            self.energy_drop_ratio = 0.3
+            self.recent_energy_window = 10
+            self.zero_crossing_threshold = 0.3
+        
+        # 固定参数
         self.sample_rate = 16000
         self.channels = 1
         self.chunk_size = int(0.1 * self.sample_rate)  # 100ms chunks
-        self.min_speech_duration = 0.3  # 最小语音持续时间
-        self.max_speech_duration = 8.0   # 缩短最大录制时长
-        self.silence_duration = 0.8      # 缩短静音检测时间
         
         # 录制控制标志
         self.force_stop_recording = False
-        
-        # 语音检测增强参数
-        self.energy_threshold = 0.01  # 能量阈值
-        self.zero_crossing_threshold = 0.3  # 过零率阈值
-        
-        # 断句检测参数
-        self.sentence_pause_threshold = 0.5  # 句子间停顿时间
-        self.phrase_pause_threshold = 0.3    # 短语间停顿时间
-        self.energy_drop_ratio = 0.3         # 能量下降比例阈值
-        self.recent_energy_window = 10       # 最近能量窗口大小
         
         self._load_whisper_model()
     
