@@ -215,3 +215,4 @@ test_gpu_speech.py
 语音识别输出框功能说明.md
 test_vrc_voice_detection.py
 VRChat语音状态检测说明.md
+test*

@@ -117,29 +117,41 @@ class VRChatOSCGUI:
         self.connection_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
         
         # 主机地址
-        ttk.Label(connection_frame, text="主机地址:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        ttk.Entry(connection_frame, textvariable=self.host_var, width=15).grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
+        ttk.Label(self.connection_frame, text=self.get_text("host_address")).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        ttk.Entry(self.connection_frame, textvariable=self.host_var, width=15).grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
         
         # 发送端口
-        ttk.Label(connection_frame, text="发送端口:").grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
-        ttk.Entry(connection_frame, textvariable=self.send_port_var, width=8).grid(row=0, column=3, sticky=(tk.W, tk.E), padx=(0, 10))
+        ttk.Label(self.connection_frame, text=self.get_text("send_port")).grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
+        ttk.Entry(self.connection_frame, textvariable=self.send_port_var, width=8).grid(row=0, column=3, sticky=(tk.W, tk.E), padx=(0, 10))
         
         # 接收端口
-        ttk.Label(connection_frame, text="接收端口:").grid(row=0, column=4, sticky=tk.W, padx=(0, 5))
-        ttk.Entry(connection_frame, textvariable=self.receive_port_var, width=8).grid(row=0, column=5, sticky=(tk.W, tk.E), padx=(0, 10))
+        ttk.Label(self.connection_frame, text=self.get_text("receive_port")).grid(row=0, column=4, sticky=tk.W, padx=(0, 5))
+        ttk.Entry(self.connection_frame, textvariable=self.receive_port_var, width=8).grid(row=0, column=5, sticky=(tk.W, tk.E), padx=(0, 10))
+        
+        # 界面语言选择
+        ttk.Label(self.connection_frame, text=self.get_text("ui_language")).grid(row=0, column=6, sticky=tk.W, padx=(10, 5))
+        
+        # 创建语言映射变量
+        self.ui_language_display = tk.StringVar()
+        self.language_map = {"中文": "zh", "日本語": "ja"}
+        self.reverse_language_map = {"zh": "中文", "ja": "日本語"}
+        
+        # 设置初始显示值
+        self.ui_language_display.set(self.reverse_language_map[self.ui_language.get()])
+        
+        self.ui_language_combo = ttk.Combobox(self.connection_frame, textvariable=self.ui_language_display,
+                                            values=["中文", "日本語"], width=8, state="readonly")
+        self.ui_language_combo.grid(row=0, column=7, padx=(0, 10))
+        self.ui_language_combo.bind("<<ComboboxSelected>>", self.on_language_changed)
         
         # 连接按钮
         self.connect_btn = ttk.Button(self.connection_frame, text=self.get_text("connect"), command=self.toggle_connection)
-        self.connect_btn.grid(row=0, column=6, padx=(10, 0))
-        
-        # 语言切换按钮
-        self.lang_btn = ttk.Button(self.connection_frame, text="中/日", command=self.change_ui_language)
-        self.lang_btn.grid(row=0, column=7, padx=(5, 0))
+        self.connect_btn.grid(row=0, column=8, padx=(10, 0))
         
         # 配置连接框架的列权重
-        connection_frame.columnconfigure(1, weight=1)
-        connection_frame.columnconfigure(3, weight=1)
-        connection_frame.columnconfigure(5, weight=1)
+        self.connection_frame.columnconfigure(1, weight=1)
+        self.connection_frame.columnconfigure(3, weight=1)
+        self.connection_frame.columnconfigure(5, weight=1)
         
         # 消息发送框架
         message_frame = ttk.LabelFrame(main_frame, text="消息发送", padding="5")
@@ -161,7 +173,7 @@ class VRChatOSCGUI:
         voice_frame = ttk.Frame(message_frame)
         voice_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
         
-        # 语言和设备选择在同一行
+        # 第一行：语言选择、设备选择、开始监听、上传语音
         ttk.Label(voice_frame, text="识别语言:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         language_combo = ttk.Combobox(voice_frame, textvariable=self.language_var, 
                                     values=["zh-CN", "ja-JP"], 
@@ -174,24 +186,13 @@ class VRChatOSCGUI:
                                    width=10, state="readonly")
         device_combo.grid(row=0, column=3, padx=(0, 10))
         
-        # 语音按钮（第二行）
-        self.record_btn = ttk.Button(voice_frame, text="录制语音", command=self.record_voice)
-        self.record_btn.grid(row=1, column=0, padx=(0, 5))
-        
+        # 开始监听按钮
         self.listen_btn = ttk.Button(voice_frame, text="开始监听", command=self.toggle_voice_listening)
-        self.listen_btn.grid(row=1, column=1, padx=(0, 5))
+        self.listen_btn.grid(row=0, column=4, padx=(10, 5))
         
         # 语音文件上传按钮
         self.upload_voice_btn = ttk.Button(voice_frame, text="上传语音", command=self.upload_voice_file)
-        self.upload_voice_btn.grid(row=1, column=2, padx=(0, 5))
-        
-        # 发送语音按钮
-        self.send_voice_btn = ttk.Button(voice_frame, text="发送语音", command=self.send_voice)
-        self.send_voice_btn.grid(row=1, column=3, padx=(0, 5))
-        
-        # 停止录制按钮（第三行）
-        self.stop_record_btn = ttk.Button(voice_frame, text="停止录制", command=self.stop_recording)
-        self.stop_record_btn.grid(row=2, column=0, pady=(5, 0), padx=(0, 5))
+        self.upload_voice_btn.grid(row=0, column=5, padx=(0, 5))
         
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
@@ -370,26 +371,22 @@ class VRChatOSCGUI:
         self.is_connected = connected
         
         if connected:
-            self.connect_btn.config(text="断开")
+            self.connect_btn.config(text=self.get_text("disconnect"))
             self.status_label.config(text="已连接", foreground="green")
             # 启用功能按钮
-            self.record_btn.config(state="normal")
             self.listen_btn.config(state="normal")
-            self.send_voice_btn.config(state="normal")
-            self.stop_record_btn.config(state="normal")
+            self.upload_voice_btn.config(state="normal")
         else:
-            self.connect_btn.config(text="连接")
+            self.connect_btn.config(text=self.get_text("connect"))
             self.status_label.config(text="未连接", foreground="red")
             # 禁用功能按钮
-            self.record_btn.config(state="disabled")
             self.listen_btn.config(state="disabled")
-            self.send_voice_btn.config(state="disabled")
-            self.stop_record_btn.config(state="disabled")
+            self.upload_voice_btn.config(state="disabled")
             
             # 停止语音监听
             if self.is_listening:
                 self.is_listening = False
-                self.listen_btn.config(text="开始监听")
+                self.listen_btn.config(text=self.get_text("start_listening"))
     
     def toggle_connection(self):
         """切换连接状态"""
@@ -517,36 +514,6 @@ class VRChatOSCGUI:
             messagebox.showerror("发送错误", f"发送消息失败: {e}")
             self.log(f"发送消息失败: {e}")
     
-    def record_voice(self):
-        """录制语音"""
-        if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
-            return
-        
-        def record_thread():
-            try:
-                self.root.after(0, lambda: self.record_btn.config(text="录制中...", state="disabled"))
-                self.log("开始录制语音...")
-                
-                text = self.client.record_and_recognize(5, self.language_var.get())
-                
-                if text:
-                    # 显示在语音识别输出框
-                    self.add_speech_output(text, "录制语音")
-                    # 发送到VRChat
-                    self.client.send_text_message(f"[语音] {text}")
-                    # 记录到日志
-                    self.log(f"[语音识别] {text}")
-                else:
-                    self.log("语音识别失败")
-                
-            except Exception as e:
-                self.log(f"录制语音失败: {e}")
-            finally:
-                self.root.after(0, lambda: self.record_btn.config(text="录制语音", state="normal"))
-        
-        threading.Thread(target=record_thread, daemon=True).start()
-    
     def toggle_voice_listening(self):
         """切换语音监听状态"""
         if not self.is_connected:
@@ -666,63 +633,6 @@ class VRChatOSCGUI:
         # 这个方法现在主要用于兼容性，实际显示已经在各个回调中处理
         pass
     
-    def send_voice(self):
-        """发送语音到VRChat"""
-        if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
-            return
-        
-        def send_voice_thread():
-            try:
-                # 优先使用上传的音频文件
-                if self.uploaded_audio_data is not None:
-                    self.root.after(0, lambda: self.send_voice_btn.config(text="识别中...", state="disabled"))
-                    self.log(f"开始识别上传的音频文件: {self.uploaded_filename}")
-                    
-                    # 识别上传的音频文件
-                    text = self.client.speech_engine.recognize_audio(
-                        self.uploaded_audio_data, self.uploaded_audio_sample_rate, self.language_var.get()
-                    )
-                    
-                    if text:
-                        # 显示在语音识别输出框
-                        self.add_speech_output(text, f"文件: {self.uploaded_filename}")
-                        # 发送到VRChat
-                        self.client.send_text_message(f"[语音文件] {text}")
-                        # 记录到日志
-                        self.log(f"语音文件识别并发送: {text}")
-                        
-                        # 清除已发送的上传文件
-                        self.uploaded_audio_data = None
-                        self.uploaded_audio_sample_rate = None
-                        self.uploaded_filename = None
-                    else:
-                        self.log("语音文件识别失败")
-                else:
-                    # 使用录制功能
-                    self.root.after(0, lambda: self.send_voice_btn.config(text="录制中...", state="disabled"))
-                    self.log("开始录制并发送语音到VRChat...")
-                    
-                    text = self.client.record_and_recognize(5, self.language_var.get())
-                    if text:
-                        # 显示在语音识别输出框
-                        self.add_speech_output(text, "发送语音")
-                        # 发送到VRChat
-                        self.client.send_text_message(f"[语音] {text}")
-                        # 记录到日志
-                        self.log(f"语音识别并发送: {text}")
-                    else:
-                        self.log("语音识别失败")
-                
-            except Exception as e:
-                self.log(f"发送语音失败: {e}")
-                messagebox.showerror("语音错误", f"发送语音失败: {e}")
-            finally:
-                self.root.after(0, lambda: self.send_voice_btn.config(text="发送语音", state="normal"))
-        
-        threading.Thread(target=send_voice_thread, daemon=True).start()
-    
-    
     def update_voice_threshold(self, value):
         """更新语音阈值"""
         threshold = float(value)
@@ -730,19 +640,6 @@ class VRChatOSCGUI:
             self.client.set_voice_threshold(threshold)
         self.threshold_label.config(text=f"{threshold:.3f}")
         self.log(f"语音阈值已设置为: {threshold:.3f}")
-    
-    def stop_recording(self):
-        """停止当前录制"""
-        if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
-            return
-        
-        try:
-            self.client.stop_current_recording()
-            self.log("已发送停止录制信号")
-        except Exception as e:
-            self.log(f"停止录制失败: {e}")
-            messagebox.showerror("错误", f"停止录制失败: {e}")
     
     def on_closing(self):
         """窗口关闭事件处理"""
@@ -799,28 +696,65 @@ class VRChatOSCGUI:
             self.log(f"✅ 音频文件加载成功: {self.uploaded_filename}")
             self.log(f"   时长: {duration:.2f}秒, 采样率: {sample_rate}Hz")
             
-            # 更新发送语音按钮文本
-            self.send_voice_btn.config(text=f"发送 {self.uploaded_filename[:10]}...")
+            # 直接识别并发送音频文件
+            self.log(f"开始识别音频文件: {self.uploaded_filename}")
+            
+            def recognize_and_send():
+                try:
+                    # 识别音频文件
+                    text = self.client.speech_engine.recognize_audio(
+                        audio_data, sample_rate, self.language_var.get()
+                    )
+                    
+                    if text and text.strip():
+                        # 显示在语音识别输出框
+                        self.add_speech_output(text, f"文件: {self.uploaded_filename}")
+                        # 发送到VRChat
+                        self.client.send_text_message(f"[音频文件] {text}")
+                        # 记录到日志
+                        self.log(f"✅ 音频文件识别并发送: {text}")
+                    else:
+                        self.log("❌ 音频文件识别失败")
+                        
+                except Exception as e:
+                    self.log(f"❌ 音频文件识别出错: {e}")
+                    messagebox.showerror("识别错误", f"音频识别失败: {e}")
+            
+            # 在后台线程中进行识别
+            threading.Thread(target=recognize_and_send, daemon=True).start()
             
         except Exception as e:
             self.log(f"❌ 音频文件加载失败: {e}")
             messagebox.showerror("文件错误", f"无法加载音频文件: {e}")
     
-    def change_ui_language(self):
-        """切换界面语言"""
-        # 切换语言
-        current = self.ui_language.get()
-        new_lang = "ja" if current == "zh" else "zh"
-        self.ui_language.set(new_lang)
+    def on_language_changed(self, event=None):
+        """语言选择框改变事件"""
+        selected_display = self.ui_language_display.get()
+        selected_lang = self.language_map.get(selected_display, "zh")
+        
+        # 更新内部语言变量
+        self.ui_language.set(selected_lang)
         
         # 更新窗口标题
         self.root.title(self.get_text("title"))
         
-        # 重新设置UI文本（这里只更新主要标签）
+        # 更新界面文本
         self.connection_frame.config(text=self.get_text("connection_settings"))
-        # 可以添加更多UI元素的更新...
         
-        self.log(f"界面语言已切换为: {'中文' if new_lang == 'zh' else '日本語'}")
+        # 更新连接按钮文本
+        if self.is_connected:
+            self.connect_btn.config(text=self.get_text("disconnect"))
+        else:
+            self.connect_btn.config(text=self.get_text("connect"))
+            
+        # 更新监听按钮文本
+        if self.is_listening:
+            self.listen_btn.config(text=self.get_text("stop_listening"))
+        else:
+            self.listen_btn.config(text=self.get_text("start_listening"))
+        
+        # 记录语言切换
+        self.log(f"界面语言已切换为: {selected_display}")
     
     def run(self):
         """运行GUI"""
