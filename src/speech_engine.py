@@ -38,6 +38,9 @@ class SpeechEngine:
         self.max_speech_duration = 10.0  # 最大语音持续时间(秒)
         self.silence_duration = 1.0  # 静音持续时间后停止录制(秒)
         
+        # 录制控制标志
+        self.force_stop_recording = False
+        
         self._load_whisper_model()
     
     def _detect_device(self, device: str) -> str:
@@ -90,6 +93,11 @@ class SpeechEngine:
     def set_voice_threshold(self, threshold: float):
         """设置语音激活阈值"""
         self.voice_threshold = threshold
+    
+    def stop_recording(self):
+        """强制停止当前录制"""
+        self.force_stop_recording = True
+        print("用户手动停止录制")
     
     def detect_voice_activity(self, audio_data: np.ndarray) -> bool:
         """
@@ -226,6 +234,9 @@ class SpeechEngine:
         try:
             print("开始动态语音录制...")
             
+            # 重置强制停止标志
+            self.force_stop_recording = False
+            
             # 创建音频数据队列
             audio_queue = queue.Queue()
             recording = True
@@ -256,6 +267,11 @@ class SpeechEngine:
                 
                 while recording and len(audio_chunks) < max_chunks:
                     try:
+                        # 检查强制停止信号
+                        if self.force_stop_recording:
+                            print("收到停止录制信号，结束录制")
+                            break
+                        
                         # 获取音频块
                         chunk = audio_queue.get(timeout=0.1)
                         chunk_flat = chunk.flatten()
@@ -265,13 +281,19 @@ class SpeechEngine:
                         
                         if has_voice:
                             if not speech_started:
-                                print("检测到语音，开始录制...")
+                                print("检测到语音活动，开始录制...")
                                 speech_started = True
                             silence_chunks = 0
                             speech_chunks += 1
+                            # 显示录制进度
+                            if speech_chunks % 10 == 0:  # 每1秒显示一次
+                                print(f"录制中... ({speech_chunks * 0.1:.1f}秒)")
                         else:
                             if speech_started:
                                 silence_chunks += 1
+                                # 显示静音检测
+                                if silence_chunks == 1:
+                                    print("检测到静音，等待语音结束确认...")
                         
                         # 如果已经开始说话，保存音频块
                         if speech_started:

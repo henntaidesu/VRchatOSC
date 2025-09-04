@@ -122,6 +122,10 @@ class VRChatOSCGUI:
         self.send_voice_btn = ttk.Button(voice_frame, text="发送语音", command=self.send_voice)
         self.send_voice_btn.grid(row=1, column=2, padx=(0, 5))
         
+        # 停止录制按钮
+        self.stop_record_btn = ttk.Button(voice_frame, text="停止录制", command=self.stop_recording)
+        self.stop_record_btn.grid(row=1, column=3, padx=(0, 5))
+        
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
         threshold_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
@@ -300,6 +304,7 @@ class VRChatOSCGUI:
             self.record_btn.config(state="normal")
             self.listen_btn.config(state="normal")
             self.send_voice_btn.config(state="normal")
+            self.stop_record_btn.config(state="normal")
         else:
             self.connect_btn.config(text="连接")
             self.status_label.config(text="未连接", foreground="red")
@@ -307,6 +312,7 @@ class VRChatOSCGUI:
             self.record_btn.config(state="disabled")
             self.listen_btn.config(state="disabled")
             self.send_voice_btn.config(state="disabled")
+            self.stop_record_btn.config(state="disabled")
             
             # 停止语音监听
             if self.is_listening:
@@ -565,6 +571,19 @@ class VRChatOSCGUI:
             self.client.set_voice_threshold(threshold)
         self.threshold_label.config(text=f"{threshold:.3f}")
         self.log(f"语音阈值已设置为: {threshold:.3f}")
+    
+    def stop_recording(self):
+        """停止当前录制"""
+        if not self.is_connected:
+            messagebox.showwarning("警告", "请先连接到VRChat")
+            return
+        
+        try:
+            self.client.stop_current_recording()
+            self.log("已发送停止录制信号")
+        except Exception as e:
+            self.log(f"停止录制失败: {e}")
+            messagebox.showerror("错误", f"停止录制失败: {e}")
     
     def on_closing(self):
         """窗口关闭事件处理"""

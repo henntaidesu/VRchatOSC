@@ -156,6 +156,8 @@ class VRChatController:
                     print("录制失败，继续监听...")
                     time.sleep(0.1)
                     continue
+                else:
+                    print(f"音频录制完成，音频时长: {len(audio_data)/16000:.2f}秒")
                 
                 last_recognition_time = current_time
                 
@@ -216,6 +218,10 @@ class VRChatController:
     def set_voice_threshold(self, threshold: float):
         """设置语音激活阈值"""
         self.speech_engine.set_voice_threshold(threshold)
+    
+    def stop_current_recording(self):
+        """停止当前录制"""
+        self.speech_engine.stop_recording()
     
     def get_status(self) -> dict:
         """获取当前状态"""
