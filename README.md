@@ -1,198 +1,259 @@
-# VRChat OSC 通信工具
+# VRChat OSC 语音识别通信工具
 
-一个用于与VRChat进行OSC通信的Python程序，支持文字和语音消息传输。
+一个功能强大的VRChat OSC通信程序，专为实时语音识别和智能语音交互设计。支持中日双语识别，具备智能断句、多模式录制和完善的调试功能。
 
-## 功能特性
+## ✨ 核心特性
 
-- ✅ **文字消息发送**: 向VRChat聊天框发送文字消息
-- ✅ **语音识别**: 录制语音并转换为文字发送到VRChat
-- ✅ **持续语音监听**: 实时语音识别和发送
-- ✅ **Avatar参数控制**: 发送和接收Avatar参数
-- ✅ **图形界面**: 基于Tkinter的用户友好界面
-- ✅ **命令行界面**: 支持命令行操作
-- ✅ **多语言支持**: 支持中文、英文、日文语音识别
+### 🎤 智能语音识别
+- **实时语音监听**: 基于VRChat语音状态的智能语音检测
+- **智能断句**: 自动检测语音停顿，避免录制过长或过短
+- **多语言支持**: 中文（zh-CN）和日语（ja-JP）语音识别
+- **GPU加速**: 支持CUDA加速的Whisper模型推理
+- **多模式录制**: VRChat状态检测 + 纯音频检测双重保障
 
-## 安装要求
+### 🎛️ 高级控制功能
+- **OSC调试模式**: 实时监控VRChat发送的OSC参数
+- **录制模式选择**: 正常模式、强制备用模式、禁用备用模式
+- **实时参数调节**: 语音阈值、断句间隔可实时调整
+- **连接诊断**: 自动诊断OSC连接问题并提供解决方案
+- **详细状态显示**: 完整的系统状态和调试信息
 
-### 系统要求
-- Python 3.7 或更高版本
-- Windows/macOS/Linux
-- 麦克风（用于语音功能）
-- VRChat游戏
+### 💬 通信功能
+- **聊天消息发送**: 文字和语音消息发送到VRChat
+- **Avatar参数控制**: 双向OSC参数通信
+- **实时状态监控**: 监听VRChat语音状态变化
+- **多语言界面**: 支持中文和日语界面
 
-### 依赖库安装
+## 🛠️ 系统要求
 
-1. 首先克隆或下载这个项目到本地
-2. 在项目目录中打开命令行/终端
-3. 安装Python依赖：
+### 基本要求
+- **Python**: 3.7+ 
+- **操作系统**: Windows/macOS/Linux
+- **硬件**: 麦克风、推荐4GB+内存
+- **软件**: VRChat游戏客户端
 
+### GPU支持（可选）
+- **NVIDIA GPU**: 支持CUDA的显卡（推荐用于加速）
+- **显存**: 建议2GB+用于语音模型加载
+
+## 📦 安装指南
+
+### 1. 获取项目
+```bash
+git clone <repository-url>
+cd VRchatOSC
+```
+
+### 2. 安装依赖
 ```bash
 pip install -r requirements.txt
 ```
 
-### 特殊依赖说明
+### 3. 平台特殊设置
 
-#### Windows用户
-如果安装`pyaudio`时遇到问题，可以：
-1. 下载对应版本的wheel文件：https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio
-2. 使用pip安装：`pip install pyaudio-0.2.11-cp39-cp39-win_amd64.whl`
+#### Windows
+如果遇到PyAudio安装问题：
+```bash
+pip install pipwin
+pipwin install pyaudio
+```
 
-#### macOS用户
+#### macOS
 ```bash
 brew install portaudio
 pip install pyaudio
 ```
 
-#### Linux用户
+#### Linux (Ubuntu/Debian)
 ```bash
-# Ubuntu/Debian
 sudo apt-get install portaudio19-dev python3-pyaudio
-
-# CentOS/RHEL
-sudo yum install portaudio-devel
+pip install pyaudio
 ```
 
-## VRChat OSC 设置
+## ⚙️ VRChat OSC 配置
 
-### 启用OSC功能
+### VRChat 设置
 1. 启动VRChat
-2. 进入设置（Settings）
-3. 找到"OSC"选项
-4. 启用"Enabled"
-5. 确认端口设置：
-   - **Incoming Port**: 9000 (VRChat接收消息的端口)
-   - **Outgoing Port**: 9001 (VRChat发送消息的端口)
+2. 进入 **Settings** → **OSC**
+3. 启用 **"Enabled"**
+4. 确认端口设置：
+   - **Incoming**: 9000
+   - **Outgoing**: 9001
+5. **重启VRChat**（重要！）
 
-### 聊天框权限
-确保你的VRChat账户有聊天权限：
-- 需要VRChat账户不是"Visitor"等级
-- 确保没有被静音或限制聊天
+### 账户要求
+- VRChat账户等级需要为 **"New User"** 及以上
+- 确保有聊天权限（未被静音）
 
-## 使用方法
+## 🚀 使用方法
 
 ### 图形界面模式（推荐）
 
-运行GUI版本：
 ```bash
-python vrchat_osc_gui.py
+python ui/vrchat_osc_gui.py
 ```
 
-#### GUI功能说明：
-1. **连接设置**: 
-   - 主机地址：通常为127.0.0.1
-   - 发送端口：9000（发送到VRChat）
-   - 接收端口：9001（从VRChat接收）
+#### 界面说明
 
-2. **消息发送**:
-   - 在文本框中输入消息，点击"发送文字"或按回车键
-   - 选择语言后点击"录制语音"进行5秒录音
-   - 点击"开始监听"进行持续语音识别
+##### 连接设置
+- **主机地址**: 127.0.0.1（本地）
+- **发送端口**: 9000（发送到VRChat）
+- **接收端口**: 9001（从VRChat接收）
+- **界面语言**: 中文/日本語切换
 
-3. **Avatar参数**:
-   - 输入参数名和值，点击"发送参数"
+##### 消息发送
+- **文字消息**: 直接输入发送或按回车
+- **语音文件**: 上传音频文件自动识别发送
+- **实时监听**: 点击"开始监听"进行持续语音识别
 
-### 命令行模式
+##### 高级设置
+- **OSC调试模式**: 查看实际接收的VRChat参数
+- **强制备用模式**: 强制使用纯音频检测（不依赖VRChat）
+- **禁用备用模式**: 只使用VRChat语音状态（默认启用）
+- **语音阈值**: 调节语音检测灵敏度（0.005-0.05）
+- **断句间隔**: 调节自动断句检测时间（0.2-1.0秒）
 
-#### 交互模式
-```bash
-python vrchat_osc_client.py --mode interactive
+##### 参数控制
+- **Avatar参数**: 发送自定义参数到VRChat Avatar
+- **实时监控**: 接收并显示VRChat发送的参数变化
+
+## 🔧 录制模式详解
+
+### 1. 正常模式（默认）
+- 等待VRChat发送语音状态参数
+- 只在检测到VRChat语音活动时录制
+- 最精准，避免误录制环境音
+
+### 2. 备用模式（自动切换）
+- 30秒内未收到VRChat参数时自动启用
+- 使用纯音频能量检测
+- 确保在VRChat OSC异常时仍可工作
+- **默认禁用**，可在设置中启用
+
+### 3. 强制备用模式
+- 手动启用纯音频检测
+- 不依赖VRChat状态
+- 适用于VRChat OSC功能异常时
+
+## 🎯 智能断句技术
+
+### 检测算法
+- **多指标分析**: 结合RMS能量、过零率、频谱分析
+- **动态阈值**: 根据语音长度调整停止条件
+- **置信度评估**: 句子边界检测置信度计算
+- **实时反馈**: 显示断句检测状态和置信度
+
+### 参数调节
+- **断句间隔**: 控制句子间停顿检测时间
+- **语音阈值**: 调整语音活动检测灵敏度
+- **最大录制时长**: 防止录制过长（8秒）
+- **最小语音时长**: 确保有效语音（0.3秒）
+
+## 🛠️ 故障排除
+
+### 常见问题诊断
+
+#### 1. 无法检测到VRChat语音
+**症状**: 系统显示"等待VRChat语音参数"
+
+**解决方案**:
+1. 启用"OSC调试模式"查看接收参数
+2. 确认VRChat OSC设置已启用
+3. 重启VRChat应用程序
+4. 检查防火墙是否阻止UDP通信
+5. 尝试切换到"强制备用模式"
+
+#### 2. 语音识别不准确
+**可能原因**:
+- 环境噪音过大
+- 麦克风音量不当
+- 语言设置错误
+
+**解决方案**:
+1. 调整语音阈值设置
+2. 检查麦克风设备和音量
+3. 确认选择正确的识别语言
+4. 在安静环境中测试
+
+#### 3. 录制时间过长/过短
+**解决方案**:
+1. 调整"断句间隔"设置
+2. 修改语音阈值
+3. 检查VRChat语音状态检测
+
+#### 4. 程序连接失败
+**解决方案**:
+1. 确认VRChat正在运行
+2. 检查端口9000/9001是否被占用
+3. 临时关闭防火墙测试
+4. 查看"显示状态"获取详细诊断
+
+### 使用调试功能
+
+#### 状态诊断
+点击"显示状态"按钮查看：
+- OSC连接状态
+- VRChat参数接收情况  
+- 语音引擎状态
+- 系统配置信息
+- 连接诊断建议
+
+#### OSC调试模式
+启用后可查看：
+- 实时接收的OSC参数
+- 参数名称和数值
+- VRChat语音状态变化
+
+## 📁 项目结构
+
 ```
-支持的命令：
-- `text <消息>` - 发送文字消息
-- `voice` - 录制并发送语音消息  
-- `listen` - 开始/停止持续语音识别
-- `param <名称> <值>` - 发送Avatar参数
-- `quit` - 退出程序
-
-#### 文字模式
-```bash
-# 发送单条消息
-python vrchat_osc_client.py --mode text --message "Hello VRChat!"
-
-# 交互式文字输入
-python vrchat_osc_client.py --mode text
+VRchatOSC/
+├── ui/
+│   └── vrchat_osc_gui.py          # 图形用户界面
+├── src/
+│   ├── vrchat_controller.py       # VRChat控制器
+│   ├── osc_client.py              # OSC客户端
+│   └── voice/
+│       └── engine.py              # 语音识别引擎
+├── requirements.txt               # 依赖列表
+└── README.md                     # 项目说明
 ```
 
-#### 语音模式
-```bash
-python vrchat_osc_client.py --mode voice --language zh-CN
+## 🔧 技术架构
+
+### 语音处理流程
+1. **音频采集**: 实时麦克风音频流
+2. **语音检测**: 多指标语音活动检测
+3. **动态录制**: 智能开始/结束判断
+4. **断句分析**: AI断句边界检测
+5. **语音识别**: Whisper模型转文字
+6. **消息发送**: OSC协议发送至VRChat
+
+### OSC通信协议
+
+#### 发送消息
+```python
+/chatbox/input [message, send_immediately, show_in_chatbox]
+/avatar/parameters/{param_name} [value]
 ```
 
-#### 自定义设置
-```bash
-python vrchat_osc_client.py --host 127.0.0.1 --send-port 9000 --receive-port 9001 --language en-US
+#### 接收消息
+```python
+/avatar/parameters/Voice [float]          # 语音强度
+/avatar/parameters/VoiceLevel [float]     # 语音级别  
+/avatar/parameters/Viseme [int]           # 口型参数
+# 以及其他Avatar自定义参数
 ```
 
-## 语言支持
+### 性能优化
+- **GPU加速**: CUDA支持的Whisper推理
+- **多线程**: 异步音频处理和识别
+- **内存管理**: 动态音频缓冲区管理
+- **智能缓存**: 模型加载和参数缓存
 
-支持的语音识别语言：
-- `zh-CN`: 中文（简体）
-- `ja-JP`: 日语
+## 📄 许可证
 
+MIT License - 可自由使用、修改和分发
+---
 
-## 常见问题
-
-### 1. 连接失败
-- 确保VRChat正在运行并启用了OSC
-- 检查端口设置是否正确
-- 确认防火墙没有阻止程序
-
-### 2. 语音识别不工作
-- 检查麦克风权限
-- 确保网络连接正常（需要访问Google语音识别服务）
-- 尝试调整麦克风音量
-
-### 3. 消息不显示在VRChat中
-- 确保VRChat账户有聊天权限
-- 检查OSC端口设置
-- 重启VRChat和程序
-
-### 4. Avatar参数不生效
-- 确保参数名称与Avatar中定义的一致
-- 检查参数值类型（bool/int/float）
-- 确保Avatar支持OSC参数控制
-
-## 文件说明
-
-- `vrchat_osc_client.py` - 核心OSC客户端类和命令行界面
-- `vrchat_osc_gui.py` - 图形用户界面
-- `requirements.txt` - Python依赖库列表
-- `README.md` - 本说明文档
-
-## 技术细节
-
-### OSC消息格式
-
-#### 发送到VRChat的消息：
-- `/chatbox/input` - 聊天框消息: `[message, send_immediately, show_in_chatbox]`
-- `/chatbox/typing` - 打字状态: `[boolean]`
-- `/avatar/parameters/{param_name}` - Avatar参数: `[value]`
-
-#### 从VRChat接收的消息：
-- `/chatbox/input` - 聊天框输入
-- `/chatbox/typing` - 打字状态
-- `/avatar/parameters/*` - Avatar参数变化
-
-### 网络配置
-- 默认发送端口: 9000 (UDP)
-- 默认接收端口: 9001 (UDP)
-- 协议: OSC (Open Sound Control)
-
-## 贡献和支持
-
-如果你遇到问题或想要贡献代码：
-1. 检查现有的Issues
-2. 创建详细的Bug报告
-3. 提交Pull Request
-
-## 许可证
-
-MIT License - 可自由使用和修改
-
-## 更新日志
-
-### v1.0.0
-- 初始版本发布
-- 支持文字和语音消息发送
-- 图形界面和命令行界面
-- Avatar参数控制功能
+**享受在VRChat中的智能语音交流体验！** 🎉

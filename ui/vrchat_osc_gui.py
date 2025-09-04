@@ -211,7 +211,7 @@ class VRChatOSCGUI:
         fallback_check.grid(row=0, column=1, padx=(0, 10))
         
         # 禁用备用模式开关
-        self.disable_fallback_var = tk.BooleanVar(value=False)
+        self.disable_fallback_var = tk.BooleanVar(value=True)  # 默认禁用备用模式
         disable_fallback_check = ttk.Checkbutton(debug_frame, text="禁用备用模式", 
                                                  variable=self.disable_fallback_var, command=self.toggle_disable_fallback_mode)
         disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
@@ -458,6 +458,10 @@ class VRChatOSCGUI:
                     # 设置回调函数
                     self.client.set_status_change_callback(self.on_status_change)
                     self.client.set_voice_result_callback(self.on_voice_result)
+                    
+                    # 应用默认设置
+                    if hasattr(self.client, 'set_disable_fallback_mode'):
+                        self.client.set_disable_fallback_mode(self.disable_fallback_var.get())
                     
                     # 启动服务器
                     success = self.client.start_osc_server()
