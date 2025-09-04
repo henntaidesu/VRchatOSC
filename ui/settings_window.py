@@ -50,7 +50,7 @@ class SettingsWindow:
     
     def _backup_config(self):
         """备份当前配置"""
-        sections = ['OSC', 'Voice', 'Recording', 'Modes', 'Interface', 'Advanced']
+        sections = ['OSC', 'Voice', 'Recording', 'Modes', 'Interface', 'Advanced', 'LLM']
         for section in sections:
             self.original_config[section] = self.config.get_section(section)
     
@@ -71,6 +71,7 @@ class SettingsWindow:
         self.create_modes_tab()
         self.create_interface_tab()
         self.create_advanced_tab()
+        self.create_llm_tab()
         
         # 按钮框架
         button_frame = ttk.Frame(main_frame)
@@ -387,6 +388,15 @@ class SettingsWindow:
         # 高级设置
         self.config.set('Advanced', 'energy_drop_ratio', self.energy_drop_var.get())
         self.config.set('Advanced', 'recognition_interval', self.recognition_interval_var.get())
+        
+        # LLM设置
+        self.config.set('LLM', 'gemini_api_key', self.gemini_api_key_var.get())
+        self.config.set('LLM', 'gemini_model', self.gemini_model_var.get())
+        self.config.set('LLM', 'enable_llm', self.enable_llm_var.get())
+        self.config.set('LLM', 'temperature', self.temperature_var.get())
+        self.config.set('LLM', 'max_output_tokens', int(self.max_tokens_var.get()))
+        self.config.set('LLM', 'conversation_history_length', int(self.history_length_var.get()))
+        self.config.set('LLM', 'system_prompt', self.system_prompt_var.get())
     
     def restore_defaults(self):
         """恢复默认设置"""
@@ -395,6 +405,153 @@ class SettingsWindow:
             self.config._create_default_config()
             messagebox.showinfo("成功", "已恢复默认设置，请重新打开设置窗口查看")
             self.window.destroy()
+    
+    def create_llm_tab(self):
+        """创建LLM设置选项卡"""
+        llm_frame = ttk.Frame(self.notebook)
+        self.notebook.add(llm_frame, text="LLM设置")
+        
+        # 创建滚动框架
+        canvas = tk.Canvas(llm_frame)
+        scrollbar = ttk.Scrollbar(llm_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 启用LLM功能
+        row = 0
+        ttk.Label(scrollable_frame, text="启用LLM功能:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        self.enable_llm_var = tk.BooleanVar(value=self.config.enable_llm)
+        ttk.Checkbutton(scrollable_frame, variable=self.enable_llm_var).grid(row=row, column=1, sticky=tk.W, padx=10, pady=5)
+        
+        # API Key设置
+        row += 1
+        ttk.Label(scrollable_frame, text="Gemini API Key:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        self.gemini_api_key_var = tk.StringVar(value=self.config.gemini_api_key)
+        api_key_entry = ttk.Entry(scrollable_frame, textvariable=self.gemini_api_key_var, width=40, show="*")
+        api_key_entry.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5, columnspan=2)
+        
+        # 显示/隐藏API Key按钮
+        row += 1
+        def toggle_api_key_visibility():
+            if api_key_entry.cget('show') == '*':
+                api_key_entry.config(show='')
+                show_hide_btn.config(text="隐藏")
+            else:
+                api_key_entry.config(show='*')
+                show_hide_btn.config(text="显示")
+        
+        show_hide_btn = ttk.Button(scrollable_frame, text="显示", command=toggle_api_key_visibility)
+        show_hide_btn.grid(row=row, column=1, sticky=tk.W, padx=10, pady=2)
+        
+        # 模型选择
+        row += 1
+        ttk.Label(scrollable_frame, text="Gemini模型:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        self.gemini_model_var = tk.StringVar(value=self.config.gemini_model)
+        model_combo = ttk.Combobox(scrollable_frame, textvariable=self.gemini_model_var, width=25, state="readonly")
+        model_combo['values'] = [
+            'gemini-1.5-flash',
+            'gemini-1.5-pro',
+            'gemini-1.0-pro'
+        ]
+        model_combo.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
+        
+        # 温度参数
+        row += 1
+        ttk.Label(scrollable_frame, text="Temperature (0.0-1.0):").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        self.temperature_var = tk.DoubleVar(value=self.config.llm_temperature)
+        temp_scale = tk.Scale(scrollable_frame, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, 
+                             variable=self.temperature_var, length=200)
+        temp_scale.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
+        
+        # 最大输出长度
+        row += 1
+        ttk.Label(scrollable_frame, text="最大输出长度:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        self.max_tokens_var = tk.StringVar(value=str(self.config.llm_max_output_tokens))
+        ttk.Entry(scrollable_frame, textvariable=self.max_tokens_var, width=20).grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
+        
+        # 对话历史长度
+        row += 1
+        ttk.Label(scrollable_frame, text="对话历史长度:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        self.history_length_var = tk.StringVar(value=str(self.config.llm_conversation_history_length))
+        ttk.Entry(scrollable_frame, textvariable=self.history_length_var, width=20).grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
+        
+        # 系统提示词
+        row += 1
+        ttk.Label(scrollable_frame, text="系统提示词:").grid(row=row, column=0, sticky=(tk.W, tk.N), padx=10, pady=5)
+        self.system_prompt_var = tk.StringVar(value=self.config.llm_system_prompt)
+        
+        # 创建文本框用于多行输入
+        text_frame = ttk.Frame(scrollable_frame)
+        text_frame.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5, columnspan=2)
+        
+        system_prompt_text = tk.Text(text_frame, height=4, width=50, wrap=tk.WORD)
+        system_prompt_text.insert('1.0', self.config.llm_system_prompt)
+        system_prompt_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 滚动条
+        text_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=system_prompt_text.yview)
+        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        system_prompt_text.config(yscrollcommand=text_scrollbar.set)
+        
+        # 绑定文本框内容到变量
+        def update_system_prompt(*args):
+            self.system_prompt_var.set(system_prompt_text.get('1.0', tk.END).strip())
+        
+        system_prompt_text.bind('<KeyRelease>', update_system_prompt)
+        
+        # 测试连接按钮
+        row += 1
+        def test_gemini_connection():
+            """测试Gemini连接"""
+            api_key = self.gemini_api_key_var.get().strip()
+            if not api_key:
+                messagebox.showwarning("警告", "请先输入API Key")
+                return
+            
+            try:
+                # 临时创建客户端测试连接
+                from src.llm.GeminiLLM import GeminiClient
+                temp_client = GeminiClient(api_key, self.gemini_model_var.get())
+                
+                if temp_client.test_connection():
+                    messagebox.showinfo("成功", "✅ Gemini API连接测试成功！")
+                else:
+                    messagebox.showerror("失败", "❌ Gemini API连接测试失败，请检查API Key和网络连接")
+            except ImportError:
+                messagebox.showerror("错误", "❌ 无法导入Gemini客户端，请检查代码")
+            except Exception as e:
+                messagebox.showerror("错误", f"❌ 连接测试异常: {e}")
+        
+        test_btn = ttk.Button(scrollable_frame, text="测试连接", command=test_gemini_connection)
+        test_btn.grid(row=row, column=1, sticky=tk.W, padx=10, pady=10)
+        
+        # 添加说明文本
+        row += 1
+        info_text = """
+        📝 LLM功能说明:
+        • 启用后可将语音识别结果发送到Gemini进行智能回复
+        • 需要有效的Google Gemini API Key
+        • Temperature控制回复的创造性 (0.0=保守, 1.0=创新)
+        • 可自定义系统提示词来调整AI的回复风格
+        • 建议使用gemini-1.5-flash模型获得更快响应速度
+        """
+        
+        info_label = ttk.Label(scrollable_frame, text=info_text, justify=tk.LEFT, 
+                              font=("", 9), foreground="gray")
+        info_label.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), padx=10, pady=5)
+        
+        # 配置列权重
+        scrollable_frame.columnconfigure(1, weight=1)
     
     def on_closing(self):
         """窗口关闭事件"""

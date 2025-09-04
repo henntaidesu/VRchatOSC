@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
-from settings_window import SettingsWindow
+from .settings_window import SettingsWindow
 
 
 class VRChatOSCGUI:

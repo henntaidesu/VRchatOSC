@@ -59,6 +59,15 @@ class ConfigManager:
                 'zero_crossing_threshold': '0.3',
                 'recognition_interval': '1.0',
                 'max_failures': '5'
+            },
+            'LLM': {
+                'gemini_api_key': '',
+                'gemini_model': 'gemini-1.5-flash',
+                'enable_llm': 'false',
+                'temperature': '0.7',
+                'max_output_tokens': '2048',
+                'conversation_history_length': '10',
+                'system_prompt': '你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。'
             }
         }
         
@@ -249,6 +258,35 @@ class ConfigManager:
     @property
     def window_height(self) -> int:
         return self.get('Interface', 'window_height')
+    
+    # 便捷方法：LLM配置
+    @property
+    def gemini_api_key(self) -> str:
+        return self.get('LLM', 'gemini_api_key', '')
+    
+    @property
+    def gemini_model(self) -> str:
+        return self.get('LLM', 'gemini_model', 'gemini-1.5-flash')
+    
+    @property
+    def enable_llm(self) -> bool:
+        return self.get('LLM', 'enable_llm', False)
+    
+    @property
+    def llm_temperature(self) -> float:
+        return self.get('LLM', 'temperature', 0.7)
+    
+    @property
+    def llm_max_output_tokens(self) -> int:
+        return self.get('LLM', 'max_output_tokens', 2048)
+    
+    @property
+    def llm_conversation_history_length(self) -> int:
+        return self.get('LLM', 'conversation_history_length', 10)
+    
+    @property
+    def llm_system_prompt(self) -> str:
+        return self.get('LLM', 'system_prompt', '你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。')
 
 
 # 全局配置管理器实例
