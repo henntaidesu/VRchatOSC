@@ -554,10 +554,10 @@ class VRChatOSCGUI:
                 self.client = None
             
             self.update_ui_state(False)
-            self.log("✅ 已断开VRChat连接")
+            self.log("[成功] 已断开VRChat连接")
             
         except Exception as e:
-            self.log(f"❌ 断开连接时出错: {e}")
+            self.log(f"[错误] 断开连接时出错: {e}")
             # 即使出错也要更新UI状态
             self.update_ui_state(False)
     
@@ -759,10 +759,10 @@ class VRChatOSCGUI:
                 self.root.geometry(new_size)
             
             action = "应用" if apply_only else "保存"
-            self.log(f"✅ 设置已{action}并生效")
+            self.log(f"[成功] 设置已{action}并生效")
             
         except Exception as e:
-            self.log(f"❌ 应用设置时出错: {e}")
+            self.log(f"[错误] 应用设置时出错: {e}")
     
     def update_voice_threshold(self, value):
         """更新语音阈值"""
@@ -826,7 +826,7 @@ class VRChatOSCGUI:
             self.uploaded_filename = os.path.basename(file_path)
             
             duration = len(audio_data) / sample_rate
-            self.log(f"✅ 音频文件加载成功: {self.uploaded_filename}")
+            self.log(f"[成功] 音频文件加载成功: {self.uploaded_filename}")
             self.log(f"   时长: {duration:.2f}秒, 采样率: {sample_rate}Hz")
             
             # 直接识别并发送音频文件
@@ -845,19 +845,19 @@ class VRChatOSCGUI:
                         # 发送到VRChat
                         self.client.send_text_message(f"[音频文件] {text}")
                         # 记录到日志
-                        self.log(f"✅ 音频文件识别并发送: {text}")
+                        self.log(f"[成功] 音频文件识别并发送: {text}")
                     else:
-                        self.log("❌ 音频文件识别失败")
+                        self.log("[错误] 音频文件识别失败")
                         
                 except Exception as e:
-                    self.log(f"❌ 音频文件识别出错: {e}")
+                    self.log(f"[错误] 音频文件识别出错: {e}")
                     messagebox.showerror("识别错误", f"音频识别失败: {e}")
             
             # 在后台线程中进行识别
             threading.Thread(target=recognize_and_send, daemon=True).start()
             
         except Exception as e:
-            self.log(f"❌ 音频文件加载失败: {e}")
+            self.log(f"[错误] 音频文件加载失败: {e}")
             messagebox.showerror("文件错误", f"无法加载音频文件: {e}")
     
     def toggle_debug_mode(self):
@@ -978,18 +978,18 @@ class VRChatOSCGUI:
             # VRChat连接诊断
             status_info += "【VRChat连接诊断】\n"
             if diagnosis['status'] == 'working':
-                status_info += "✅ VRChat OSC连接正常\n"
+                status_info += "[成功] VRChat OSC连接正常\n"
             elif diagnosis['status'] == 'no_vrchat_data':
-                status_info += "❌ 未检测到VRChat数据\n"
-                status_info += "\n🔍 可能原因:\n"
+                status_info += "[错误] 未检测到VRChat数据\n"
+                status_info += "\n[搜索] 可能原因:\n"
                 for issue in diagnosis['issues']:
                     status_info += f"• {issue}\n"
-                status_info += "\n💡 建议解决方案:\n"
+                status_info += "\n[建议] 建议解决方案:\n"
                 for suggestion in diagnosis['suggestions']:
                     status_info += f"• {suggestion}\n"
             elif diagnosis['status'] == 'receiving_data_but_no_voice':
-                status_info += "⚠️ 收到VRChat数据但无语音状态\n"
-                status_info += "\n💡 建议:\n"
+                status_info += "[警告] 收到VRChat数据但无语音状态\n"
+                status_info += "\n[建议] 建议:\n"
                 for suggestion in diagnosis['suggestions']:
                     status_info += f"• {suggestion}\n"
             else:

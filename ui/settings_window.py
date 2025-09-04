@@ -524,13 +524,13 @@ class SettingsWindow:
                 temp_client = GeminiClient(api_key, self.gemini_model_var.get())
                 
                 if temp_client.test_connection():
-                    messagebox.showinfo("成功", "✅ Gemini API连接测试成功！")
+                    messagebox.showinfo("成功", "[成功] Gemini API连接测试成功！")
                 else:
-                    messagebox.showerror("失败", "❌ Gemini API连接测试失败，请检查API Key和网络连接")
+                    messagebox.showerror("失败", "[错误] Gemini API连接测试失败，请检查API Key和网络连接")
             except ImportError:
-                messagebox.showerror("错误", "❌ 无法导入Gemini客户端，请检查代码")
+                messagebox.showerror("错误", "[错误] 无法导入Gemini客户端，请检查代码")
             except Exception as e:
-                messagebox.showerror("错误", f"❌ 连接测试异常: {e}")
+                messagebox.showerror("错误", f"[错误] 连接测试异常: {e}")
         
         test_btn = ttk.Button(scrollable_frame, text="测试连接", command=test_gemini_connection)
         test_btn.grid(row=row, column=1, sticky=tk.W, padx=10, pady=10)
@@ -538,7 +538,7 @@ class SettingsWindow:
         # 添加说明文本
         row += 1
         info_text = """
-        📝 LLM功能说明:
+        [日志] LLM功能说明:
         • 启用后可将语音识别结果发送到Gemini进行智能回复
         • 需要有效的Google Gemini API Key
         • Temperature控制回复的创造性 (0.0=保守, 1.0=创新)

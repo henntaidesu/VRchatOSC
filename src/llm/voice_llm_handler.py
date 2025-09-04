@@ -67,19 +67,19 @@ class VoiceLLMHandler:
         # 初始化LLM客户端
         self._init_llm_client()
         
-        print("✅ 语音LLM处理器初始化完成")
+        print("[成功] 语音LLM处理器初始化完成")
     
     def _init_llm_client(self):
         """初始化LLM客户端"""
         try:
             if not self.config:
-                print("⚠️ 没有配置管理器，无法初始化LLM客户端")
+                print("[警告] 没有配置管理器，无法初始化LLM客户端")
                 return
             
             # 从配置获取API Key
             api_key = self.config.get('LLM', 'gemini_api_key')
             if not api_key:
-                print("⚠️ 未配置Gemini API Key，LLM功能不可用")
+                print("[警告] 未配置Gemini API Key，LLM功能不可用")
                 return
             
             # 获取模型配置
@@ -94,13 +94,13 @@ class VoiceLLMHandler:
             
             # 测试连接
             if self.gemini_client.test_connection():
-                print("✅ Gemini客户端连接测试成功")
+                print("[成功] Gemini客户端连接测试成功")
             else:
-                print("❌ Gemini客户端连接测试失败")
+                print("[错误] Gemini客户端连接测试失败")
                 self.gemini_client = None
                 
         except Exception as e:
-            print(f"❌ 初始化LLM客户端失败: {e}")
+            print(f"[错误] 初始化LLM客户端失败: {e}")
             import traceback
             traceback.print_exc()
             self.gemini_client = None
@@ -113,22 +113,22 @@ class VoiceLLMHandler:
             callback: 响应回调函数，接收VoiceLLMResponse参数
         """
         self.response_callback = callback
-        print("✅ 已设置响应回调函数")
+        print("[成功] 已设置响应回调函数")
     
     def start_processing(self):
         """开始处理请求队列"""
         if self.is_running:
-            print("⚠️ 处理器已在运行中")
+            print("[警告] 处理器已在运行中")
             return
         
         if not self.gemini_client:
-            print("❌ LLM客户端未初始化，无法开始处理")
+            print("[错误] LLM客户端未初始化，无法开始处理")
             return
         
         self.is_running = True
         self.processing_thread = threading.Thread(target=self._processing_loop, daemon=True)
         self.processing_thread.start()
-        print("✅ 语音LLM处理器已启动")
+        print("[成功] 语音LLM处理器已启动")
     
     def stop_processing(self):
         """停止处理请求队列"""
@@ -138,7 +138,7 @@ class VoiceLLMHandler:
         self.is_running = False
         if self.processing_thread:
             self.processing_thread.join(timeout=5.0)
-        print("⏹️ 语音LLM处理器已停止")
+        print("[停止] 语音LLM处理器已停止")
     
     def _processing_loop(self):
         """处理循环"""
@@ -155,7 +155,7 @@ class VoiceLLMHandler:
                     try:
                         self.response_callback(response)
                     except Exception as e:
-                        print(f"❌ 响应回调函数执行失败: {e}")
+                        print(f"[错误] 响应回调函数执行失败: {e}")
                 
                 # 标记队列任务完成
                 self.request_queue.task_done()
@@ -163,7 +163,7 @@ class VoiceLLMHandler:
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"❌ 处理循环异常: {e}")
+                print(f"[错误] 处理循环异常: {e}")
                 import traceback
                 traceback.print_exc()
     
@@ -180,7 +180,7 @@ class VoiceLLMHandler:
         start_time = time.time()
         
         try:
-            print(f"🤖 处理语音LLM请求: {request.text[:50]}...")
+            print(f"[AI] 处理语音LLM请求: {request.text[:50]}...")
             
             if not self.gemini_client:
                 return VoiceLLMResponse(
@@ -226,7 +226,7 @@ class VoiceLLMHandler:
             self._update_conversation_history(request.text, response_text)
             
             processing_time = time.time() - start_time
-            print(f"✅ LLM响应完成，耗时: {processing_time:.2f}秒")
+            print(f"[成功] LLM响应完成，耗时: {processing_time:.2f}秒")
             
             return VoiceLLMResponse(
                 request_id=request.request_id,
@@ -238,7 +238,7 @@ class VoiceLLMHandler:
             )
             
         except Exception as e:
-            print(f"❌ 处理请求失败: {e}")
+            print(f"[错误] 处理请求失败: {e}")
             import traceback
             traceback.print_exc()
             
@@ -290,11 +290,11 @@ class VoiceLLMHandler:
             请求ID
         """
         if not text.strip():
-            print("⚠️ 空文本，跳过LLM处理")
+            print("[警告] 空文本，跳过LLM处理")
             return ""
         
         if not self.is_running:
-            print("⚠️ 处理器未运行，无法提交请求")
+            print("[警告] 处理器未运行，无法提交请求")
             return ""
         
         # 生成请求ID
@@ -312,16 +312,16 @@ class VoiceLLMHandler:
         # 添加到队列
         try:
             self.request_queue.put(request, timeout=1.0)
-            print(f"📝 已提交语音文本到LLM: {text[:50]}... (ID: {request_id})")
+            print(f"[日志] 已提交语音文本到LLM: {text[:50]}... (ID: {request_id})")
             return request_id
         except queue.Full:
-            print("❌ 请求队列已满，无法提交")
+            print("[错误] 请求队列已满，无法提交")
             return ""
     
     def clear_conversation_history(self):
         """清空对话历史"""
         self.conversation_history.clear()
-        print("🗑️ 已清空对话历史")
+        print("[清空] 已清空对话历史")
     
     def get_queue_size(self) -> int:
         """获取当前队列大小"""
@@ -340,7 +340,7 @@ class VoiceLLMHandler:
         """
         try:
             if not api_key.strip():
-                print("⚠️ 空的API Key")
+                print("[警告] 空的API Key")
                 return False
             
             # 停止当前处理
@@ -358,7 +358,7 @@ class VoiceLLMHandler:
             
             # 测试连接
             if self.gemini_client.test_connection():
-                print("✅ API Key更新成功，连接测试通过")
+                print("[成功] API Key更新成功，连接测试通过")
                 
                 # 恢复处理（如果之前在运行）
                 if was_running:
@@ -366,11 +366,11 @@ class VoiceLLMHandler:
                 
                 return True
             else:
-                print("❌ API Key更新失败，连接测试不通过")
+                print("[错误] API Key更新失败，连接测试不通过")
                 self.gemini_client = None
                 return False
                 
         except Exception as e:
-            print(f"❌ 更新API Key失败: {e}")
+            print(f"[错误] 更新API Key失败: {e}")
             self.gemini_client = None
             return False

@@ -59,7 +59,7 @@ class VRChatController:
         
         # 打印默认设置信息
         if self.disable_fallback_mode:
-            print("✅ 备用模式已默认禁用 - 系统将只使用VRChat OSC数据")
+            print("[成功] 备用模式已默认禁用 - 系统将只使用VRChat OSC数据")
     
     
     def _on_parameter_change(self, param_name: str, value):
