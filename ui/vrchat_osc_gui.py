@@ -323,16 +323,33 @@ class VRChatOSCGUI:
     def start_voice_listening(self):
         """开始语音监听"""
         try:
+            # 检查语音引擎是否就绪
+            if not self.client.speech_engine.is_model_loaded():
+                messagebox.showerror("语音错误", "语音识别模型未加载，请等待模型加载完成")
+                self.log("语音识别模型未加载")
+                return
+            
             def voice_callback(text):
-                self.client.send_text_message(f"[语音] {text}")
-                self.log(f"[持续语音] {text}")
+                if text and text.strip():
+                    self.client.send_text_message(f"[语音] {text}")
+                    self.log(f"[持续语音] {text}")
+                    # 调用原有的语音结果处理
+                    if hasattr(self, 'on_voice_result'):
+                        self.on_voice_result(text)
             
+            # 设置语音结果回调
             self.client.set_voice_result_callback(voice_callback)
-            self.client.start_voice_listening(self.language_var.get())
             
-            self.is_listening = True
-            self.listen_btn.config(text="停止监听", style="Accent.TButton")
-            self.log("开始持续语音识别...")
+            # 启动语音监听
+            success = self.client.start_voice_listening(self.language_var.get())
+            
+            if success:
+                self.is_listening = True
+                self.listen_btn.config(text="停止监听", style="Accent.TButton")
+                self.log("开始持续语音识别...")
+            else:
+                self.log("启动语音监听失败")
+                messagebox.showerror("语音错误", "启动语音监听失败")
             
         except Exception as e:
             messagebox.showerror("语音错误", f"启动语音监听失败: {e}")

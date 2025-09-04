@@ -76,10 +76,10 @@ class VRChatController:
     
     def record_and_recognize(self, duration: int = 5, language: str = "ja-JP") -> Optional[str]:
         """
-        录制并识别语音
+        录制并识别语音 - 现在使用动态语音检测
         
         Args:
-            duration: 录制时长
+            duration: 录制时长 (已弃用，保持兼容性)
             language: 识别语言
             
         Returns:
@@ -88,13 +88,9 @@ class VRChatController:
         if not self.speech_engine.is_model_loaded():
             return None
         
-        # 录制音频
-        audio_data = self.speech_engine.record_audio(duration)
+        # 使用动态录制替代固定时长录制
+        audio_data = self.speech_engine.record_audio_dynamic()
         if audio_data is None:
-            return None
-        
-        # 检测语音活动
-        if not self.speech_engine.detect_voice_activity(audio_data):
             return None
         
         # 识别语音
@@ -126,47 +122,56 @@ class VRChatController:
     
     def _voice_listening_loop(self, language: str):
         """语音监听循环"""
-        print("开始VRChat语音状态监听...")
+        print("开始语音监听循环...")
+        print(f"使用语言: {language}")
+        print(f"语音引擎就绪: {self.speech_engine.is_model_loaded()}")
         
         consecutive_failures = 0
         max_failures = 5
+        last_recognition_time = 0
+        recognition_interval = 1.0  # 至少间隔1秒进行下一次识别
         
         while self.is_voice_listening:
             try:
-                # 只有当VRChat检测到说话时才录制
-                if not self.osc_client.get_vrc_speaking_state():
+                current_time = time.time()
+                
+                # 简化版本：直接录制和识别，不依赖VRChat状态
+                # 这样可以确保语音识别始终工作
+                if current_time - last_recognition_time < recognition_interval:
                     time.sleep(0.1)
                     continue
                 
-                # 使用speech_engine录制音频
-                duration = 3 if language.startswith("ja") else 2
-                audio_data = self.speech_engine.record_audio(duration)
+                # 使用动态语音检测录制音频
+                audio_data = self.speech_engine.record_audio_dynamic()
                 
                 if audio_data is None:
                     time.sleep(0.1)
                     continue
                 
+                last_recognition_time = current_time
+                
                 # 后台识别
                 def recognize():
                     nonlocal consecutive_failures
                     try:
-                        # 再次检查VRChat状态
-                        if not self.osc_client.get_vrc_speaking_state():
-                            return
-                        
                         # 检测语音活动
                         if not self.speech_engine.detect_voice_activity(audio_data):
+                            print("未检测到语音活动")
                             return
+                        
+                        print("检测到语音活动，开始识别...")
                         
                         # 识别语音
                         text = self.speech_engine.recognize_audio(audio_data, 16000, language)
                         
                         if text and text.strip():
                             consecutive_failures = 0
+                            print(f"识别结果: {text.strip()}")
                             if self.voice_result_callback:
                                 self.voice_result_callback(text.strip())
                         else:
                             consecutive_failures += 1
+                            print("识别结果为空")
                             
                     except Exception as e:
                         consecutive_failures += 1
@@ -183,6 +188,8 @@ class VRChatController:
             except Exception as e:
                 print(f"语音监听错误: {e}")
                 time.sleep(1)
+        
+        print("语音监听循环已停止")
     
     def set_voice_result_callback(self, callback: Callable):
         """设置语音识别结果回调"""
