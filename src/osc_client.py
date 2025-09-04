@@ -231,5 +231,50 @@ class OSCClient:
             "vrc_is_speaking": self.vrc_is_speaking,
             "vrc_voice_level": self.vrc_voice_level,
             "received_voice_parameters": list(self.voice_parameters_received),
-            "monitoring_parameters": self.voice_parameter_names
+            "monitoring_parameters": self.voice_parameter_names,
+            "connection_info": {
+                "host": self.host,
+                "send_port": self.send_port,
+                "receive_port": self.receive_port,
+                "server_running": self.is_running
+            }
         }
+    
+    def get_vrchat_connection_diagnosis(self) -> dict:
+        """获取VRChat连接诊断信息"""
+        diagnosis = {
+            "status": "unknown",
+            "issues": [],
+            "suggestions": []
+        }
+        
+        if not self.is_running:
+            diagnosis["status"] = "server_not_running"
+            diagnosis["issues"].append("OSC服务器未运行")
+            diagnosis["suggestions"].append("重新连接到VRChat")
+            return diagnosis
+        
+        if not self.voice_parameters_received:
+            diagnosis["status"] = "no_vrchat_data"
+            diagnosis["issues"].append("未收到任何VRChat语音参数")
+            diagnosis["suggestions"].extend([
+                "检查VRChat设置 → OSC → 启用OSC",
+                "确认VRChat正在运行",
+                "检查端口是否被占用",
+                "重启VRChat应用程序",
+                "确认麦克风权限"
+            ])
+        elif not self.vrc_is_speaking and self.vrc_voice_level == 0:
+            diagnosis["status"] = "receiving_data_but_no_voice"
+            diagnosis["issues"].append("收到VRChat参数但无语音状态")
+            diagnosis["suggestions"].extend([
+                "在VRChat中说话测试",
+                "检查VRChat麦克风设置",
+                "调整语音激活阈值"
+            ])
+        else:
+            diagnosis["status"] = "working"
+            diagnosis["issues"] = []
+            diagnosis["suggestions"] = ["VRChat OSC连接正常"]
+        
+        return diagnosis

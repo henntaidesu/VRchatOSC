@@ -210,9 +210,15 @@ class VRChatOSCGUI:
                                         variable=self.fallback_var, command=self.toggle_fallback_mode)
         fallback_check.grid(row=0, column=1, padx=(0, 10))
         
+        # 禁用备用模式开关
+        self.disable_fallback_var = tk.BooleanVar(value=False)
+        disable_fallback_check = ttk.Checkbutton(debug_frame, text="禁用备用模式", 
+                                                 variable=self.disable_fallback_var, command=self.toggle_disable_fallback_mode)
+        disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
+        
         # 状态显示按钮
         self.status_btn = ttk.Button(debug_frame, text="显示状态", command=self.show_debug_status)
-        self.status_btn.grid(row=0, column=2, padx=(0, 5))
+        self.status_btn.grid(row=0, column=3, padx=(0, 5))
         
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
@@ -786,10 +792,37 @@ class VRChatOSCGUI:
             self.fallback_var.set(False)
             return
         
+        # 如果启用强制备用模式，自动禁用"禁用备用模式"
+        if self.fallback_var.get():
+            self.disable_fallback_var.set(False)
+            if hasattr(self.client, 'set_disable_fallback_mode'):
+                self.client.set_disable_fallback_mode(False)
+        
         fallback_enabled = self.fallback_var.get()
         self.client.set_fallback_mode(fallback_enabled)
         status = "启用" if fallback_enabled else "禁用"
         self.log(f"强制备用模式已{status}")
+    
+    def toggle_disable_fallback_mode(self):
+        """切换禁用备用模式"""
+        if not self.is_connected:
+            messagebox.showwarning("警告", "请先连接到VRChat")
+            self.disable_fallback_var.set(False)
+            return
+        
+        # 如果禁用备用模式，自动禁用"强制备用模式"
+        if self.disable_fallback_var.get():
+            self.fallback_var.set(False)
+            self.client.set_fallback_mode(False)
+        
+        disable_enabled = self.disable_fallback_var.get()
+        if hasattr(self.client, 'set_disable_fallback_mode'):
+            self.client.set_disable_fallback_mode(disable_enabled)
+            status = "禁用" if disable_enabled else "启用"
+            self.log(f"备用模式已{status}")
+            
+            if disable_enabled:
+                self.log("注意：系统将只依赖VRChat语音状态，请确保VRChat OSC功能正常")
     
     def show_debug_status(self):
         """显示调试状态信息"""
@@ -801,6 +834,7 @@ class VRChatOSCGUI:
             # 获取详细状态信息
             status = self.client.get_status()
             debug_info = self.client.get_debug_info()
+            diagnosis = self.client.osc_client.get_vrchat_connection_diagnosis()
             
             # 创建状态信息窗口
             status_window = tk.Toplevel(self.root)
@@ -852,7 +886,27 @@ class VRChatOSCGUI:
             # 调试信息
             status_info += "【调试设置】\n"
             status_info += f"OSC调试模式: {'启用' if debug_info['osc']['debug_mode'] else '禁用'}\n"
-            status_info += f"VRChat检测超时: {debug_info['controller']['vrc_detection_timeout']}秒\n"
+            status_info += f"VRChat检测超时: {debug_info['controller']['vrc_detection_timeout']}秒\n\n"
+            
+            # VRChat连接诊断
+            status_info += "【VRChat连接诊断】\n"
+            if diagnosis['status'] == 'working':
+                status_info += "✅ VRChat OSC连接正常\n"
+            elif diagnosis['status'] == 'no_vrchat_data':
+                status_info += "❌ 未检测到VRChat数据\n"
+                status_info += "\n🔍 可能原因:\n"
+                for issue in diagnosis['issues']:
+                    status_info += f"• {issue}\n"
+                status_info += "\n💡 建议解决方案:\n"
+                for suggestion in diagnosis['suggestions']:
+                    status_info += f"• {suggestion}\n"
+            elif diagnosis['status'] == 'receiving_data_but_no_voice':
+                status_info += "⚠️ 收到VRChat数据但无语音状态\n"
+                status_info += "\n💡 建议:\n"
+                for suggestion in diagnosis['suggestions']:
+                    status_info += f"• {suggestion}\n"
+            else:
+                status_info += "❓ 连接状态未知\n"
             
             status_text.insert(tk.END, status_info)
             status_text.config(state=tk.DISABLED)

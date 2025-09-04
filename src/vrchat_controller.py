@@ -36,7 +36,8 @@ class VRChatController:
         self.voice_thread: Optional[threading.Thread] = None
         
         # 录制模式配置
-        self.use_fallback_mode = False  # 是否使用纯音频检测模式
+        self.use_fallback_mode = False  # 是否强制使用纯音频检测模式
+        self.disable_fallback_mode = False  # 是否完全禁用备用模式
         self.vrc_detection_timeout = 30.0  # VRChat检测超时时间(秒)
         self.fallback_mode_active = False
         
@@ -156,9 +157,11 @@ class VRChatController:
                 
                 # 检查是否需要启用备用模式
                 if (not self.fallback_mode_active and 
+                    not self.disable_fallback_mode and  # 检查是否禁用备用模式
                     current_time - vrc_detection_start_time > self.vrc_detection_timeout and
                     not received_params):
                     print("VRChat语音参数检测超时，启用纯音频检测备用模式")
+                    print("如需禁用备用模式，请在GUI中勾选'禁用备用模式'选项")
                     self.fallback_mode_active = True
                 
                 # 决定录制条件
@@ -174,6 +177,10 @@ class VRChatController:
                     if self.osc_client.get_vrc_speaking_state():
                         should_record = True
                         record_reason = "VRChat语音状态"
+                    elif self.disable_fallback_mode and not received_params:
+                        # 禁用备用模式且无VRChat参数时，显示等待信息
+                        if speech_chunks == 0:  # 只在开始时显示一次
+                            print("等待VRChat语音参数... (备用模式已禁用)")
                 
                 if not should_record:
                     time.sleep(0.1)
@@ -283,6 +290,17 @@ class VRChatController:
             print("已启用强制备用模式 - 将使用纯音频检测")
         else:
             print("已禁用强制备用模式 - 将优先使用VRChat状态检测")
+    
+    def set_disable_fallback_mode(self, disabled: bool):
+        """设置是否完全禁用备用模式"""
+        self.disable_fallback_mode = disabled
+        if disabled:
+            print("已禁用备用模式 - 系统将只依赖VRChat语音状态")
+            if self.fallback_mode_active:
+                print("正在退出当前备用模式...")
+                self.fallback_mode_active = False
+        else:
+            print("已启用备用模式 - 系统在检测不到VRChat参数时将自动切换到备用模式")
     
     def get_debug_info(self) -> dict:
         """获取详细的调试信息"""
