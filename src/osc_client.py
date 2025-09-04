@@ -85,6 +85,11 @@ class OSCClient:
                 was_speaking = self.vrc_is_speaking
                 self.vrc_is_speaking = self.vrc_voice_level > 0.01
                 
+                # 调试输出语音状态变化
+                if self.vrc_is_speaking != was_speaking:
+                    status_text = "开始说话" if self.vrc_is_speaking else "停止说话"
+                    print(f"VRChat语音状态变化: {status_text} (Level: {self.vrc_voice_level:.3f})")
+                
                 # 通知状态变化
                 if self.parameter_callback:
                     self.parameter_callback(parameter_name, value)

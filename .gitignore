@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+test_dynamic_speech.py
+test_gpu_speech
+test_speech.py
+check_gpu.py
+test_gpu_speech.py
+语音识别输出框功能说明.md
+test_vrc_voice_detection.py
+VRChat语音状态检测说明.md

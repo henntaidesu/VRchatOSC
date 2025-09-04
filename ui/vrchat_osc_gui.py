@@ -21,7 +21,7 @@ class VRChatOSCGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("VRChat OSC 通信工具")
-        self.root.geometry("700x600")
+        self.root.geometry("800x900")  # 增大窗口以适应新的语音输出框
         self.root.resizable(True, True)
         
         # OSC客户端
@@ -168,16 +168,45 @@ class VRChatOSCGUI:
         # 配置主框架行权重
         main_frame.rowconfigure(3, weight=1)
         
-        # 日志文本框
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=15, font=("Consolas", 9))
+        # 日志文本框 - 减小高度为语音识别框让出空间
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, font=("Consolas", 9))
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 清空日志按钮
         ttk.Button(log_frame, text="清空日志", command=self.clear_log).grid(row=1, column=0, pady=(5, 0))
         
+        # 语音识别输出框架
+        speech_frame = ttk.LabelFrame(main_frame, text="语音识别输出 (基于VRChat语音状态)", padding="5")
+        speech_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        speech_frame.columnconfigure(0, weight=1)
+        speech_frame.rowconfigure(0, weight=1)
+        
+        # 配置主框架行权重 - 为语音识别框分配空间
+        main_frame.rowconfigure(4, weight=1)
+        
+        # 语音识别文本框
+        self.speech_text = scrolledtext.ScrolledText(speech_frame, height=8, font=("微软雅黑", 12), wrap=tk.WORD)
+        self.speech_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # 配置语音识别输出的颜色标签
+        self.speech_text.tag_config("持续监听", foreground="#2196F3")  # 蓝色
+        self.speech_text.tag_config("录制语音", foreground="#4CAF50")  # 绿色  
+        self.speech_text.tag_config("发送语音", foreground="#FF9800")  # 橙色
+        self.speech_text.tag_config("时间戳", foreground="#666666")   # 灰色
+        
+        # 语音识别框按钮行
+        speech_button_frame = ttk.Frame(speech_frame)
+        speech_button_frame.grid(row=1, column=0, pady=(5, 0), sticky=(tk.W, tk.E))
+        
+        # 清空语音识别按钮
+        ttk.Button(speech_button_frame, text="清空语音记录", command=self.clear_speech_output).grid(row=0, column=0, padx=(0, 5))
+        
+        # 保存语音记录按钮
+        ttk.Button(speech_button_frame, text="保存语音记录", command=self.save_speech_output).grid(row=0, column=1, padx=(5, 0))
+        
         # 状态栏
         status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        status_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
         status_frame.columnconfigure(0, weight=1)
         
         self.status_label = ttk.Label(status_frame, text="未连接", foreground="red")
@@ -202,6 +231,63 @@ class VRChatOSCGUI:
     def clear_log(self):
         """清空日志"""
         self.log_text.delete(1.0, tk.END)
+    
+    def add_speech_output(self, text: str, source: str = "语音"):
+        """添加语音识别输出"""
+        timestamp = time.strftime("%H:%M:%S")
+        
+        # 在主线程中更新UI
+        self.root.after(0, lambda: self._update_speech_output(timestamp, source, text))
+    
+    def _update_speech_output(self, timestamp: str, source: str, text: str):
+        """更新语音识别输出显示（在主线程中调用）"""
+        # 插入时间戳（灰色）
+        start_pos = self.speech_text.index(tk.END + "-1c")
+        self.speech_text.insert(tk.END, f"[{timestamp}] ")
+        self.speech_text.tag_add("时间戳", start_pos, self.speech_text.index(tk.END + "-1c"))
+        
+        # 插入来源标签（彩色）
+        start_pos = self.speech_text.index(tk.END + "-1c")
+        self.speech_text.insert(tk.END, f"[{source}] ")
+        self.speech_text.tag_add(source, start_pos, self.speech_text.index(tk.END + "-1c"))
+        
+        # 插入语音内容（黑色）
+        self.speech_text.insert(tk.END, f"{text}\n")
+        
+        # 滚动到底部
+        self.speech_text.see(tk.END)
+        
+        # 限制最大行数，防止内存占用过多
+        lines = self.speech_text.get(1.0, tk.END).split('\n')
+        if len(lines) > 500:  # 保留最近500条记录
+            # 删除前100行
+            for i in range(100):
+                self.speech_text.delete(1.0, "2.0")
+    
+    def clear_speech_output(self):
+        """清空语音识别输出"""
+        self.speech_text.delete(1.0, tk.END)
+    
+    def save_speech_output(self):
+        """保存语音识别输出到文件"""
+        try:
+            import tkinter.filedialog as filedialog
+            
+            filename = filedialog.asksaveasfilename(
+                title="保存语音记录",
+                defaultextension=".txt",
+                filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
+            )
+            
+            if filename:
+                content = self.speech_text.get(1.0, tk.END)
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                self.log(f"语音记录已保存到: {filename}")
+                
+        except Exception as e:
+            messagebox.showerror("保存错误", f"保存文件失败: {e}")
+            self.log(f"保存语音记录失败: {e}")
     
     def update_ui_state(self, connected: bool):
         """更新UI状态"""
@@ -306,7 +392,11 @@ class VRChatOSCGUI:
                 text = self.client.record_and_recognize(5, self.language_var.get())
                 
                 if text:
+                    # 显示在语音识别输出框
+                    self.add_speech_output(text, "录制语音")
+                    # 发送到VRChat
                     self.client.send_text_message(f"[语音] {text}")
+                    # 记录到日志
                     self.log(f"[语音识别] {text}")
                 else:
                     self.log("语音识别失败")
@@ -340,7 +430,11 @@ class VRChatOSCGUI:
             
             def voice_callback(text):
                 if text and text.strip():
+                    # 显示在专门的语音识别输出框
+                    self.add_speech_output(text, "持续监听")
+                    # 发送到VRChat
                     self.client.send_text_message(f"[语音] {text}")
+                    # 记录到日志
                     self.log(f"[持续语音] {text}")
                     # 调用原有的语音结果处理
                     if hasattr(self, 'on_voice_result'):
@@ -355,7 +449,8 @@ class VRChatOSCGUI:
             if success:
                 self.is_listening = True
                 self.listen_btn.config(text="停止监听", style="Accent.TButton")
-                self.log("开始持续语音识别...")
+                self.log("开始VRChat语音状态监听...")
+                self.log("提示：只有当VRChat检测到你说话时才会进行语音识别")
             else:
                 self.log("启动语音监听失败")
                 messagebox.showerror("语音错误", "启动语音监听失败")
@@ -429,7 +524,8 @@ class VRChatOSCGUI:
     
     def on_voice_result(self, text: str):
         """处理语音识别结果"""
-        self.log(f"[语音识别] {text}")
+        # 这个方法现在主要用于兼容性，实际显示已经在各个回调中处理
+        pass
     
     def send_voice(self):
         """发送语音到VRChat"""
@@ -444,7 +540,11 @@ class VRChatOSCGUI:
                 
                 text = self.client.record_and_recognize(5, self.language_var.get())
                 if text:
+                    # 显示在语音识别输出框
+                    self.add_speech_output(text, "发送语音")
+                    # 发送到VRChat
                     self.client.send_text_message(f"[语音] {text}")
+                    # 记录到日志
                     self.log(f"语音识别并发送: {text}")
                 else:
                     self.log("语音识别失败")

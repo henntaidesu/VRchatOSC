@@ -137,16 +137,23 @@ class VRChatController:
             try:
                 current_time = time.time()
                 
-                # 简化版本：直接录制和识别，不依赖VRChat状态
-                # 这样可以确保语音识别始终工作
+                # 重要：只有当VRChat检测到说话时才录制和识别
+                if not self.osc_client.get_vrc_speaking_state():
+                    time.sleep(0.1)  # VRChat未检测到语音，继续等待
+                    continue
+                
+                # 防止过于频繁的识别
                 if current_time - last_recognition_time < recognition_interval:
                     time.sleep(0.1)
                     continue
+                
+                print(f"VRChat检测到语音状态，开始录制...")
                 
                 # 使用动态语音检测录制音频
                 audio_data = self.speech_engine.record_audio_dynamic()
                 
                 if audio_data is None:
+                    print("录制失败，继续监听...")
                     time.sleep(0.1)
                     continue
                 
@@ -156,24 +163,29 @@ class VRChatController:
                 def recognize():
                     nonlocal consecutive_failures
                     try:
-                        # 检测语音活动
-                        if not self.speech_engine.detect_voice_activity(audio_data):
-                            print("未检测到语音活动")
+                        # 再次确认VRChat状态（防止状态在录制期间改变）
+                        if not self.osc_client.get_vrc_speaking_state():
+                            print("VRChat语音状态已结束，跳过识别")
                             return
                         
-                        print("检测到语音活动，开始识别...")
+                        # 检测语音活动
+                        if not self.speech_engine.detect_voice_activity(audio_data):
+                            print("录制的音频中未检测到语音活动")
+                            return
+                        
+                        print("VRChat语音状态确认，开始语音识别...")
                         
                         # 识别语音
                         text = self.speech_engine.recognize_audio(audio_data, 16000, language)
                         
                         if text and text.strip():
                             consecutive_failures = 0
-                            print(f"识别结果: {text.strip()}")
+                            print(f"VRC语音识别结果: {text.strip()}")
                             if self.voice_result_callback:
                                 self.voice_result_callback(text.strip())
                         else:
                             consecutive_failures += 1
-                            print("识别结果为空")
+                            print("语音识别结果为空")
                             
                     except Exception as e:
                         consecutive_failures += 1
