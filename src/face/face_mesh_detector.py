@@ -205,16 +205,37 @@ class FaceMeshCamera:
     def start_camera(self) -> bool:
         """Start the camera capture."""
         try:
-            self.cap = cv2.VideoCapture(self.camera_id)
-            if not self.cap.isOpened():
-                self.logger.error(f"Failed to open camera {self.camera_id}")
-                return False
+            # 尝试不同的后端，优先使用DirectShow
+            backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
             
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            for backend in backends:
+                try:
+                    self.cap = cv2.VideoCapture(self.camera_id, backend)
+                    if self.cap.isOpened():
+                        # 测试读取一帧
+                        ret, frame = self.cap.read()
+                        if ret and frame is not None:
+                            # 设置分辨率
+                            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                            
+                            backend_name = {cv2.CAP_DSHOW: "DirectShow", 
+                                          cv2.CAP_MSMF: "Media Foundation", 
+                                          cv2.CAP_ANY: "Default"}[backend]
+                            self.logger.info(f"Camera {self.camera_id} started with {backend_name}")
+                            return True
+                        else:
+                            self.cap.release()
+                    else:
+                        if self.cap:
+                            self.cap.release()
+                except Exception:
+                    if self.cap:
+                        self.cap.release()
+                    continue
             
-            self.logger.info(f"Camera {self.camera_id} started successfully")
-            return True
+            self.logger.error(f"Failed to open camera {self.camera_id} with any backend")
+            return False
             
         except Exception as e:
             self.logger.error(f"Error starting camera: {e}")
