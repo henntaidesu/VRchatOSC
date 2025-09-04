@@ -232,6 +232,10 @@ class VRChatOSCGUI:
         self.status_btn = ttk.Button(debug_frame, text="显示状态", command=self.show_debug_status)
         self.status_btn.grid(row=0, column=4, padx=(0, 5))
         
+        # 摄像头按钮
+        self.camera_btn = ttk.Button(debug_frame, text="摄像头", command=self.open_camera_window)
+        self.camera_btn.grid(row=0, column=5, padx=(0, 5))
+        
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
         threshold_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
@@ -1030,6 +1034,15 @@ class VRChatOSCGUI:
         
         # 记录语言切换
         self.log(f"界面语言已切换为: {selected_display}")
+    
+    def open_camera_window(self):
+        """打开摄像头窗口"""
+        try:
+            from .camera_window import CameraWindow
+            CameraWindow(self.root)
+        except Exception as e:
+            messagebox.showerror("摄像头错误", f"无法打开摄像头窗口: {e}")
+            self.log(f"打开摄像头窗口失败: {e}")
     
     def run(self):
         """运行GUI"""
