@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+语音识别引擎 - 纯后端逻辑，不包含UI代码
+"""
+
 import numpy as np
 import sounddevice as sd
 import whisper
@@ -69,19 +74,22 @@ class SpeechEngine:
     def _load_whisper_model(self):
         """加载Whisper模型"""
         try:
-            print(f"正在加载Whisper模型 ({self.model_size})到设备 {self.device}...")
+            print(f"[1/3] 初始化Whisper模型 ({self.model_size})...")
+            print(f"[2/3] 加载到设备: {self.device}")
             
             # 加载模型到指定设备
             if self.device == "cuda":
+                print("[3/3] 配置GPU加速...")
                 self.whisper_model = whisper.load_model(self.model_size, device="cuda")
-                print("Whisper GPU模型加载成功！")
+                print("✓ Whisper GPU模型加载成功！")
             else:
+                print("[3/3] 配置CPU模式...")
                 self.whisper_model = whisper.load_model(self.model_size, device="cpu")
-                print("Whisper CPU模型加载成功！")
+                print("✓ Whisper CPU模型加载成功！")
                 
             return True
         except Exception as e:
-            print(f"Whisper模型加载失败: {e}")
+            print(f"✗ Whisper模型加载失败: {e}")
             import traceback
             traceback.print_exc()
             return False

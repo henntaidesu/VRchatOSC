@@ -8,7 +8,7 @@ import time
 import numpy as np
 from typing import Optional, Callable
 from .osc_client import OSCClient
-from .speech_engine import SpeechEngine
+from .voice import SpeechEngine
 
 
 class VRChatController:

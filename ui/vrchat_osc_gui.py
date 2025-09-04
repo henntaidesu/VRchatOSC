@@ -216,6 +216,11 @@ class VRChatOSCGUI:
         self.status_label = ttk.Label(status_frame, text="未连接", foreground="red")
         self.status_label.grid(row=0, column=0, sticky=tk.W)
         
+        # 进度条（默认隐藏）
+        self.progress_bar = ttk.Progressbar(status_frame, mode='indeterminate')
+        self.progress_bar.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(2, 0))
+        self.progress_bar.grid_remove()  # 初始隐藏
+        
         # 初始状态设置
         self.update_ui_state(False)
     
@@ -332,26 +337,73 @@ class VRChatOSCGUI:
             host = self.host_var.get().strip()
             send_port = int(self.send_port_var.get())
             receive_port = int(self.receive_port_var.get())
-            
-            # 创建OSC客户端，传递设备选择
             device = self.device_var.get()
-            self.client = VRChatController(host, send_port, receive_port, speech_device=device)
             
-            # 设置回调函数
-            self.client.set_status_change_callback(self.on_status_change)
-            self.client.set_voice_result_callback(self.on_voice_result)
+            # 禁用连接按钮并显示加载状态
+            self.connect_btn.config(text="连接中...", state="disabled")
+            self.progress_bar.grid()  # 显示进度条
+            self.progress_bar.start()  # 开始进度条动画
+            self.log("开始连接VRChat...")
+            self.log(f"正在加载语音识别模型 ({device})...")
+            self.log("提示：首次加载可能需要较长时间，请耐心等待...")
             
-            # 启动服务器
-            self.client.start_osc_server()
+            # 在后台线程中连接，避免界面卡顿
+            def connect_thread():
+                try:
+                    # 创建OSC客户端，传递设备选择
+                    self.client = VRChatController(host, send_port, receive_port, speech_device=device)
+                    
+                    # 设置回调函数
+                    self.client.set_status_change_callback(self.on_status_change)
+                    self.client.set_voice_result_callback(self.on_voice_result)
+                    
+                    # 启动服务器
+                    success = self.client.start_osc_server()
+                    
+                    if success:
+                        # 在主线程中更新UI
+                        self.root.after(0, lambda: self._connection_success(host, send_port))
+                    else:
+                        self.root.after(0, lambda: self._connection_failed("OSC服务器启动失败"))
+                        
+                except Exception as e:
+                    self.root.after(0, lambda: self._connection_failed(str(e)))
             
-            self.update_ui_state(True)
-            self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
+            # 启动连接线程
+            threading.Thread(target=connect_thread, daemon=True).start()
             
         except ValueError:
+            self.connect_btn.config(text="连接", state="normal")
+            self.progress_bar.stop()
+            self.progress_bar.grid_remove()
             messagebox.showerror("错误", "端口号必须是数字")
         except Exception as e:
+            self.connect_btn.config(text="连接", state="normal")
+            self.progress_bar.stop()
+            self.progress_bar.grid_remove()
             messagebox.showerror("连接错误", f"无法连接到VRChat: {e}")
             self.log(f"连接失败: {e}")
+    
+    def _connection_success(self, host: str, send_port: int):
+        """连接成功的UI更新"""
+        # 隐藏进度条
+        self.progress_bar.stop()
+        self.progress_bar.grid_remove()
+        
+        self.update_ui_state(True)
+        self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
+        self.log("语音识别模型加载完成！")
+        self.log("现在可以开始使用语音识别功能了")
+    
+    def _connection_failed(self, error_msg: str):
+        """连接失败的UI更新"""
+        # 隐藏进度条
+        self.progress_bar.stop()
+        self.progress_bar.grid_remove()
+        
+        self.connect_btn.config(text="连接", state="normal")
+        messagebox.showerror("连接错误", f"无法连接到VRChat: {error_msg}")
+        self.log(f"连接失败: {error_msg}")
     
     def disconnect_from_vrchat(self):
         """断开VRChat连接"""
