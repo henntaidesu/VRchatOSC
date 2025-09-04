@@ -78,13 +78,13 @@ class ConfigManager:
         if os.path.exists(self.config_file):
             try:
                 self.config.read(self.config_file, encoding='utf-8')
-                print(f"✅ 已加载配置文件: {self.config_file}")
+                print(f"[OK] 已加载配置文件: {self.config_file}")
                 self._validate_config()
             except Exception as e:
-                print(f"⚠️ 加载配置文件失败: {e}")
+                print(f"[警告] 加载配置文件失败: {e}")
                 self._create_default_config()
         else:
-            print(f"📁 配置文件不存在，创建默认配置: {self.config_file}")
+            print(f"[信息] 配置文件不存在，创建默认配置: {self.config_file}")
             self._create_default_config()
     
     def _create_default_config(self):
@@ -112,16 +112,16 @@ class ConfigManager:
         
         if modified:
             self.save_config()
-            print("🔧 配置文件已更新至最新版本")
+            print("[更新] 配置文件已更新至最新版本")
     
     def save_config(self):
         """保存配置文件"""
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 self.config.write(f)
-            print(f"💾 配置已保存: {self.config_file}")
+            print(f"[保存] 配置已保存: {self.config_file}")
         except Exception as e:
-            print(f"❌ 保存配置失败: {e}")
+            print(f"[错误] 保存配置失败: {e}")
     
     def get(self, section: str, key: str, fallback: Any = None) -> Any:
         """获取配置值"""
