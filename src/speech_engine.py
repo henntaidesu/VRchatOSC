@@ -7,22 +7,28 @@ import soundfile as sf
 import threading
 import queue
 import time
+import torch
 from typing import Optional, Callable
 
 
 class SpeechEngine:
     """语音识别引擎类 - 负责所有语音相关的处理"""
     
-    def __init__(self, model_size: str = "medium"):
+    def __init__(self, model_size: str = "medium", device: str = "auto"):
         """
         初始化语音识别引擎
         
         Args:
             model_size: Whisper模型大小 ("tiny", "base", "small", "medium", "large")
+            device: 计算设备 ("auto", "cuda", "cpu")
         """
         self.whisper_model = None
         self.voice_threshold = 0.02  # 声音激活阈值
         self.model_size = model_size
+        
+        # GPU支持检查和设备选择
+        self.device = self._detect_device(device)
+        print(f"使用计算设备: {self.device}")
         
         # 动态录制相关参数
         self.sample_rate = 16000
@@ -34,15 +40,47 @@ class SpeechEngine:
         
         self._load_whisper_model()
     
+    def _detect_device(self, device: str) -> str:
+        """检测和选择计算设备"""
+        if device == "cpu":
+            return "cpu"
+        elif device == "cuda":
+            if torch.cuda.is_available():
+                return "cuda"
+            else:
+                print("警告: 请求使用CUDA但未检测到GPU支持，回退到CPU")
+                return "cpu"
+        elif device == "auto":
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                print(f"检测到GPU: {gpu_name} ({gpu_memory:.1f}GB)")
+                return "cuda"
+            else:
+                print("未检测到CUDA支持，使用CPU进行推理")
+                return "cpu"
+        else:
+            print(f"未知设备类型: {device}，使用自动检测")
+            return self._detect_device("auto")
+    
     def _load_whisper_model(self):
         """加载Whisper模型"""
         try:
-            print(f"正在加载Whisper模型 ({self.model_size})...")
-            self.whisper_model = whisper.load_model(self.model_size)
-            print("Whisper本地模型加载成功！")
+            print(f"正在加载Whisper模型 ({self.model_size})到设备 {self.device}...")
+            
+            # 加载模型到指定设备
+            if self.device == "cuda":
+                self.whisper_model = whisper.load_model(self.model_size, device="cuda")
+                print("Whisper GPU模型加载成功！")
+            else:
+                self.whisper_model = whisper.load_model(self.model_size, device="cpu")
+                print("Whisper CPU模型加载成功！")
+                
             return True
         except Exception as e:
             print(f"Whisper模型加载失败: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def is_model_loaded(self) -> bool:
@@ -110,12 +148,25 @@ class SpeechEngine:
                     whisper_lang = language_map.get(language, language[:2])
                     print(f"使用语言代码: {whisper_lang}")
                 
+                # 配置推理选项
+                transcribe_options = {
+                    "fp16": self.device == "cuda",  # GPU时使用FP16加速
+                    "verbose": False  # 减少输出
+                }
+                
                 # 使用Whisper识别
-                print("调用Whisper进行识别...")
+                print(f"调用Whisper进行识别 (设备: {self.device}, FP16: {transcribe_options['fp16']})...")
                 if whisper_lang:
-                    result = self.whisper_model.transcribe(temp_path, language=whisper_lang)
+                    result = self.whisper_model.transcribe(
+                        temp_path, 
+                        language=whisper_lang,
+                        **transcribe_options
+                    )
                 else:
-                    result = self.whisper_model.transcribe(temp_path)
+                    result = self.whisper_model.transcribe(
+                        temp_path,
+                        **transcribe_options
+                    )
                 
                 text = result["text"].strip()
                 print(f"Whisper识别结果: '{text}'")

@@ -34,6 +34,7 @@ class VRChatOSCGUI:
         self.send_port_var = tk.StringVar(value="9000")
         self.receive_port_var = tk.StringVar(value="9001")
         self.language_var = tk.StringVar(value="ja-JP")
+        self.device_var = tk.StringVar(value="auto")
         
         self.setup_ui()
         
@@ -103,6 +104,13 @@ class VRChatOSCGUI:
                                     width=10, state="readonly")
         language_combo.grid(row=0, column=1, padx=(0, 10))
         
+        # 设备选择
+        ttk.Label(voice_frame, text="计算设备:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5))
+        device_combo = ttk.Combobox(voice_frame, textvariable=self.device_var,
+                                   values=["auto", "cuda", "cpu"],
+                                   width=10, state="readonly")
+        device_combo.grid(row=1, column=1, padx=(0, 10))
+        
         # 语音按钮
         self.record_btn = ttk.Button(voice_frame, text="录制语音", command=self.record_voice)
         self.record_btn.grid(row=0, column=2, padx=(0, 5))
@@ -112,7 +120,7 @@ class VRChatOSCGUI:
         
         # 语音发送按钮
         self.send_voice_btn = ttk.Button(voice_frame, text="发送语音", command=self.send_voice)
-        self.send_voice_btn.grid(row=0, column=4, padx=(0, 5))
+        self.send_voice_btn.grid(row=1, column=2, padx=(0, 5))
         
         # 语音阈值设置
         threshold_frame = ttk.Frame(message_frame)
@@ -233,8 +241,9 @@ class VRChatOSCGUI:
             send_port = int(self.send_port_var.get())
             receive_port = int(self.receive_port_var.get())
             
-            # 创建OSC客户端
-            self.client = VRChatController(host, send_port, receive_port)
+            # 创建OSC客户端，传递设备选择
+            device = self.device_var.get()
+            self.client = VRChatController(host, send_port, receive_port, speech_device=device)
             
             # 设置回调函数
             self.client.set_status_change_callback(self.on_status_change)

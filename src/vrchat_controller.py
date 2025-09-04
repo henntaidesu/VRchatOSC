@@ -14,7 +14,8 @@ from .speech_engine import SpeechEngine
 class VRChatController:
     """VRChat控制器 - 协调OSC通信和语音识别的主控制器"""
     
-    def __init__(self, host: str = "127.0.0.1", send_port: int = 9000, receive_port: int = 9001):
+    def __init__(self, host: str = "127.0.0.1", send_port: int = 9000, receive_port: int = 9001, 
+                 speech_device: str = "auto"):
         """
         初始化VRChat控制器
         
@@ -22,12 +23,13 @@ class VRChatController:
             host: VRChat主机地址
             send_port: 发送端口
             receive_port: 接收端口
+            speech_device: 语音识别设备 ("auto", "cuda", "cpu")
         """
         # 创建OSC客户端
         self.osc_client = OSCClient(host, send_port, receive_port)
         
-        # 创建语音引擎
-        self.speech_engine = SpeechEngine()
+        # 创建语音引擎，使用指定设备
+        self.speech_engine = SpeechEngine(device=speech_device)
         
         # 语音识别状态
         self.is_voice_listening = False
