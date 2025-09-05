@@ -12,11 +12,15 @@ import sys
 import os
 import numpy as np
 import soundfile as sf
+import cv2
+from PIL import Image, ImageTk
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
 from .settings_window import SettingsWindow
+from src.face.face_mesh_detector import FaceMeshCamera
+from src.face.face_controller import FaceExpressionController
 
 
 class VRChatOSCGUI:
@@ -51,6 +55,13 @@ class VRChatOSCGUI:
         self.uploaded_audio_data = None
         self.uploaded_audio_sample_rate = None
         self.uploaded_filename = None
+        
+        # 摄像头相关变量
+        self.camera = None
+        self.face_controller = None
+        self.camera_running = False
+        self.current_frame = None
+        self.camera_thread = None
         
         # 界面文本配置
         self.ui_texts = {
@@ -118,11 +129,28 @@ class VRChatOSCGUI:
         # 配置网格权重
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(0, weight=0)  # 左侧控制面板，固定宽度
+        main_frame.columnconfigure(1, weight=1)  # 右侧摄像头区域，可扩展
         
-        # 连接设置框架
-        self.connection_frame = ttk.LabelFrame(main_frame, text=self.get_text("connection_settings"), padding="5")
-        self.connection_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        # 配置主框架行权重
+        main_frame.rowconfigure(0, weight=1)  # 主内容区域可扩展
+        
+        # 创建左右两个主要区域
+        left_frame = ttk.Frame(main_frame, width=500)  # 固定左侧宽度为500px
+        left_frame.grid(row=0, column=0, sticky=(tk.W, tk.N, tk.S), padx=(0, 5))
+        left_frame.grid_propagate(False)  # 防止子组件改变frame大小
+        
+        right_frame = ttk.Frame(main_frame)
+        right_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        
+        # 配置左右区域的权重
+        left_frame.columnconfigure(0, weight=1)
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(1, weight=1)  # 摄像头显示区域可扩展
+        
+        # 连接设置框架 - 放在左侧区域
+        self.connection_frame = ttk.LabelFrame(left_frame, text=self.get_text("connection_settings"), padding="5")
+        self.connection_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         
         # 主机地址
         ttk.Label(self.connection_frame, text=self.get_text("host_address")).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
@@ -161,9 +189,9 @@ class VRChatOSCGUI:
         self.connection_frame.columnconfigure(3, weight=1)
         self.connection_frame.columnconfigure(5, weight=1)
         
-        # 消息发送框架
-        message_frame = ttk.LabelFrame(main_frame, text="消息发送", padding="5")
-        message_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        # 消息发送框架 - 放在左侧区域
+        message_frame = ttk.LabelFrame(left_frame, text="消息发送", padding="5")
+        message_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         message_frame.columnconfigure(0, weight=1)
         
         # 文字消息输入
@@ -232,8 +260,8 @@ class VRChatOSCGUI:
         self.status_btn = ttk.Button(debug_frame, text="显示状态", command=self.show_debug_status)
         self.status_btn.grid(row=0, column=4, padx=(0, 5))
         
-        # 摄像头按钮
-        self.camera_btn = ttk.Button(debug_frame, text="摄像头", command=self.open_camera_window)
+        # 摄像头按钮 - 现在用于在主界面显示/隐藏摄像头区域
+        self.camera_btn = ttk.Button(debug_frame, text="摄像头窗口", command=self.open_camera_window)
         self.camera_btn.grid(row=0, column=5, padx=(0, 5))
         
         # 语音阈值设置
@@ -265,9 +293,9 @@ class VRChatOSCGUI:
         threshold_frame.columnconfigure(4, weight=1)
         
         
-        # 参数设置框架
-        param_frame = ttk.LabelFrame(main_frame, text="Avatar参数", padding="5")
-        param_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        # 参数设置框架 - 放在左侧区域
+        param_frame = ttk.LabelFrame(left_frame, text="Avatar参数", padding="5")
+        param_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         param_frame.columnconfigure(0, weight=1)
         param_frame.columnconfigure(2, weight=1)
         
@@ -285,14 +313,14 @@ class VRChatOSCGUI:
         # 发送参数按钮
         ttk.Button(param_frame, text="发送参数", command=self.send_parameter).grid(row=0, column=4)
         
-        # 日志显示框架
-        log_frame = ttk.LabelFrame(main_frame, text="日志", padding="5")
-        log_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        # 日志显示框架 - 放在左侧区域
+        log_frame = ttk.LabelFrame(left_frame, text="日志", padding="5")
+        log_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         
-        # 配置主框架行权重
-        main_frame.rowconfigure(3, weight=1)
+        # 配置左侧框架行权重
+        left_frame.rowconfigure(3, weight=1)
         
         # 日志文本框 - 减小高度为语音识别框让出空间
         self.log_text = scrolledtext.ScrolledText(log_frame, height=10, font=("Consolas", 9))
@@ -301,14 +329,14 @@ class VRChatOSCGUI:
         # 清空日志按钮
         ttk.Button(log_frame, text="清空日志", command=self.clear_log).grid(row=1, column=0, pady=(5, 0))
         
-        # 语音识别输出框架
-        speech_frame = ttk.LabelFrame(main_frame, text="语音识别输出 (基于VRChat语音状态)", padding="5")
-        speech_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        # 语音识别输出框架 - 放在左侧区域
+        speech_frame = ttk.LabelFrame(left_frame, text="语音识别输出 (基于VRChat语音状态)", padding="5")
+        speech_frame.grid(row=4, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         speech_frame.columnconfigure(0, weight=1)
         speech_frame.rowconfigure(0, weight=1)
         
-        # 配置主框架行权重 - 为语音识别框分配空间
-        main_frame.rowconfigure(4, weight=1)
+        # 配置左侧框架行权重 - 为语音识别框分配空间
+        left_frame.rowconfigure(4, weight=1)
         
         # 语音识别文本框
         self.speech_text = scrolledtext.ScrolledText(speech_frame, height=8, font=("微软雅黑", 12), wrap=tk.WORD)
@@ -330,9 +358,12 @@ class VRChatOSCGUI:
         # 保存语音记录按钮
         ttk.Button(speech_button_frame, text="保存语音记录", command=self.save_speech_output).grid(row=0, column=1, padx=(5, 0))
         
-        # 状态栏
+        # 右侧摄像头区域
+        self.setup_camera_area(right_frame)
+        
+        # 状态栏 - 跨越整个底部
         status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        status_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E))
         status_frame.columnconfigure(0, weight=1)
         
         self.status_label = ttk.Label(status_frame, text="未连接", foreground="red")
@@ -345,6 +376,93 @@ class VRChatOSCGUI:
         
         # 初始状态设置
         self.update_ui_state(False)
+    
+    def setup_camera_area(self, parent_frame):
+        """设置摄像头区域"""
+        # 摄像头控制面板
+        camera_control_frame = ttk.LabelFrame(parent_frame, text="摄像头控制", padding="5")
+        camera_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        camera_control_frame.columnconfigure(0, weight=1)
+        
+        # 摄像头控制按钮
+        control_buttons = ttk.Frame(camera_control_frame)
+        control_buttons.pack(fill=tk.X, pady=5)
+        
+        # 摄像头ID选择
+        ttk.Label(control_buttons, text="摄像头ID:").pack(side=tk.LEFT, padx=(0, 5))
+        self.camera_id_var = tk.StringVar(value="0")
+        camera_combo = ttk.Combobox(control_buttons, textvariable=self.camera_id_var, 
+                                   values=["0", "1", "2"], width=5, state="readonly")
+        camera_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 开始/停止按钮
+        self.camera_start_btn = ttk.Button(control_buttons, text="启动摄像头", command=self.toggle_camera)
+        self.camera_start_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 截图按钮
+        self.capture_btn = ttk.Button(control_buttons, text="截图", command=self.capture_screenshot, 
+                                     state="disabled")
+        self.capture_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 摄像头显示区域
+        camera_display_frame = ttk.LabelFrame(parent_frame, text="摄像头画面", padding="5")
+        camera_display_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        camera_display_frame.columnconfigure(0, weight=1)
+        camera_display_frame.rowconfigure(0, weight=1)
+        
+        # 视频显示标签
+        self.video_label = ttk.Label(camera_display_frame, text="点击启动摄像头按钮开始", 
+                                    background="black", foreground="white",
+                                    font=("Arial", 12))
+        self.video_label.pack(expand=True, fill=tk.BOTH)
+        
+        # 表情数据显示区域
+        expression_frame = ttk.LabelFrame(parent_frame, text="实时表情数据", padding="5")
+        expression_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        expression_frame.columnconfigure(1, weight=1)
+        expression_frame.columnconfigure(3, weight=1)
+        
+        # 表情数据标签
+        self.expressions = {
+            'eyeblink_left': 0.0,
+            'eyeblink_right': 0.0,
+            'mouth_open': 0.0,
+            'smile': 0.0
+        }
+        
+        # 创建表情显示组件
+        row = 0
+        col = 0
+        self.expression_labels = {}
+        self.expression_progress_bars = {}
+        
+        for expr_name in self.expressions.keys():
+            # 表情名称
+            display_name = {
+                'eyeblink_left': '左眼眨眼',
+                'eyeblink_right': '右眼眨眼',
+                'mouth_open': '嘴巴张开',
+                'smile': '微笑'
+            }.get(expr_name, expr_name)
+            
+            ttk.Label(expression_frame, text=f"{display_name}:").grid(
+                row=row, column=col*2, sticky=tk.W, padx=(0, 5))
+            
+            # 数值显示
+            value_label = ttk.Label(expression_frame, text="0.00", width=6)
+            value_label.grid(row=row, column=col*2+1, sticky=tk.W, padx=(0, 20))
+            self.expression_labels[expr_name] = value_label
+            
+            # 进度条
+            progress = ttk.Progressbar(expression_frame, length=100, mode='determinate')
+            progress.grid(row=row, column=col*2+2, sticky=(tk.W, tk.E), padx=(0, 20))
+            progress['maximum'] = 100
+            self.expression_progress_bars[expr_name] = progress
+            
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
     
     def log(self, message: str):
         """添加日志消息"""
@@ -781,6 +899,8 @@ class VRChatOSCGUI:
     def on_closing(self):
         """窗口关闭事件处理"""
         try:
+            if self.camera_running:
+                self.stop_camera()
             if self.is_listening:
                 self.stop_voice_listening()
             if self.is_connected:
@@ -1035,8 +1155,141 @@ class VRChatOSCGUI:
         # 记录语言切换
         self.log(f"界面语言已切换为: {selected_display}")
     
+    def toggle_camera(self):
+        """切换摄像头状态"""
+        if not self.camera_running:
+            self.start_camera()
+        else:
+            self.stop_camera()
+    
+    def start_camera(self):
+        """启动摄像头"""
+        try:
+            camera_id = int(self.camera_id_var.get())
+            self.camera = FaceMeshCamera(camera_id)
+            self.face_controller = FaceExpressionController(camera_id)
+            
+            # 添加表情变化回调
+            self.face_controller.add_expression_callback(self.on_expression_update)
+            
+            # 启动表情控制器
+            if self.face_controller.start():
+                self.camera_running = True
+                self.camera_start_btn.config(text="停止摄像头")
+                self.capture_btn.config(state="normal")
+                self.log("摄像头启动成功")
+                
+                # 启动视频更新线程
+                self.camera_thread = threading.Thread(target=self.update_camera_video, daemon=True)
+                self.camera_thread.start()
+            else:
+                messagebox.showerror("错误", "无法启动摄像头")
+                self.log("摄像头启动失败")
+                
+        except Exception as e:
+            messagebox.showerror("启动错误", f"启动摄像头失败: {e}")
+            self.log(f"摄像头启动错误: {e}")
+    
+    def stop_camera(self):
+        """停止摄像头"""
+        try:
+            self.camera_running = False
+            
+            if self.face_controller:
+                self.face_controller.stop()
+            
+            self.camera_start_btn.config(text="启动摄像头")
+            self.capture_btn.config(state="disabled")
+            self.log("摄像头已停止")
+            
+            # 清空视频显示
+            self.video_label.config(image="", text="点击启动摄像头按钮开始")
+            
+        except Exception as e:
+            self.log(f"停止摄像头错误: {e}")
+    
+    def update_camera_video(self):
+        """视频更新线程"""
+        while self.camera_running:
+            try:
+                frame, expressions = self.camera.get_frame_with_expressions()
+                
+                if frame is not None:
+                    # 转换OpenCV图像为PIL图像
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(frame_rgb)
+                    
+                    # 调整图像大小以适应显示区域
+                    display_width = min(400, self.video_label.winfo_width())
+                    display_height = min(300, self.video_label.winfo_height())
+                    
+                    if display_width > 0 and display_height > 0:
+                        img = img.resize((display_width, display_height), Image.Resampling.LANCZOS)
+                    
+                    # 转换为PhotoImage
+                    photo = ImageTk.PhotoImage(img)
+                    
+                    # 更新显示（需要在主线程中执行）
+                    self.current_frame = frame  # 保存当前帧用于截图
+                    self.root.after(0, lambda: self.update_video_display(photo))
+                    
+                time.sleep(0.03)  # 约33fps
+                
+            except Exception as e:
+                print(f"视频更新错误: {e}")
+                time.sleep(0.1)
+    
+    def update_video_display(self, photo):
+        """更新视频显示（在主线程中调用）"""
+        try:
+            if self.camera_running and photo:
+                self.video_label.config(image=photo, text="")
+                self.video_label.image = photo  # 保持引用防止垃圾回收
+        except Exception as e:
+            print(f"更新显示错误: {e}")
+    
+    def on_expression_update(self, expressions):
+        """表情数据更新回调"""
+        # 在主线程中更新UI
+        self.root.after(0, lambda: self._update_expression_display(expressions))
+    
+    def _update_expression_display(self, expressions):
+        """更新表情显示（在主线程中调用）"""
+        try:
+            for expr_name, value in expressions.items():
+                if expr_name in self.expression_labels:
+                    # 更新数值显示
+                    self.expression_labels[expr_name].config(text=f"{value:.2f}")
+                    
+                    # 更新进度条
+                    progress_value = min(100, max(0, value * 100))
+                    self.expression_progress_bars[expr_name]['value'] = progress_value
+                    
+        except Exception as e:
+            print(f"更新表情显示错误: {e}")
+    
+    def capture_screenshot(self):
+        """截图功能"""
+        try:
+            if self.current_frame is not None:
+                # 生成文件名
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                filename = f"face_capture_{timestamp}.png"
+                
+                # 保存截图
+                cv2.imwrite(filename, self.current_frame)
+                
+                messagebox.showinfo("截图成功", f"截图已保存为: {filename}")
+                self.log(f"截图已保存: {filename}")
+            else:
+                messagebox.showwarning("警告", "没有可用的画面进行截图")
+                
+        except Exception as e:
+            messagebox.showerror("截图错误", f"截图失败: {e}")
+            self.log(f"截图错误: {e}")
+    
     def open_camera_window(self):
-        """打开摄像头窗口"""
+        """打开摄像头窗口（保留原功能作为备选）"""
         try:
             from .camera_window import CameraWindow
             CameraWindow(self.root)

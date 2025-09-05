@@ -10,8 +10,134 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
+import os
+import tempfile
 from typing import List, Dict, Optional, Callable
 import logging
+
+# 只在Unix/Linux系统导入fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+
+class SingletonLock:
+    """单例锁，防止多个摄像头选择器同时运行"""
+    
+    def __init__(self, lock_name: str = "camera_selector_lock"):
+        self.lock_name = lock_name
+        self.lock_file = None
+        self.lock_path = os.path.join(tempfile.gettempdir(), f"{lock_name}.lock")
+    
+    def acquire(self) -> bool:
+        """获取锁"""
+        try:
+            self.lock_file = open(self.lock_path, 'w')
+            # Windows下使用不同的锁定机制
+            if os.name == 'nt':  # Windows
+                import msvcrt
+                try:
+                    msvcrt.locking(self.lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    self.lock_file.write(str(os.getpid()))
+                    self.lock_file.flush()
+                    return True
+                except OSError:
+                    self.lock_file.close()
+                    self.lock_file = None
+                    return False
+            else:  # Unix/Linux或其他系统
+                if fcntl is None:
+                    # 如果fcntl不可用，使用简单的PID文件检查
+                    return self._simple_pid_lock()
+                try:
+                    fcntl.lockf(self.lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    self.lock_file.write(str(os.getpid()))
+                    self.lock_file.flush()
+                    return True
+                except OSError:
+                    self.lock_file.close()
+                    self.lock_file = None
+                    return False
+        except Exception:
+            if self.lock_file:
+                self.lock_file.close()
+                self.lock_file = None
+            return False
+    
+    def release(self):
+        """释放锁"""
+        if self.lock_file:
+            try:
+                if os.name == 'nt':  # Windows
+                    import msvcrt
+                    msvcrt.locking(self.lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                else:  # Unix/Linux
+                    if fcntl is not None:
+                        fcntl.lockf(self.lock_file.fileno(), fcntl.LOCK_UN)
+                self.lock_file.close()
+            except:
+                pass
+            finally:
+                self.lock_file = None
+                # 尝试删除锁文件
+                try:
+                    if os.path.exists(self.lock_path):
+                        os.remove(self.lock_path)
+                except:
+                    pass
+    
+    def _simple_pid_lock(self) -> bool:
+        """简单的PID文件锁机制（当系统不支持文件锁时使用）"""
+        try:
+            if os.path.exists(self.lock_path):
+                # 检查锁文件中的PID是否还在运行
+                with open(self.lock_path, 'r') as f:
+                    try:
+                        old_pid = int(f.read().strip())
+                        # 检查进程是否还存在
+                        if self._is_process_running(old_pid):
+                            # 进程仍在运行，无法获取锁
+                            self.lock_file.close()
+                            self.lock_file = None
+                            return False
+                        else:
+                            # 进程已结束，删除旧锁文件
+                            os.remove(self.lock_path)
+                    except (ValueError, FileNotFoundError):
+                        # 锁文件格式错误或已被删除，继续创建新锁
+                        pass
+            
+            # 创建新的锁文件
+            self.lock_file.write(str(os.getpid()))
+            self.lock_file.flush()
+            return True
+            
+        except Exception:
+            if self.lock_file:
+                self.lock_file.close()
+                self.lock_file = None
+            return False
+    
+    def _is_process_running(self, pid: int) -> bool:
+        """检查指定PID的进程是否还在运行"""
+        try:
+            if os.name == 'nt':  # Windows
+                import subprocess
+                result = subprocess.run(['tasklist', '/FI', f'PID eq {pid}'], 
+                                      capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                return str(pid) in result.stdout
+            else:  # Unix/Linux
+                os.kill(pid, 0)  # 发送信号0，不会杀死进程但会检查进程是否存在
+                return True
+        except (OSError, subprocess.SubprocessError):
+            return False
+    
+    def __enter__(self):
+        return self.acquire()
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
 
 
 class CameraInfo:
@@ -94,10 +220,16 @@ class CameraSelectorGUI:
         self.callback = callback
         self.selected_camera_id = None
         
+        # 单例锁
+        self.singleton_lock = SingletonLock("camera_selector_gui")
+        
         self.root = tk.Tk()
         self.root.title("摄像头选择器")
         self.root.geometry("500x400")
         self.root.resizable(True, True)
+        
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         self.preview_window = None
         self.preview_cap = None
@@ -244,6 +376,24 @@ class CameraSelectorGUI:
                 messagebox.showerror("错误", f"无法打开摄像头 {camera_info.id}")
                 return
             
+            # 测试读取多帧以确保摄像头稳定工作
+            test_success = 0
+            for i in range(5):
+                ret, test_frame = self.preview_cap.read()
+                if ret and test_frame is not None:
+                    test_success += 1
+                time.sleep(0.1)
+            
+            if test_success < 3:  # 至少成功3/5次
+                messagebox.showerror("错误", f"摄像头 {camera_info.id} 读取不稳定\n"
+                                           f"成功率: {test_success}/5\n"
+                                           f"可能原因:\n"
+                                           f"1. 摄像头被Teams、Chrome、Edge等程序占用\n"
+                                           f"2. 摄像头硬件故障\n"
+                                           f"3. USB连接不稳定")
+                self.preview_cap.release()
+                return
+            
             # 设置分辨率
             self.preview_cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_info.width)
             self.preview_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_info.height)
@@ -258,41 +408,66 @@ class CameraSelectorGUI:
             self.preview_btn.config(command=self.stop_preview)
             
         except Exception as e:
+            if self.preview_cap:
+                self.preview_cap.release()
+                self.preview_cap = None
             messagebox.showerror("错误", f"启动预览失败: {e}")
     
     def preview_loop(self, camera_info: CameraInfo):
         """预览循环"""
         window_name = f"摄像头预览 - {camera_info}"
+        frame_count = 0
+        failed_count = 0
         
-        while self.preview_running and self.preview_cap and self.preview_cap.isOpened():
+        try:
+            while self.preview_running and self.preview_cap and self.preview_cap.isOpened():
+                try:
+                    ret, frame = self.preview_cap.read()
+                    if ret and frame is not None:
+                        frame_count += 1
+                        failed_count = 0  # 重置失败计数
+                        
+                        # 添加信息文字
+                        cv2.putText(frame, f"Camera {camera_info.id} - Frame {frame_count}", (10, 30), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                        cv2.putText(frame, "Press ESC to close or click Stop Preview", (10, 60), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        
+                        cv2.imshow(window_name, frame)
+                        
+                        # 检查按键
+                        key = cv2.waitKey(1) & 0xFF
+                        if key == 27:  # ESC键
+                            self.preview_running = False
+                            break
+                    else:
+                        failed_count += 1
+                        if failed_count > 30:  # 连续失败30次就退出
+                            print(f"摄像头 {camera_info.id} 连续读取失败，停止预览")
+                            break
+                        time.sleep(0.033)  # 约30fps
+                        
+                except Exception as e:
+                    print(f"预览循环异常: {e}")
+                    break
+        except Exception as e:
+            print(f"预览循环严重异常: {e}")
+        finally:
+            # 清理资源
             try:
-                ret, frame = self.preview_cap.read()
-                if ret and frame is not None:
-                    # 添加信息文字
-                    cv2.putText(frame, f"Camera {camera_info.id}", (10, 30), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                    cv2.putText(frame, "Press ESC to close", (10, 70), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                    
-                    cv2.imshow(window_name, frame)
-                    
-                    # 检查按键
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == 27:  # ESC键
-                        break
-                else:
-                    time.sleep(0.01)
+                if self.preview_cap:
+                    self.preview_cap.release()
+                cv2.destroyWindow(window_name)
+                cv2.waitKey(1)  # 确保窗口被销毁
             except Exception:
-                break
-        
-        # 清理
-        if self.preview_cap:
-            self.preview_cap.release()
-        cv2.destroyWindow(window_name)
-        
-        # 更新按钮状态
-        if self.preview_btn:
-            self.root.after(0, self.reset_preview_button)
+                pass
+            
+            # 更新按钮状态（使用线程安全的方式）
+            try:
+                if self.preview_btn:
+                    self.root.after(0, self.reset_preview_button)
+            except Exception:
+                pass
     
     def reset_preview_button(self):
         """重置预览按钮状态"""
@@ -301,16 +476,40 @@ class CameraSelectorGUI:
     
     def stop_preview(self):
         """停止预览"""
+        print("正在停止预览...")
+        
+        # 设置停止标志
         self.preview_running = False
+        
+        # 释放摄像头资源
         if self.preview_cap:
-            self.preview_cap.release()
+            try:
+                self.preview_cap.release()
+            except Exception:
+                pass
             self.preview_cap = None
         
-        # 等待线程结束
-        if self.preview_thread and self.preview_thread.is_alive():
-            self.preview_thread.join(timeout=1)
+        # 销毁OpenCV窗口
+        try:
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)
+        except Exception:
+            pass
         
-        self.reset_preview_button()
+        # 等待线程结束，但设置较短的超时时间避免卡死
+        if self.preview_thread and self.preview_thread.is_alive():
+            print("等待预览线程结束...")
+            self.preview_thread.join(timeout=0.5)  # 减少超时时间
+            if self.preview_thread.is_alive():
+                print("警告: 预览线程未在预期时间内结束")
+        
+        # 重置按钮状态
+        try:
+            self.reset_preview_button()
+        except Exception:
+            pass
+        
+        print("预览已停止")
     
     def confirm_selection(self):
         """确认选择"""
@@ -369,8 +568,41 @@ class CameraSelectorGUI:
         """取消选择"""
         self.stop_preview()
         self.selected_camera_id = None
-        self.root.quit()
-        self.root.destroy()
+        self.on_closing()
+    
+    def on_closing(self):
+        """窗口关闭处理"""
+        print("正在关闭摄像头选择器...")
+        
+        # 停止预览
+        self.stop_preview()
+        
+        # 释放单例锁
+        try:
+            self.singleton_lock.release()
+        except Exception:
+            pass
+        
+        # 销毁所有OpenCV窗口
+        try:
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)
+        except Exception:
+            pass
+        
+        # 退出Tkinter主循环
+        try:
+            self.root.quit()
+        except Exception:
+            pass
+        
+        # 销毁窗口
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+        
+        print("摄像头选择器已关闭")
     
     def show(self) -> Optional[int]:
         """显示选择器并返回选中的摄像头ID"""
@@ -378,25 +610,50 @@ class CameraSelectorGUI:
             messagebox.showerror("错误", "未检测到可用的摄像头设备")
             return None
         
-        self.root.mainloop()
-        return self.selected_camera_id
+        # 获取单例锁
+        if not self.singleton_lock.acquire():
+            messagebox.showwarning("警告", "摄像头选择器已在运行中！\n请关闭已打开的摄像头选择器窗口。")
+            return None
+        
+        try:
+            self.root.mainloop()
+            return self.selected_camera_id
+        finally:
+            self.singleton_lock.release()
 
 
 def select_camera() -> Optional[int]:
     """显示摄像头选择器"""
     logging.basicConfig(level=logging.INFO)
     
-    # 检测摄像头
-    detector = CameraDetector()
-    cameras = detector.detect_cameras()
-    
-    if not cameras:
-        messagebox.showerror("错误", "未检测到可用的摄像头设备！\n\n请检查:\n1. 摄像头是否正确连接\n2. 摄像头权限设置\n3. 是否有其他程序占用摄像头")
+    # 检查是否已有实例在运行
+    singleton_check = SingletonLock("camera_selector_main")
+    if not singleton_check.acquire():
+        # 创建一个简单的Tkinter根窗口来显示警告
+        root = tk.Tk()
+        root.withdraw()  # 隐藏主窗口
+        messagebox.showwarning("警告", "摄像头选择器已在运行中！\n请关闭已打开的摄像头选择器窗口。")
+        root.destroy()
         return None
     
-    # 显示选择器
-    selector = CameraSelectorGUI(cameras)
-    return selector.show()
+    try:
+        # 检测摄像头
+        detector = CameraDetector()
+        cameras = detector.detect_cameras()
+        
+        if not cameras:
+            root = tk.Tk()
+            root.withdraw()  # 隐藏主窗口
+            messagebox.showerror("错误", "未检测到可用的摄像头设备！\n\n请检查:\n1. 摄像头是否正确连接\n2. 摄像头权限设置\n3. 是否有其他程序占用摄像头")
+            root.destroy()
+            return None
+        
+        # 显示选择器
+        selector = CameraSelectorGUI(cameras)
+        return selector.show()
+    
+    finally:
+        singleton_check.release()
 
 
 if __name__ == "__main__":
