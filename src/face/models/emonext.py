@@ -213,9 +213,8 @@ class EmoNeXtDetector:
                     self.model.load_state_dict(checkpoint)
                 self.logger.info(f"成功加载EmoNeXt权重: {weights_path}")
             else:
-                self.logger.warning(f"未找到权重文件 {weights_path}，使用随机初始化权重")
-                # 创建占位符权重文件
-                self._create_placeholder_weights(weights_path)
+                self.logger.error(f"未找到EmoNeXt权重文件 {weights_path}，无法使用该模型")
+                raise FileNotFoundError(f"EmoNeXt权重文件不存在: {weights_path}")
             
             self.model.to(self.device)
             self.model.eval()
@@ -230,24 +229,6 @@ class EmoNeXtDetector:
         weights_dir.mkdir(parents=True, exist_ok=True)
         return str(weights_dir / "emonext_weights.pth")
     
-    def _create_placeholder_weights(self, weights_path):
-        """创建占位符权重文件"""
-        try:
-            weights_dir = Path(weights_path).parent
-            weights_dir.mkdir(parents=True, exist_ok=True)
-            
-            # 保存随机初始化的权重作为占位符，使用EmoNeXt模型结构
-            placeholder_model = EmoNeXtModel(
-                num_classes=7,
-                depths=[2, 2, 6, 2], 
-                dims=[48, 96, 192, 384],
-                drop_path_rate=0.1,
-                layer_scale_init_value=1e-6
-            )
-            torch.save(placeholder_model.state_dict(), weights_path)
-            self.logger.info(f"创建EmoNeXt占位符权重: {weights_path}")
-        except Exception as e:
-            self.logger.warning(f"创建占位符权重失败: {e}")
     
     def preprocess_face(self, face_img):
         """预处理面部图像"""
@@ -399,10 +380,10 @@ class EmoNeXtDetector:
                 for expr_name, value in expressions.items():
                     if value > 0.01:  # 只显示有值的表情
                         display_name = {
-                            'eyeblink_left': '左眼',
-                            'eyeblink_right': '右眼',
-                            'mouth_open': '张嘴',
-                            'smile': '微笑'
+                            'eyeblink_left': 'L_Eye',
+                            'eyeblink_right': 'R_Eye',
+                            'mouth_open': 'Mouth', 
+                            'smile': 'Smile'
                         }.get(expr_name, expr_name)
                         
                         if expr_name == 'eyeblink_right':  # 避免重复显示眨眼

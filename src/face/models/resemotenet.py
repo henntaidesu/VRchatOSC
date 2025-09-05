@@ -159,9 +159,8 @@ class ResEmoteNetDetector:
                     self.model.load_state_dict(checkpoint)
                 self.logger.info(f"成功加载ResEmoteNet权重: {weights_path}")
             else:
-                self.logger.warning(f"未找到权重文件 {weights_path}，使用随机初始化权重")
-                # 创建占位符权重文件
-                self._create_placeholder_weights(weights_path)
+                self.logger.error(f"未找到ResEmoteNet权重文件 {weights_path}，无法使用该模型")
+                raise FileNotFoundError(f"ResEmoteNet权重文件不存在: {weights_path}")
             
             self.model.to(self.device)
             self.model.eval()
@@ -176,18 +175,6 @@ class ResEmoteNetDetector:
         weights_dir.mkdir(parents=True, exist_ok=True)
         return str(weights_dir / "resemotenet_weights.pth")
     
-    def _create_placeholder_weights(self, weights_path):
-        """创建占位符权重文件"""
-        try:
-            weights_dir = Path(weights_path).parent
-            weights_dir.mkdir(parents=True, exist_ok=True)
-            
-            # 保存随机初始化的权重作为占位符，使用ResEmoteNet模型结构
-            placeholder_model = ResEmoteNet(num_classes=7)
-            torch.save(placeholder_model.state_dict(), weights_path)
-            self.logger.info(f"创建ResEmoteNet占位符权重: {weights_path}")
-        except Exception as e:
-            self.logger.warning(f"创建占位符权重失败: {e}")
     
     def preprocess_face(self, face_img):
         """预处理面部图像"""
@@ -336,13 +323,13 @@ class ResEmoteNetDetector:
                 for expr_name, value in expressions.items():
                     if value > 0.05:  # 只显示有显著值的情感
                         display_name = {
-                            'angry': '愤怒',
-                            'disgust': '厌恶',
-                            'fear': '恐惧',
-                            'happy': '高兴',
-                            'sad': '伤心',
-                            'surprise': '惊讶',
-                            'neutral': '中立'
+                            'angry': 'Angry',
+                            'disgust': 'Disgust', 
+                            'fear': 'Fear',
+                            'happy': 'Happy',
+                            'sad': 'Sad',
+                            'surprise': 'Surprise',
+                            'neutral': 'Neutral'
                         }.get(expr_name, expr_name)
                         
                         text = f"{display_name}: {value:.2f}"

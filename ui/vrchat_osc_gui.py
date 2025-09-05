@@ -166,7 +166,7 @@ class VRChatOSCGUI:
         self.connect_btn.grid(row=0, column=8, padx=(10, 0))
         
         # 第二行：高级设置按钮
-        self.advanced_settings_btn = ttk.Button(self.connection_frame, text="高级设置", command=self.open_settings_window)
+        self.advanced_settings_btn = ttk.Button(self.connection_frame, text=self.get_text("advanced_settings"), command=self.open_settings_window)
         self.advanced_settings_btn.grid(row=1, column=0, columnspan=2, pady=(10, 0), sticky=tk.W)
         
         # 配置连接框架的列权重
@@ -184,7 +184,7 @@ class VRChatOSCGUI:
         text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         text_frame.columnconfigure(0, weight=1)
         
-        self.message_entry = ttk.Entry(text_frame, font=("微软雅黑", 10))
+        self.message_entry = ttk.Entry(text_frame, font=("", 10))
         self.message_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
         self.message_entry.bind("<Return>", lambda e: self.send_text_message())
         
@@ -231,13 +231,13 @@ class VRChatOSCGUI:
         
         # 强制备用模式开关
         self.fallback_var = tk.BooleanVar(value=self.config.use_fallback_mode)
-        self.fallback_check = ttk.Checkbutton(debug_frame, text="强制备用模式", 
+        self.fallback_check = ttk.Checkbutton(debug_frame, text=self.get_text("force_fallback_mode"), 
                                         variable=self.fallback_var, command=self.toggle_fallback_mode)
         self.fallback_check.grid(row=0, column=1, padx=(0, 10))
         
         # 禁用备用模式开关
         self.disable_fallback_var = tk.BooleanVar(value=self.config.disable_fallback_mode)
-        self.disable_fallback_check = ttk.Checkbutton(debug_frame, text="禁用备用模式", 
+        self.disable_fallback_check = ttk.Checkbutton(debug_frame, text=self.get_text("disable_fallback_mode"), 
                                                  variable=self.disable_fallback_var, command=self.toggle_disable_fallback_mode)
         self.disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
         
@@ -335,15 +335,15 @@ class VRChatOSCGUI:
         center_frame.rowconfigure(4, weight=3)  # 语音识别框更大权重
         
         # 语音识别文本框
-        self.speech_text = scrolledtext.ScrolledText(self.speech_frame, height=8, font=("微软雅黑", 12), wrap=tk.WORD)
+        self.speech_text = scrolledtext.ScrolledText(self.speech_frame, height=8, font=("", 12), wrap=tk.WORD)
         self.speech_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 配置语音识别输出的颜色标签
-        self.speech_text.tag_config("持续监听", foreground="#2196F3")  # 蓝色
-        self.speech_text.tag_config("录制语音", foreground="#4CAF50")  # 绿色  
-        self.speech_text.tag_config("发送语音", foreground="#FF9800")  # 橙色
+        self.speech_text.tag_config(self.get_text("continuous_listening"), foreground="#2196F3")  # 蓝色
+        self.speech_text.tag_config(self.get_text("voice_recording"), foreground="#4CAF50")  # 绿色  
+        self.speech_text.tag_config(self.get_text("voice_sending"), foreground="#FF9800")  # 橙色
         self.speech_text.tag_config("AI回复", foreground="#9C27B0")    # 紫色
-        self.speech_text.tag_config("时间戳", foreground="#666666")   # 灰色
+        self.speech_text.tag_config(self.get_text("timestamp"), foreground="#666666")   # 灰色
         
         # 语音识别框按钮行
         speech_button_frame = ttk.Frame(self.speech_frame)
@@ -368,7 +368,7 @@ class VRChatOSCGUI:
         status_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E))
         status_frame.columnconfigure(0, weight=1)
         
-        self.status_label = ttk.Label(status_frame, text="未连接", foreground="red")
+        self.status_label = ttk.Label(status_frame, text=self.get_text("disconnected"), foreground="red")
         self.status_label.grid(row=0, column=0, sticky=tk.W)
         
         # 进度条（默认隐藏）
@@ -474,10 +474,11 @@ class VRChatOSCGUI:
                 self.log(f"检测到 {len(available_cameras)} 个可用摄像头")
                 
             else:
-                self.camera_combo['values'] = ['未检测到摄像头']
-                self.camera_combo.set('未检测到摄像头')
+                no_cameras_text = self.get_text("no_cameras_available")
+                self.camera_combo['values'] = [no_cameras_text]
+                self.camera_combo.set(no_cameras_text)
                 self.camera_id_mapping = {}
-                self.log("未检测到可用摄像头")
+                self.log(self.get_text("no_cameras_available"))
                 
         except Exception as e:
             self.log(f"更新摄像头列表失败: {e}")
@@ -498,20 +499,17 @@ class VRChatOSCGUI:
             except Exception as e:
                 self.log(f"释放旧GPU检测器时出错: {e}")
         
-        # 如果切换到GPU模型，预初始化检测器或切换现有检测器
+        # 如果切换到GPU模型，强制重新初始化检测器
         if self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
             try:
-                if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
-                    # 如果检测器已存在，直接切换模型
-                    self.gpu_detector.switch_model(self.emotion_model_type)
-                    self.log(f"GPU检测器已切换到: {self.emotion_model_type}")
-                else:
-                    # 创建新的检测器
-                    from src.face.gpu_emotion_detector import GPUEmotionDetector
-                    self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
-                    self.log(f"成功初始化GPU情感检测器: {self.emotion_model_type}")
+                # 总是创建新的检测器以确保模型切换生效
+                from src.face.gpu_emotion_detector import GPUEmotionDetector
+                self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
+                self.log(f"成功初始化GPU情感检测器: {self.emotion_model_type}")
             except Exception as e:
-                self.log(f"GPU检测器初始化/切换失败: {e}")
+                import traceback
+                self.log(f"GPU检测器初始化失败 ({self.emotion_model_type}): {e}")
+                self.log(f"详细错误: {traceback.format_exc()}")
                 self.gpu_detector = None
         
         # 如果面部识别正在运行，需要重启以应用新模型
@@ -524,7 +522,7 @@ class VRChatOSCGUI:
     def setup_voicevox_area(self, parent_frame):
         """设置VOICEVOX控制区域"""
         # VOICEVOX控制面板 - 占用整个左侧区域
-        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text="角色", padding="5")
+        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text=self.get_text("character"), padding="5")
         self.voicevox_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
         self.voicevox_control_frame.columnconfigure(0, weight=1)
         self.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
@@ -551,7 +549,7 @@ class VRChatOSCGUI:
         self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
         
         # VOICEVOX连接状态
-        self.voicevox_status_label = ttk.Label(character_frame, text="未连接", foreground="red")
+        self.voicevox_status_label = ttk.Label(character_frame, text=self.get_text("disconnected"), foreground="red")
         self.voicevox_status_label.pack(side=tk.RIGHT)
         
         # 第三行：控制按钮
@@ -559,7 +557,7 @@ class VRChatOSCGUI:
         control_frame.pack(fill=tk.X, pady=(5, 0))
         
         # VOICEVOX测试按钮
-        self.voicevox_test_btn = ttk.Button(control_frame, text="测试语音", command=self.test_voicevox)
+        self.voicevox_test_btn = ttk.Button(control_frame, text=self.get_text("voice_test"), command=self.test_voicevox)
         self.voicevox_test_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # VOICEVOX启用开关
@@ -576,7 +574,7 @@ class VRChatOSCGUI:
         self.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
         # 第四行：语音参数控制
-        params_frame = ttk.LabelFrame(self.voicevox_control_frame, text="语音参数", padding="5")
+        params_frame = ttk.LabelFrame(self.voicevox_control_frame, text=self.get_text("voice_params"), padding="5")
         params_frame.pack(fill=tk.X, pady=(10, 0))
         
         # 语速控制
@@ -674,7 +672,7 @@ class VRChatOSCGUI:
         self.capture_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 保存表情数据按钮
-        self.save_expression_btn = ttk.Button(control_buttons, text="保存表情", command=self.save_expression_data,
+        self.save_expression_btn = ttk.Button(control_buttons, text=self.get_text("save_expression"), command=self.save_expression_data,
                                             state="disabled")
         self.save_expression_btn.pack(side=tk.LEFT, padx=(0, 5))
         
@@ -783,7 +781,7 @@ class VRChatOSCGUI:
         """清空日志"""
         self.log_text.delete(1.0, tk.END)
     
-    def add_speech_output(self, text: str, source: str = "语音"):
+    def add_speech_output(self, text: str, source: str = None):
         """添加语音识别输出"""
         timestamp = time.strftime("%H:%M:%S")
         
@@ -795,7 +793,7 @@ class VRChatOSCGUI:
         # 插入时间戳（灰色）
         start_pos = self.speech_text.index(tk.END + "-1c")
         self.speech_text.insert(tk.END, f"[{timestamp}] ")
-        self.speech_text.tag_add("时间戳", start_pos, self.speech_text.index(tk.END + "-1c"))
+        self.speech_text.tag_add(self.get_text("timestamp"), start_pos, self.speech_text.index(tk.END + "-1c"))
         
         # 插入来源标签（彩色）
         start_pos = self.speech_text.index(tk.END + "-1c")
@@ -825,9 +823,9 @@ class VRChatOSCGUI:
             import tkinter.filedialog as filedialog
             
             filename = filedialog.asksaveasfilename(
-                title="保存语音记录",
+                title=self.get_text("save_speech_record"),
                 defaultextension=".txt",
-                filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
+                filetypes=[(self.get_text("text_files"), "*.txt"), (self.get_text("all_files"), "*.*")]
             )
             
             if filename:
@@ -837,7 +835,7 @@ class VRChatOSCGUI:
                 self.log(f"语音记录已保存到: {filename}")
                 
         except Exception as e:
-            messagebox.showerror("保存错误", f"保存文件失败: {e}")
+            messagebox.showerror(self.get_text("save_error"), f"{self.get_text('cannot_load_audio_file')}: {e}")
             self.log(f"保存语音记录失败: {e}")
     
     def update_ui_state(self, connected: bool):
@@ -846,13 +844,13 @@ class VRChatOSCGUI:
         
         if connected:
             self.connect_btn.config(text=self.get_text("disconnect"))
-            self.status_label.config(text="已连接", foreground="green")
+            self.status_label.config(text=self.get_text("connected"), foreground="green")
             # 启用功能按钮
             self.listen_btn.config(state="normal")
             self.upload_voice_btn.config(state="normal")
         else:
             self.connect_btn.config(text=self.get_text("connect"))
-            self.status_label.config(text="未连接", foreground="red")
+            self.status_label.config(text=self.get_text("disconnected"), foreground="red")
             # 禁用功能按钮
             self.listen_btn.config(state="disabled")
             self.upload_voice_btn.config(state="disabled")
@@ -929,12 +927,12 @@ class VRChatOSCGUI:
             self.connect_btn.config(text="连接", state="normal")
             self.progress_bar.stop()
             self.progress_bar.grid_remove()
-            messagebox.showerror("错误", "端口号必须是数字")
+            messagebox.showerror(self.get_text("error"), self.get_text("port_must_be_number"))
         except Exception as e:
             self.connect_btn.config(text="连接", state="normal")
             self.progress_bar.stop()
             self.progress_bar.grid_remove()
-            messagebox.showerror("连接错误", f"无法连接到VRChat: {e}")
+            messagebox.showerror(self.get_text("connection_error"), f"{self.get_text('cannot_connect_vrchat')}: {e}")
             self.log(f"连接失败: {e}")
     
     def _connection_success(self, host: str, send_port: int):
@@ -946,7 +944,7 @@ class VRChatOSCGUI:
         self.update_ui_state(True)
         self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
         self.log("语音识别模型加载完成！")
-        self.log("现在可以开始使用语音识别功能了")
+        self.log(self.get_text("voice_recognition_ready"))
     
     def _connection_failed(self, error_msg: str):
         """连接失败的UI更新"""
@@ -955,7 +953,7 @@ class VRChatOSCGUI:
         self.progress_bar.grid_remove()
         
         self.connect_btn.config(text="连接", state="normal")
-        messagebox.showerror("连接错误", f"无法连接到VRChat: {error_msg}")
+        messagebox.showerror(self.get_text("connection_error"), f"{self.get_text('cannot_connect_vrchat')}: {error_msg}")
         self.log(f"连接失败: {error_msg}")
     
     def disconnect_from_vrchat(self):
@@ -988,7 +986,7 @@ class VRChatOSCGUI:
     def send_text_message(self):
         """发送文字消息"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             return
         
         message = self.message_entry.get().strip()
@@ -1000,13 +998,13 @@ class VRChatOSCGUI:
             self.log(f"[发送文字] {message}")
             self.message_entry.delete(0, tk.END)
         except Exception as e:
-            messagebox.showerror("发送错误", f"发送消息失败: {e}")
+            messagebox.showerror(self.get_text("send_error"), f"{self.get_text('send_message_failed')}: {e}")
             self.log(f"发送消息失败: {e}")
     
     def toggle_voice_listening(self):
         """切换语音监听状态"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             return
         
         if not self.is_listening:
@@ -1019,7 +1017,7 @@ class VRChatOSCGUI:
         try:
             # 检查语音引擎是否就绪
             if not self.client.speech_engine.is_model_loaded():
-                messagebox.showerror("语音错误", "语音识别模型未加载，请等待模型加载完成")
+                messagebox.showerror(self.get_text("voice_recognition_error"), self.get_text("voice_model_not_loaded"))
                 self.log("语音识别模型未加载")
                 return
             
@@ -1057,10 +1055,10 @@ class VRChatOSCGUI:
                 self.log("提示：只有当VRChat检测到你说话时才会进行语音识别")
             else:
                 self.log("启动语音监听失败")
-                messagebox.showerror("语音错误", "启动语音监听失败")
+                messagebox.showerror(self.get_text("voice_recognition_error"), self.get_text("voice_listening_failed"))
             
         except Exception as e:
-            messagebox.showerror("语音错误", f"启动语音监听失败: {e}")
+            messagebox.showerror(self.get_text("voice_recognition_error"), f"{self.get_text('voice_listening_failed')}: {e}")
             self.log(f"启动语音监听失败: {e}")
     
     def stop_voice_listening(self):
@@ -1078,7 +1076,7 @@ class VRChatOSCGUI:
     def send_parameter(self):
         """发送Avatar参数"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             return
         
         param_name = self.param_name_entry.get().strip()
@@ -1250,7 +1248,7 @@ class VRChatOSCGUI:
     def upload_voice_file(self):
         """上传语音文件"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             return
         
         # 选择文件
@@ -1332,7 +1330,7 @@ class VRChatOSCGUI:
     def toggle_debug_mode(self):
         """切换调试模式"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             self.debug_var.set(False)
             return
         
@@ -1344,7 +1342,7 @@ class VRChatOSCGUI:
     def toggle_fallback_mode(self):
         """切换强制备用模式"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             self.fallback_var.set(False)
             return
         
@@ -1362,7 +1360,7 @@ class VRChatOSCGUI:
     def toggle_disable_fallback_mode(self):
         """切换禁用备用模式"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             self.disable_fallback_var.set(False)
             return
         
@@ -1383,7 +1381,7 @@ class VRChatOSCGUI:
     def show_debug_status(self):
         """显示调试状态信息"""
         if not self.is_connected:
-            messagebox.showwarning("警告", "请先连接到VRChat")
+            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
             return
         
         try:
@@ -1524,6 +1522,30 @@ class VRChatOSCGUI:
             self.listen_btn.config(text=self.get_text("stop_listening"))
         else:
             self.listen_btn.config(text=self.get_text("start_listening"))
+            
+        # 更新新添加的按钮和标签
+        if hasattr(self, 'advanced_settings_btn'):
+            self.advanced_settings_btn.config(text=self.get_text("advanced_settings"))
+        if hasattr(self, 'fallback_check'):
+            self.fallback_check.config(text=self.get_text("force_fallback_mode"))
+        if hasattr(self, 'disable_fallback_check'):
+            self.disable_fallback_check.config(text=self.get_text("disable_fallback_mode"))
+        if hasattr(self, 'save_expression_btn'):
+            self.save_expression_btn.config(text=self.get_text("save_expression"))
+        if hasattr(self, 'voicevox_control_frame'):
+            self.voicevox_control_frame.config(text=self.get_text("character"))
+        if hasattr(self, 'voicevox_test_btn'):
+            self.voicevox_test_btn.config(text=self.get_text("voice_test"))
+        
+        # 更新状态标签
+        if hasattr(self, 'status_label'):
+            if self.is_connected:
+                self.status_label.config(text=self.get_text("connected"))
+            else:
+                self.status_label.config(text=self.get_text("disconnected"))
+        if hasattr(self, 'voicevox_status_label') and hasattr(self, 'voicevox_status_label'):
+            # VOICEVOX状态根据实际连接状态更新
+            pass
         
         if hasattr(self, 'send_text_btn'):
             self.send_text_btn.config(text=self.get_text("send_text"))
@@ -1695,7 +1717,7 @@ class VRChatOSCGUI:
             self.camera_thread = threading.Thread(target=self.simple_video_loop, daemon=True)
             self.camera_thread.start()
             
-            self.log("摄像头启动成功")
+            self.log(self.get_text("camera_start_success"))
             
         except Exception as e:
             self.log(f"摄像头启动失败: {e}")
@@ -1785,35 +1807,21 @@ class VRChatOSCGUI:
                     cv2.putText(frame, "Face Detected", (x, y-10), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 
-                # 简单的表情模拟（基于人脸检测结果）
+                # Simple模式：只显示检测到的面部数量，不生成假数据
                 if len(faces) > 0:
-                    import math
-                    import time
-                    # 使用时间和正弦函数模拟动态表情变化
-                    t = time.time()
-                    # 模拟7种情感的动态变化
-                    expressions['happy'] = 0.3 + 0.4 * abs(math.sin(t * 0.5))
-                    expressions['angry'] = 0.1 + 0.2 * abs(math.sin(t * 0.8))
-                    expressions['surprise'] = 0.1 + 0.3 * abs(math.sin(t * 1.2))
-                    expressions['sad'] = 0.1 + 0.2 * abs(math.sin(t * 0.6))
-                    expressions['fear'] = 0.05 + 0.15 * abs(math.sin(t * 1.8))
-                    expressions['disgust'] = 0.05 + 0.1 * abs(math.sin(t * 0.7))
-                    expressions['neutral'] = 0.8 - (expressions['happy'] + expressions['angry'] + expressions['surprise'] + expressions['sad']) * 0.5
+                    # 保持默认的表情值，不生成模拟数据
+                    pass
             
             elif self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
                 # 使用GPU加速的情感识别模型
                 if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
                     try:
-                        # 检查是否需要切换模型
-                        current_model = self.gpu_detector.get_model_info()['model_type']
-                        if current_model != self.emotion_model_type:
-                            self.log(f"切换GPU模型: {current_model} -> {self.emotion_model_type}")
-                            self.gpu_detector.switch_model(self.emotion_model_type)
-                        
                         annotated_frame, expressions = self.gpu_detector.process_frame(frame)
                         return annotated_frame, expressions
                     except Exception as gpu_e:
-                        self.log(f"GPU情感识别处理错误: {gpu_e}")
+                        import traceback
+                        self.log(f"GPU情感识别处理错误 ({self.emotion_model_type}): {gpu_e}")
+                        self.log(f"详细错误信息: {traceback.format_exc()}")
                         # 回退到简单模式
                         return self.process_simple_detection(frame)
                 else:
@@ -1825,7 +1833,10 @@ class VRChatOSCGUI:
                         annotated_frame, expressions = self.gpu_detector.process_frame(frame)
                         return annotated_frame, expressions
                     except Exception as init_e:
-                        self.log(f"GPU情感检测器初始化失败: {init_e}, 回退到简单模式")
+                        import traceback
+                        self.log(f"GPU情感检测器初始化失败 ({self.emotion_model_type}): {init_e}")
+                        self.log(f"详细错误信息: {traceback.format_exc()}")
+                        self.log("回退到简单模式")
                         return self.process_simple_detection(frame)
             
         except Exception as e:
@@ -1856,19 +1867,10 @@ class VRChatOSCGUI:
                 cv2.putText(frame, "Face Detected (Simple)", (x, y-10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
-            # 为后备简单模式也提供动态表情数据
+            # 简单模式回退：只显示面部检测，不生成假表情数据
             if len(faces) > 0:
-                import math
-                import time
-                t = time.time()
-                # 模拟7种情感的动态变化
-                expressions['happy'] = 0.3 + 0.4 * abs(math.sin(t * 0.5))
-                expressions['angry'] = 0.1 + 0.2 * abs(math.sin(t * 0.8))
-                expressions['surprise'] = 0.1 + 0.3 * abs(math.sin(t * 1.2))
-                expressions['sad'] = 0.1 + 0.2 * abs(math.sin(t * 0.6))
-                expressions['fear'] = 0.05 + 0.15 * abs(math.sin(t * 1.8))
-                expressions['disgust'] = 0.05 + 0.1 * abs(math.sin(t * 0.7))
-                expressions['neutral'] = 0.8 - (expressions['happy'] + expressions['angry'] + expressions['surprise'] + expressions['sad']) * 0.5
+                # 保持默认表情值，不生成模拟数据
+                pass
                 
         except Exception as e:
             self.log(f"简单面部检测错误: {e}")
@@ -1974,7 +1976,7 @@ class VRChatOSCGUI:
                     
                     # 如果最强情感的强度很低，显示中立状态
                     if intensity < 0.1:
-                        display_name = "中立"
+                        display_name = self.get_text("neutral")
                         display_intensity = expressions.get('neutral', 0.0)
                     else:
                         # 情感名称映射
@@ -1991,7 +1993,7 @@ class VRChatOSCGUI:
                         display_intensity = intensity
                 else:
                     # 所有情感都为0，显示中立
-                    display_name = "中立"
+                    display_name = self.get_text("neutral")
                     display_intensity = expressions.get('neutral', 0.0)
                 
                 # 更新显示
