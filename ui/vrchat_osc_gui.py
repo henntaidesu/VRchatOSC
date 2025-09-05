@@ -68,7 +68,7 @@ class VRChatOSCGUI:
         self.current_frame = None
         self.camera_thread = None
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
-        self.emotion_model_type = 'Simple'  # 默认使用简单模型
+        self.emotion_model_type = 'ResEmoteNet'  # 默认使用ResEmoteNet情感识别模型
         
         # VOICEVOX相关变量
         self.voicevox_client = None
@@ -164,6 +164,10 @@ class VRChatOSCGUI:
         # 连接按钮
         self.connect_btn = ttk.Button(self.connection_frame, text=self.get_text("connect"), command=self.toggle_connection)
         self.connect_btn.grid(row=0, column=8, padx=(10, 0))
+        
+        # 第二行：高级设置按钮
+        self.advanced_settings_btn = ttk.Button(self.connection_frame, text="高级设置", command=self.open_settings_window)
+        self.advanced_settings_btn.grid(row=1, column=0, columnspan=2, pady=(10, 0), sticky=tk.W)
         
         # 配置连接框架的列权重
         self.connection_frame.columnconfigure(1, weight=1)
@@ -520,39 +524,35 @@ class VRChatOSCGUI:
     def setup_voicevox_area(self, parent_frame):
         """设置VOICEVOX控制区域"""
         # VOICEVOX控制面板 - 占用整个左侧区域
-        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text="VOICEVOX控制", padding="5")
+        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text="角色", padding="5")
         self.voicevox_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
         self.voicevox_control_frame.columnconfigure(0, weight=1)
         self.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
         
-        # 第一行：期数选择
-        period_frame = ttk.Frame(self.voicevox_control_frame)
-        period_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # VOICEVOX期数选择
-        ttk.Label(period_frame, text="期数:", width=8).pack(side=tk.LEFT, padx=(0, 5))
-        self.voicevox_period_var = tk.StringVar(value="1期")
-        self.voicevox_period_combo = ttk.Combobox(period_frame, textvariable=self.voicevox_period_var,
-                                                values=["1期", "2期", "3期"],
-                                                width=10, state="readonly")
-        self.voicevox_period_combo.pack(side=tk.LEFT, padx=(0, 10))
-        self.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
-        
-        # VOICEVOX连接状态
-        self.voicevox_status_label = ttk.Label(period_frame, text="未连接", foreground="red")
-        self.voicevox_status_label.pack(side=tk.RIGHT)
-        
-        # 第二行：角色选择
+        # 第一行：期数和角色选择（合并到一行）
         character_frame = ttk.Frame(self.voicevox_control_frame)
         character_frame.pack(fill=tk.X, pady=(0, 5))
         
+        # VOICEVOX期数选择
+        ttk.Label(character_frame, text="期数:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        self.voicevox_period_var = tk.StringVar(value="1期")
+        self.voicevox_period_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_period_var,
+                                                values=["1期", "2期", "3期"],
+                                                width=8, state="readonly")
+        self.voicevox_period_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
+        
         # VOICEVOX角色选择
-        ttk.Label(character_frame, text="角色:", width=8).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(character_frame, text="角色:", width=6).pack(side=tk.LEFT, padx=(0, 5))
         self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
         self.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_character_var,
-                                                   width=25, state="readonly")
-        self.voicevox_character_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                                                   width=20, state="readonly")
+        self.voicevox_character_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
+        
+        # VOICEVOX连接状态
+        self.voicevox_status_label = ttk.Label(character_frame, text="未连接", foreground="red")
+        self.voicevox_status_label.pack(side=tk.RIGHT)
         
         # 第三行：控制按钮
         control_frame = ttk.Frame(self.voicevox_control_frame)
@@ -645,7 +645,7 @@ class VRChatOSCGUI:
         # 模型选择
         self.model_label = ttk.Label(control_buttons, text=self.get_text("model"))
         self.model_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.model_var = tk.StringVar(value="Simple")
+        self.model_var = tk.StringVar(value="ResEmoteNet")
         self.model_combo = ttk.Combobox(control_buttons, textvariable=self.model_var,
                                   values=["Simple", "ResEmoteNet", "FER2013", "EmoNeXt"], 
                                   width=12, state="readonly")
@@ -694,15 +694,19 @@ class VRChatOSCGUI:
         # 表情数据显示区域
         self.expression_frame = ttk.LabelFrame(parent_frame, text=self.get_text("realtime_expression"), padding="5")
         self.expression_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        self.expression_frame.columnconfigure(1, weight=1)
-        self.expression_frame.columnconfigure(3, weight=1)
+        # 配置表情框架的列权重，避免重叠 - 每列占用3个网格位置
+        self.expression_frame.columnconfigure(2, weight=1)  # 第一列进度条
+        self.expression_frame.columnconfigure(5, weight=1)  # 第二列进度条
         
-        # 表情数据标签
+        # 表情数据标签 - 7种标准情感
         self.expressions = {
-            'eyeblink_left': 0.0,
-            'eyeblink_right': 0.0,
-            'mouth_open': 0.0,
-            'smile': 0.0
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 0.0     # 中立
         }
         
         # 创建表情显示组件
@@ -714,23 +718,29 @@ class VRChatOSCGUI:
         for expr_name in self.expressions.keys():
             # 表情名称
             display_name = {
-                'eyeblink_left': self.get_text('left_eye_blink'),
-                'eyeblink_right': self.get_text('right_eye_blink'),
-                'mouth_open': self.get_text('mouth_open'),
-                'smile': self.get_text('smile')
+                'angry': '愤怒',
+                'disgust': '厌恶',
+                'fear': '恐惧', 
+                'happy': '高兴',
+                'sad': '伤心',
+                'surprise': '惊讶',
+                'neutral': '中立'
             }.get(expr_name, expr_name)
             
+            # 使用正确的列偏移避免重叠：每列占用3个位置
+            base_col = col * 3
+            
             ttk.Label(self.expression_frame, text=f"{display_name}:").grid(
-                row=row, column=col*2, sticky=tk.W, padx=(0, 5))
+                row=row, column=base_col, sticky=tk.W, padx=(0, 5))
             
             # 数值显示
             value_label = ttk.Label(self.expression_frame, text="0.00", width=6)
-            value_label.grid(row=row, column=col*2+1, sticky=tk.W, padx=(0, 20))
+            value_label.grid(row=row, column=base_col+1, sticky=tk.W, padx=(0, 5))
             self.expression_labels[expr_name] = value_label
             
             # 进度条
-            progress = ttk.Progressbar(self.expression_frame, length=100, mode='determinate')
-            progress.grid(row=row, column=col*2+2, sticky=(tk.W, tk.E), padx=(0, 20))
+            progress = ttk.Progressbar(self.expression_frame, length=120, mode='determinate')
+            progress.grid(row=row, column=base_col+2, sticky=(tk.W, tk.E), padx=(0, 15))
             progress['maximum'] = 100
             self.expression_progress_bars[expr_name] = progress
             
@@ -1180,6 +1190,32 @@ class VRChatOSCGUI:
         self.threshold_label.config(text=f"{threshold:.3f}")
         self.log(f"语音阈值已设置为: {threshold:.3f}")
     
+    def open_settings_window(self):
+        """打开高级设置窗口"""
+        try:
+            from ui.settings_window import SettingsWindow
+            
+            # 创建设置窗口，传入回调函数
+            settings_window = SettingsWindow(self.root, self.on_settings_saved)
+            
+        except ImportError as e:
+            messagebox.showerror("错误", f"无法加载设置窗口: {e}")
+        except Exception as e:
+            messagebox.showerror("错误", f"打开设置窗口失败: {e}")
+    
+    def on_settings_saved(self):
+        """设置保存后的回调函数"""
+        try:
+            # 重新加载配置
+            self.load_settings()
+            self.log("高级设置已保存并应用")
+            
+            # 如果需要，可以在这里更新UI或重启某些功能
+            # 例如重新初始化某些组件
+            
+        except Exception as e:
+            self.log(f"应用高级设置时出错: {e}")
+    
     def on_closing(self):
         """窗口关闭事件处理"""
         try:
@@ -1537,23 +1573,29 @@ class VRChatOSCGUI:
         for expr_name in self.expressions.keys():
             # 表情名称
             display_name = {
-                'eyeblink_left': self.get_text('left_eye_blink'),
-                'eyeblink_right': self.get_text('right_eye_blink'),
-                'mouth_open': self.get_text('mouth_open'),
-                'smile': self.get_text('smile')
+                'angry': '愤怒',
+                'disgust': '厌恶',
+                'fear': '恐惧', 
+                'happy': '高兴',
+                'sad': '伤心',
+                'surprise': '惊讶',
+                'neutral': '中立'
             }.get(expr_name, expr_name)
             
+            # 使用正确的列偏移避免重叠：每列占用3个位置
+            base_col = col * 3
+            
             ttk.Label(self.expression_frame, text=f"{display_name}:").grid(
-                row=row, column=col*2, sticky=tk.W, padx=(0, 5))
+                row=row, column=base_col, sticky=tk.W, padx=(0, 5))
             
             # 数值显示
             value_label = ttk.Label(self.expression_frame, text="0.00", width=6)
-            value_label.grid(row=row, column=col*2+1, sticky=tk.W, padx=(0, 20))
+            value_label.grid(row=row, column=base_col+1, sticky=tk.W, padx=(0, 5))
             self.expression_labels[expr_name] = value_label
             
             # 进度条
-            progress = ttk.Progressbar(self.expression_frame, length=100, mode='determinate')
-            progress.grid(row=row, column=col*2+2, sticky=(tk.W, tk.E), padx=(0, 20))
+            progress = ttk.Progressbar(self.expression_frame, length=120, mode='determinate')
+            progress.grid(row=row, column=base_col+2, sticky=(tk.W, tk.E), padx=(0, 15))
             progress['maximum'] = 100
             self.expression_progress_bars[expr_name] = progress
             
@@ -1663,6 +1705,18 @@ class VRChatOSCGUI:
         try:
             self.log(f"正在启动面部识别模型: {self.emotion_model_type}")
             
+            # 如果使用GPU模型，初始化检测器
+            if self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
+                if not hasattr(self, 'gpu_detector') or self.gpu_detector is None:
+                    try:
+                        from src.face.gpu_emotion_detector import GPUEmotionDetector
+                        self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
+                        self.log(f"成功初始化GPU情感检测器: {self.emotion_model_type}")
+                    except Exception as e:
+                        self.log(f"GPU检测器初始化失败: {e}")
+                        self.log("将使用Simple模式作为后备")
+                        self.emotion_model_type = 'Simple'
+            
             # 这里不需要重新创建摄像头实例，只是设置标志
             self.face_detection_running = True
             self.face_detection_btn.config(text="停止面部识别")
@@ -1675,10 +1729,13 @@ class VRChatOSCGUI:
     def process_face_detection(self, frame):
         """处理面部识别"""
         expressions = {
-            'eyeblink_left': 0.0,
-            'eyeblink_right': 0.0,
-            'mouth_open': 0.0,
-            'smile': 0.0
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 0.0     # 中立
         }
         
         try:
@@ -1700,10 +1757,14 @@ class VRChatOSCGUI:
                     import time
                     # 使用时间和正弦函数模拟动态表情变化
                     t = time.time()
-                    expressions['smile'] = 0.2 + 0.3 * abs(math.sin(t * 0.5))
-                    expressions['eyeblink_left'] = 0.1 + 0.4 * abs(math.sin(t * 2.0))
-                    expressions['eyeblink_right'] = 0.1 + 0.4 * abs(math.sin(t * 2.1))
-                    expressions['mouth_open'] = 0.1 + 0.3 * abs(math.sin(t * 1.5))
+                    # 模拟7种情感的动态变化
+                    expressions['happy'] = 0.3 + 0.4 * abs(math.sin(t * 0.5))
+                    expressions['angry'] = 0.1 + 0.2 * abs(math.sin(t * 0.8))
+                    expressions['surprise'] = 0.1 + 0.3 * abs(math.sin(t * 1.2))
+                    expressions['sad'] = 0.1 + 0.2 * abs(math.sin(t * 0.6))
+                    expressions['fear'] = 0.05 + 0.15 * abs(math.sin(t * 1.8))
+                    expressions['disgust'] = 0.05 + 0.1 * abs(math.sin(t * 0.7))
+                    expressions['neutral'] = 0.8 - (expressions['happy'] + expressions['angry'] + expressions['surprise'] + expressions['sad']) * 0.5
             
             elif self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
                 # 使用GPU加速的情感识别模型
@@ -1741,10 +1802,13 @@ class VRChatOSCGUI:
     def process_simple_detection(self, frame):
         """简单的面部检测处理（作为GPU模式的后备）"""
         expressions = {
-            'eyeblink_left': 0.0,
-            'eyeblink_right': 0.0,
-            'mouth_open': 0.0,
-            'smile': 0.0
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 0.0     # 中立
         }
         
         try:
@@ -1763,10 +1827,14 @@ class VRChatOSCGUI:
                 import math
                 import time
                 t = time.time()
-                expressions['smile'] = 0.2 + 0.3 * abs(math.sin(t * 0.5))
-                expressions['eyeblink_left'] = 0.1 + 0.4 * abs(math.sin(t * 2.0))
-                expressions['eyeblink_right'] = 0.1 + 0.4 * abs(math.sin(t * 2.1))
-                expressions['mouth_open'] = 0.1 + 0.3 * abs(math.sin(t * 1.5))
+                # 模拟7种情感的动态变化
+                expressions['happy'] = 0.3 + 0.4 * abs(math.sin(t * 0.5))
+                expressions['angry'] = 0.1 + 0.2 * abs(math.sin(t * 0.8))
+                expressions['surprise'] = 0.1 + 0.3 * abs(math.sin(t * 1.2))
+                expressions['sad'] = 0.1 + 0.2 * abs(math.sin(t * 0.6))
+                expressions['fear'] = 0.05 + 0.15 * abs(math.sin(t * 1.8))
+                expressions['disgust'] = 0.05 + 0.1 * abs(math.sin(t * 0.7))
+                expressions['neutral'] = 0.8 - (expressions['happy'] + expressions['angry'] + expressions['surprise'] + expressions['sad']) * 0.5
                 
         except Exception as e:
             self.log(f"简单面部检测错误: {e}")
@@ -1858,13 +1926,16 @@ class VRChatOSCGUI:
     def send_expressions_to_vrchat(self, expressions):
         """将表情数据发送到VRChat OSC"""
         try:
-            if self.osc_client and self.connected:
-                # VRChat表情参数映射
+            if self.client and self.is_connected and hasattr(self.client, 'osc_client'):
+                # VRChat表情参数映射 - 7种标准情感
                 vrchat_params = {
-                    'eyeblink_left': '/avatar/parameters/EyeBlinkLeft',
-                    'eyeblink_right': '/avatar/parameters/EyeBlinkRight', 
-                    'mouth_open': '/avatar/parameters/MouthOpen',
-                    'smile': '/avatar/parameters/MouthSmile'
+                    'angry': '/avatar/parameters/FaceAngry',
+                    'disgust': '/avatar/parameters/FaceDisgust',
+                    'fear': '/avatar/parameters/FaceFear',
+                    'happy': '/avatar/parameters/FaceHappy',
+                    'sad': '/avatar/parameters/FaceSad',
+                    'surprise': '/avatar/parameters/FaceSurprise',
+                    'neutral': '/avatar/parameters/FaceNeutral'
                 }
                 
                 # 发送每个表情参数
@@ -1873,19 +1944,19 @@ class VRChatOSCGUI:
                         param_address = vrchat_params[expr_name]
                         # 确保值在0-1范围内
                         clamped_value = max(0.0, min(1.0, value))
-                        self.osc_client.send_parameter(param_address, clamped_value)
+                        self.client.osc_client.send_parameter(param_address, clamped_value)
                         
         except Exception as e:
             # 静默处理错误，避免日志过多
+            import time
+            current_time = time.time()
             if hasattr(self, 'last_expression_error_time'):
-                import time
-                current_time = time.time()
                 # 只每10秒记录一次错误
                 if current_time - self.last_expression_error_time > 10:
                     self.log(f"表情数据发送错误: {e}")
                     self.last_expression_error_time = current_time
             else:
-                self.last_expression_error_time = time.time()
+                self.last_expression_error_time = current_time
                 self.log(f"表情数据发送错误: {e}")
     
     def capture_screenshot(self):
@@ -1924,20 +1995,26 @@ class VRChatOSCGUI:
                 f.write("当前表情参数:\n")
                 for expr_name, value in self.expressions.items():
                     display_name = {
-                        'eyeblink_left': '左眼眨眼',
-                        'eyeblink_right': '右眼眨眼', 
-                        'mouth_open': '嘴巴张开',
-                        'smile': '微笑'
+                        'angry': '愤怒',
+                        'disgust': '厌恶',
+                        'fear': '恐惧', 
+                        'happy': '高兴',
+                        'sad': '伤心',
+                        'surprise': '惊讶',
+                        'neutral': '中立'
                     }.get(expr_name, expr_name)
                     
                     f.write(f"  {display_name}: {value:.3f}\n")
                 
                 f.write("\nVRChat OSC 参数地址:\n")
                 vrchat_params = {
-                    'eyeblink_left': '/avatar/parameters/EyeBlinkLeft',
-                    'eyeblink_right': '/avatar/parameters/EyeBlinkRight',
-                    'mouth_open': '/avatar/parameters/MouthOpen', 
-                    'smile': '/avatar/parameters/MouthSmile'
+                    'angry': '/avatar/parameters/FaceAngry',
+                    'disgust': '/avatar/parameters/FaceDisgust',
+                    'fear': '/avatar/parameters/FaceFear',
+                    'happy': '/avatar/parameters/FaceHappy',
+                    'sad': '/avatar/parameters/FaceSad',
+                    'surprise': '/avatar/parameters/FaceSurprise',
+                    'neutral': '/avatar/parameters/FaceNeutral'
                 }
                 
                 for expr_name, value in self.expressions.items():

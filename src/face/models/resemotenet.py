@@ -228,8 +228,8 @@ class ResEmoteNetDetector:
             # 获取情感名称
             emotion_name = self.emotion_labels[predicted_emotion_idx]
             
-            # 转换为VRChat表情参数
-            expressions = self._emotion_to_expressions(emotion_name, confidence)
+            # 直接返回7种情感的概率分布
+            expressions = self._probabilities_to_expressions(probabilities[0])
             
             return expressions, emotion_name, confidence
             
@@ -268,13 +268,25 @@ class ResEmoteNetDetector:
         
         return expressions
     
+    def _probabilities_to_expressions(self, probabilities):
+        """将模型输出的概率分布转换为7种标准情感"""
+        expressions = {}
+        for i, emotion_label in enumerate(self.emotion_labels):
+            key = emotion_label.lower()  # 转换为小写作为键
+            expressions[key] = probabilities[i].item()
+        
+        return expressions
+    
     def _get_default_expressions(self):
-        """获取默认表情参数"""
+        """获取默认表情参数 - 7种标准情感"""
         return {
-            'eyeblink_left': 0.0,
-            'eyeblink_right': 0.0,
-            'mouth_open': 0.0,
-            'smile': 0.0
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 1.0     # 中立（默认状态）
         }
     
     def process_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, Dict[str, float]]:
@@ -319,20 +331,20 @@ class ResEmoteNetDetector:
                 cv2.putText(annotated_frame, text, (x, y-10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 
-                # 显示表情参数
+                # 显示情感参数
                 y_offset = y + h + 20
                 for expr_name, value in expressions.items():
-                    if value > 0.01:  # 只显示有值的表情
+                    if value > 0.05:  # 只显示有显著值的情感
                         display_name = {
-                            'eyeblink_left': '左眼',
-                            'eyeblink_right': '右眼', 
-                            'mouth_open': '张嘴',
-                            'smile': '微笑'
+                            'angry': '愤怒',
+                            'disgust': '厌恶',
+                            'fear': '恐惧',
+                            'happy': '高兴',
+                            'sad': '伤心',
+                            'surprise': '惊讶',
+                            'neutral': '中立'
                         }.get(expr_name, expr_name)
                         
-                        if expr_name == 'eyeblink_right':  # 避免重复显示眨眼
-                            continue
-                            
                         text = f"{display_name}: {value:.2f}"
                         cv2.putText(annotated_frame, text, (x, y_offset), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)

@@ -146,7 +146,7 @@ class VOICEVOXClient:
         Returns:
             指定期数的角色列表
         """
-        # 定义VOICEVOX角色的期数映射
+        # 定义VOICEVOX角色的期数和类型映射
         character_periods = {
             # 一期角色
             "四国めたん": "1期",
@@ -185,24 +185,69 @@ class VOICEVOXClient:
             "琴詠ニア": "3期"
         }
         
+        # 角色类型映射（用于进一步细分）
+        character_types = {
+            # 女性角色
+            "四国めたん": "女性",
+            "春日部つむぎ": "女性",
+            "雨晴はう": "女性",
+            "波音リツ": "女性",
+            "冥鳴ひまり": "女性",
+            "九州そら": "女性",
+            "もち子さん": "女性",
+            "櫻歌ミコ": "女性",
+            "小夜/SAYO": "女性",
+            "春歌ナナ": "女性",
+            "中国うさぎ": "女性",
+            "栗田まろん": "女性",
+            "あいえるたん": "女性",
+            "満別花丸": "女性",
+            "琴詠ニア": "女性",
+            
+            # 男性角色
+            "玄野武宏": "男性",
+            "白上虎太郎": "男性",
+            "青山龍星": "男性",
+            "剣崎雌雄": "男性",
+            "後鬼": "男性",
+            "No.7": "男性",
+            "ちび式じい": "男性",
+            "†聖騎士 紅桜†": "男性",
+            "雀松朱司": "男性",
+            "麒ヶ島宗麟": "男性",
+            "猫使アル": "男性",
+            
+            # 特殊角色
+            "ずんだもん": "吉祥物",
+            "WhiteCUL": "虚拟歌手",
+            "ナースロボ_タイプT": "机器人",
+            "猫使ビィ": "吉祥物"
+        }
+        
         speakers_list = []
         
         for speaker in self.speakers:
             speaker_period = character_periods.get(speaker['name'], "其他")
             if speaker_period == period:
+                speaker_type = character_types.get(speaker['name'], "其他")
                 for style in speaker['styles']:
-                    # 不再显示期数标签，只显示角色名和样式
-                    display_name = f"{speaker['name']} - {style['name']}"
+                    # 显示格式：[类型] 角色名 - 样式
+                    display_name = f"[{speaker_type}] {speaker['name']} - {style['name']}"
                     speakers_list.append({
                         "display": display_name,
                         "speaker_id": style['id'],
                         "name": speaker['name'],
                         "style": style['name'],
-                        "period": period
+                        "period": period,
+                        "type": speaker_type
                     })
         
-        # 按角色名和样式排序
-        speakers_list.sort(key=lambda x: (x["name"], x["style"]))
+        # 按类型、角色名和样式排序
+        def sort_key(item):
+            type_order = {"女性": 1, "男性": 2, "吉祥物": 3, "虚拟歌手": 4, "机器人": 5, "其他": 9}
+            return (type_order.get(item["type"], 9), item["name"], item["style"])
+        
+        speakers_list.sort(key=sort_key)
         return speakers_list
     
     def set_speaker(self, speaker_id: int, speaker_name: str = "", style_name: str = ""):

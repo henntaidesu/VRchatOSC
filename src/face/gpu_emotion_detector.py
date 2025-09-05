@@ -87,12 +87,15 @@ class GPUEmotionDetector:
             return frame, self._get_default_expressions()
     
     def _get_default_expressions(self):
-        """获取默认表情参数"""
+        """获取默认表情参数 - 7种标准情感"""
         return {
-            'eyeblink_left': 0.0,
-            'eyeblink_right': 0.0,
-            'mouth_open': 0.0,
-            'smile': 0.0
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 1.0     # 中立（默认状态）
         }
     
     def _get_default_result(self):
@@ -190,19 +193,19 @@ class GPUFaceCamera:
     def get_frame_with_expressions(self) -> Tuple[Optional[np.ndarray], Dict[str, float]]:
         """获取带表情数据的帧"""
         if not self.cap or not self.cap.isOpened():
-            return None, {'eyeblink_left': 0.0, 'eyeblink_right': 0.0, 'mouth_open': 0.0, 'smile': 0.0}
+            return None, {'angry': 0.0, 'disgust': 0.0, 'fear': 0.0, 'happy': 0.0, 'sad': 0.0, 'surprise': 0.0, 'neutral': 1.0}
         
         try:
             ret, frame = self.cap.read()
             if not ret or frame is None:
-                return None, {'eyeblink_left': 0.0, 'eyeblink_right': 0.0, 'mouth_open': 0.0, 'smile': 0.0}
+                return None, {'angry': 0.0, 'disgust': 0.0, 'fear': 0.0, 'happy': 0.0, 'sad': 0.0, 'surprise': 0.0, 'neutral': 1.0}
             
             annotated_frame, expressions = self.detector.process_frame(frame)
             return annotated_frame, expressions
             
         except Exception as e:
             self.logger.error(f"获取帧时出错: {e}")
-            return None, {'eyeblink_left': 0.0, 'eyeblink_right': 0.0, 'mouth_open': 0.0, 'smile': 0.0}
+            return None, {'angry': 0.0, 'disgust': 0.0, 'fear': 0.0, 'happy': 0.0, 'sad': 0.0, 'surprise': 0.0, 'neutral': 1.0}
     
     def release(self):
         """释放资源"""
