@@ -182,8 +182,9 @@ class ResEmoteNetDetector:
             weights_dir = Path(weights_path).parent
             weights_dir.mkdir(parents=True, exist_ok=True)
             
-            # 保存随机初始化的权重作为占位符
-            torch.save(self.model.state_dict(), weights_path)
+            # 保存随机初始化的权重作为占位符，使用ResEmoteNet模型结构
+            placeholder_model = ResEmoteNet(num_classes=7)
+            torch.save(placeholder_model.state_dict(), weights_path)
             self.logger.info(f"创建ResEmoteNet占位符权重: {weights_path}")
         except Exception as e:
             self.logger.warning(f"创建占位符权重失败: {e}")

@@ -465,14 +465,20 @@ class VRChatOSCGUI:
             except Exception as e:
                 self.log(f"释放旧GPU检测器时出错: {e}")
         
-        # 如果切换到GPU模型，预初始化检测器
-        if self.emotion_model_type in ['ResEmoteNet', 'FER2013']:
+        # 如果切换到GPU模型，预初始化检测器或切换现有检测器
+        if self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
             try:
-                from src.face.gpu_emotion_detector import GPUEmotionDetector
-                self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
-                self.log(f"成功预初始化GPU情感检测器: {self.emotion_model_type}")
+                if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
+                    # 如果检测器已存在，直接切换模型
+                    self.gpu_detector.switch_model(self.emotion_model_type)
+                    self.log(f"GPU检测器已切换到: {self.emotion_model_type}")
+                else:
+                    # 创建新的检测器
+                    from src.face.gpu_emotion_detector import GPUEmotionDetector
+                    self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
+                    self.log(f"成功初始化GPU情感检测器: {self.emotion_model_type}")
             except Exception as e:
-                self.log(f"GPU检测器预初始化失败: {e}")
+                self.log(f"GPU检测器初始化/切换失败: {e}")
                 self.gpu_detector = None
         
         # 如果面部识别正在运行，需要重启以应用新模型
@@ -506,8 +512,8 @@ class VRChatOSCGUI:
         self.model_label.pack(side=tk.LEFT, padx=(0, 5))
         self.model_var = tk.StringVar(value="Simple")
         self.model_combo = ttk.Combobox(control_buttons, textvariable=self.model_var,
-                                  values=["Simple", "ResEmoteNet", "FER2013"], 
-                                  width=10, state="readonly")
+                                  values=["Simple", "ResEmoteNet", "FER2013", "EmoNeXt"], 
+                                  width=12, state="readonly")
         self.model_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.model_combo.bind("<<ComboboxSelected>>", self.on_model_changed)
         
@@ -1534,10 +1540,16 @@ class VRChatOSCGUI:
                 if len(faces) > 0:
                     expressions['smile'] = 0.3
             
-            elif self.emotion_model_type in ['ResEmoteNet', 'FER2013']:
+            elif self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
                 # 使用GPU加速的情感识别模型
                 if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
                     try:
+                        # 检查是否需要切换模型
+                        current_model = self.gpu_detector.get_model_info()['model_type']
+                        if current_model != self.emotion_model_type:
+                            self.log(f"切换GPU模型: {current_model} -> {self.emotion_model_type}")
+                            self.gpu_detector.switch_model(self.emotion_model_type)
+                        
                         annotated_frame, expressions = self.gpu_detector.process_frame(frame)
                         return annotated_frame, expressions
                     except Exception as gpu_e:

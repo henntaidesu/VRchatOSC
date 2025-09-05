@@ -236,8 +236,15 @@ class EmoNeXtDetector:
             weights_dir = Path(weights_path).parent
             weights_dir.mkdir(parents=True, exist_ok=True)
             
-            # 保存随机初始化的权重作为占位符
-            torch.save(self.model.state_dict(), weights_path)
+            # 保存随机初始化的权重作为占位符，使用EmoNeXt模型结构
+            placeholder_model = EmoNeXtModel(
+                num_classes=7,
+                depths=[2, 2, 6, 2], 
+                dims=[48, 96, 192, 384],
+                drop_path_rate=0.1,
+                layer_scale_init_value=1e-6
+            )
+            torch.save(placeholder_model.state_dict(), weights_path)
             self.logger.info(f"创建EmoNeXt占位符权重: {weights_path}")
         except Exception as e:
             self.logger.warning(f"创建占位符权重失败: {e}")
