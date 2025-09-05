@@ -31,6 +31,12 @@ class VOICEVOXClient:
         self.current_speaker_name = "ずんだもん"
         self.current_style_name = "ノーマル"
         
+        # 语音参数设置
+        self.speed_scale = 1.0      # 语速倍率 (0.5 - 2.0)
+        self.pitch_scale = 0.0      # 音高偏移 (-0.15 - 0.15) 
+        self.intonation_scale = 1.0 # 抑扬顿挫 (0.0 - 2.0)
+        self.volume_scale = 1.0     # 音量倍率 (0.0 - 2.0)
+        
         # 初始化pygame音频
         pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
         
@@ -91,6 +97,38 @@ class VOICEVOXClient:
         self.current_style_name = style_name
         self.logger.info(f"切换到角色: {speaker_name} - {style_name} (ID: {speaker_id})")
     
+    def set_voice_parameters(self, speed_scale: float = None, pitch_scale: float = None, 
+                           intonation_scale: float = None, volume_scale: float = None):
+        """
+        设置语音参数
+        
+        Args:
+            speed_scale: 语速倍率 (0.5 - 2.0)
+            pitch_scale: 音高偏移 (-0.15 - 0.15)
+            intonation_scale: 抑扬顿挫 (0.0 - 2.0)
+            volume_scale: 音量倍率 (0.0 - 2.0)
+        """
+        if speed_scale is not None:
+            self.speed_scale = max(0.5, min(2.0, speed_scale))
+        if pitch_scale is not None:
+            self.pitch_scale = max(-0.15, min(0.15, pitch_scale))
+        if intonation_scale is not None:
+            self.intonation_scale = max(0.0, min(2.0, intonation_scale))
+        if volume_scale is not None:
+            self.volume_scale = max(0.0, min(2.0, volume_scale))
+            
+        self.logger.info(f"更新语音参数 - 语速: {self.speed_scale:.2f}, 音高: {self.pitch_scale:.3f}, "
+                        f"抑扬: {self.intonation_scale:.2f}, 音量: {self.volume_scale:.2f}")
+    
+    def get_voice_parameters(self) -> Dict[str, float]:
+        """获取当前语音参数"""
+        return {
+            "speed_scale": self.speed_scale,
+            "pitch_scale": self.pitch_scale,
+            "intonation_scale": self.intonation_scale,
+            "volume_scale": self.volume_scale
+        }
+    
     def synthesize_speech(self, text: str) -> Optional[bytes]:
         """
         合成语音
@@ -110,6 +148,12 @@ class VOICEVOXClient:
             )
             query_response.raise_for_status()
             audio_query = query_response.json()
+            
+            # 应用语音参数
+            audio_query["speedScale"] = self.speed_scale
+            audio_query["pitchScale"] = self.pitch_scale
+            audio_query["intonationScale"] = self.intonation_scale
+            audio_query["volumeScale"] = self.volume_scale
             
             # 第二步：合成音频
             synthesis_response = requests.post(

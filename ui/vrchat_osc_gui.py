@@ -98,27 +98,34 @@ class VRChatOSCGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=0)  # 左侧控制面板，固定宽度
-        main_frame.columnconfigure(1, weight=0)  # 右侧摄像头区域，固定宽度
+        main_frame.columnconfigure(1, weight=0)  # 中间VOICEVOX控制区域，固定宽度
+        main_frame.columnconfigure(2, weight=0)  # 右侧摄像头区域，固定宽度
         
         # 配置主框架行权重
         main_frame.rowconfigure(0, weight=1)  # 主内容区域可扩展
         
-        # 创建左右两个主要区域，都固定宽度500px
-        left_frame = ttk.Frame(main_frame, width=600)  # 固定左侧宽度为500px
+        # 创建左中右三个主要区域
+        left_frame = ttk.Frame(main_frame, width=400)  # 左侧VOICEVOX专用区域
         left_frame.grid(row=0, column=0, sticky=(tk.W, tk.N, tk.S), padx=(0, 5))
         left_frame.grid_propagate(False)  # 防止子组件改变frame大小
         
-        right_frame = ttk.Frame(main_frame, width=800)  # 固定右侧宽度为500px
-        right_frame.grid(row=0, column=1, sticky=(tk.W, tk.N, tk.S), padx=(5, 0))
+        # 中间区域 - 原左侧控制面板内容
+        center_frame = ttk.Frame(main_frame, width=600)  # 中间控制面板区域
+        center_frame.grid(row=0, column=1, sticky=(tk.W, tk.N, tk.S), padx=(5, 5))
+        center_frame.grid_propagate(False)  # 防止子组件改变frame大小
+        
+        right_frame = ttk.Frame(main_frame, width=600)  # 右侧摄像头区域
+        right_frame.grid(row=0, column=2, sticky=(tk.W, tk.N, tk.S), padx=(5, 0))
         right_frame.grid_propagate(False)  # 防止子组件改变frame大小
         
-        # 配置左右区域的权重
+        # 配置三个区域的权重
         left_frame.columnconfigure(0, weight=1)
+        center_frame.columnconfigure(0, weight=1)
         right_frame.columnconfigure(0, weight=1)
         right_frame.rowconfigure(1, weight=1)  # 摄像头显示区域可扩展
         
-        # 连接设置框架 - 放在左侧区域
-        self.connection_frame = ttk.LabelFrame(left_frame, text=self.get_text("connection_settings"), padding="5")
+        # 连接设置框架 - 放在中间区域
+        self.connection_frame = ttk.LabelFrame(center_frame, text=self.get_text("connection_settings"), padding="5")
         self.connection_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         
         # 主机地址
@@ -163,8 +170,8 @@ class VRChatOSCGUI:
         self.connection_frame.columnconfigure(3, weight=1)
         self.connection_frame.columnconfigure(5, weight=1)
         
-        # 消息发送框架 - 放在左侧区域
-        self.message_frame = ttk.LabelFrame(left_frame, text=self.get_text("message_send"), padding="5")
+        # 消息发送框架 - 放在中间区域
+        self.message_frame = ttk.LabelFrame(center_frame, text=self.get_text("message_send"), padding="5")
         self.message_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         self.message_frame.columnconfigure(0, weight=1)
         
@@ -207,44 +214,10 @@ class VRChatOSCGUI:
         self.upload_voice_btn = ttk.Button(voice_frame, text=self.get_text("upload_voice"), command=self.upload_voice_file)
         self.upload_voice_btn.grid(row=0, column=5, padx=(0, 5))
         
-        # 第二行：VOICEVOX角色选择和语音合成控制
-        voicevox_frame = ttk.Frame(self.message_frame)
-        voicevox_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
-        
-        # VOICEVOX角色选择
-        self.voicevox_character_label = ttk.Label(voicevox_frame, text="VOICEVOX角色:")
-        self.voicevox_character_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        
-        self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
-        self.voicevox_character_combo = ttk.Combobox(voicevox_frame, textvariable=self.voicevox_character_var,
-                                                   width=20, state="readonly")
-        self.voicevox_character_combo.grid(row=0, column=1, padx=(0, 10))
-        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
-        
-        # VOICEVOX连接状态
-        self.voicevox_status_label = ttk.Label(voicevox_frame, text="未连接", foreground="red")
-        self.voicevox_status_label.grid(row=0, column=2, padx=(10, 5))
-        
-        # VOICEVOX测试按钮
-        self.voicevox_test_btn = ttk.Button(voicevox_frame, text="测试语音", command=self.test_voicevox)
-        self.voicevox_test_btn.grid(row=0, column=3, padx=(10, 5))
-        
-        # VOICEVOX启用开关
-        self.voicevox_enabled_var = tk.BooleanVar(value=True)
-        self.voicevox_enabled_check = ttk.Checkbutton(voicevox_frame, text="启用VOICEVOX", 
-                                                    variable=self.voicevox_enabled_var)
-        self.voicevox_enabled_check.grid(row=0, column=4, padx=(10, 5))
-        
-        # LLM启用开关
-        self.llm_enabled_var = tk.BooleanVar(value=True)
-        self.llm_enabled_check = ttk.Checkbutton(voicevox_frame, text="启用AI对话", 
-                                               variable=self.llm_enabled_var, 
-                                               command=self.toggle_llm_enabled)
-        self.llm_enabled_check.grid(row=0, column=5, padx=(5, 0))
         
         # 第二行：调试和模式控制
         debug_frame = ttk.Frame(self.message_frame)
-        debug_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        debug_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         # 调试模式开关
         self.debug_var = tk.BooleanVar(value=self.config.osc_debug_mode)
@@ -307,8 +280,8 @@ class VRChatOSCGUI:
         threshold_frame.columnconfigure(4, weight=1)
         
         
-        # 参数设置框架 - 放在左侧区域
-        self.param_frame = ttk.LabelFrame(left_frame, text=self.get_text("avatar_params"), padding="5")
+        # 参数设置框架 - 放在中间区域
+        self.param_frame = ttk.LabelFrame(center_frame, text=self.get_text("avatar_params"), padding="5")
         self.param_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         self.param_frame.columnconfigure(0, weight=1)
         self.param_frame.columnconfigure(2, weight=1)
@@ -330,8 +303,8 @@ class VRChatOSCGUI:
         self.send_param_btn = ttk.Button(self.param_frame, text=self.get_text("send_param"), command=self.send_parameter)
         self.send_param_btn.grid(row=0, column=4)
         
-        # 日志显示框架 - 放在左侧区域
-        self.log_frame = ttk.LabelFrame(left_frame, text=self.get_text("log"), padding="5")
+        # 日志显示框架 - 放在中间区域
+        self.log_frame = ttk.LabelFrame(center_frame, text=self.get_text("log"), padding="5")
         self.log_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         self.log_frame.columnconfigure(0, weight=1)
         self.log_frame.rowconfigure(0, weight=1)
@@ -347,14 +320,15 @@ class VRChatOSCGUI:
         self.clear_log_btn = ttk.Button(self.log_frame, text=self.get_text("clear_log"), command=self.clear_log)
         self.clear_log_btn.grid(row=1, column=0, pady=(5, 0))
         
-        # 语音识别输出框架 - 放在左侧区域
-        self.speech_frame = ttk.LabelFrame(left_frame, text=self.get_text("speech_output"), padding="5")
+        # 语音识别输出框架 - 放在中间区域
+        self.speech_frame = ttk.LabelFrame(center_frame, text=self.get_text("speech_output"), padding="5")
         self.speech_frame.grid(row=4, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         self.speech_frame.columnconfigure(0, weight=1)
         self.speech_frame.rowconfigure(0, weight=1)
         
-        # 配置左侧框架行权重 - 为语音识别框分配空间
-        left_frame.rowconfigure(4, weight=1)
+        # 配置中间框架行权重 - 为语音识别框分配空间
+        center_frame.rowconfigure(3, weight=2)  # 日志框权重
+        center_frame.rowconfigure(4, weight=3)  # 语音识别框更大权重
         
         # 语音识别文本框
         self.speech_text = scrolledtext.ScrolledText(self.speech_frame, height=8, font=("微软雅黑", 12), wrap=tk.WORD)
@@ -379,12 +353,15 @@ class VRChatOSCGUI:
         self.save_speech_btn = ttk.Button(speech_button_frame, text=self.get_text("save_speech"), command=self.save_speech_output)
         self.save_speech_btn.grid(row=0, column=1, padx=(5, 0))
         
+        # 左侧VOICEVOX专用区域
+        self.setup_voicevox_area(left_frame)
+        
         # 右侧摄像头区域
         self.setup_camera_area(right_frame)
         
         # 状态栏 - 跨越整个底部
         status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        status_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E))
         status_frame.columnconfigure(0, weight=1)
         
         self.status_label = ttk.Label(status_frame, text="未连接", foreground="red")
@@ -540,6 +517,101 @@ class VRChatOSCGUI:
             # 延迟一点再启动
             self.root.after(1000, self.start_face_detection)
     
+    def setup_voicevox_area(self, parent_frame):
+        """设置VOICEVOX控制区域"""
+        # VOICEVOX控制面板 - 占用整个左侧区域
+        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text="VOICEVOX控制", padding="5")
+        self.voicevox_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
+        self.voicevox_control_frame.columnconfigure(0, weight=1)
+        self.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
+        
+        # 第一行：角色选择和连接状态
+        row1_frame = ttk.Frame(self.voicevox_control_frame)
+        row1_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # VOICEVOX角色选择
+        self.voicevox_character_label = ttk.Label(row1_frame, text="角色:")
+        self.voicevox_character_label.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
+        self.voicevox_character_combo = ttk.Combobox(row1_frame, textvariable=self.voicevox_character_var,
+                                                   width=20, state="readonly")
+        self.voicevox_character_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
+        
+        # VOICEVOX连接状态
+        self.voicevox_status_label = ttk.Label(row1_frame, text="未连接", foreground="red")
+        self.voicevox_status_label.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 第二行：控制按钮
+        row2_frame = ttk.Frame(self.voicevox_control_frame)
+        row2_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # VOICEVOX测试按钮
+        self.voicevox_test_btn = ttk.Button(row2_frame, text="测试语音", command=self.test_voicevox)
+        self.voicevox_test_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # VOICEVOX启用开关
+        self.voicevox_enabled_var = tk.BooleanVar(value=True)
+        self.voicevox_enabled_check = ttk.Checkbutton(row2_frame, text="启用VOICEVOX", 
+                                                    variable=self.voicevox_enabled_var)
+        self.voicevox_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # LLM启用开关
+        self.llm_enabled_var = tk.BooleanVar(value=True)
+        self.llm_enabled_check = ttk.Checkbutton(row2_frame, text="启用AI对话", 
+                                               variable=self.llm_enabled_var, 
+                                               command=self.toggle_llm_enabled)
+        self.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 第三行：语音参数控制
+        params_frame = ttk.LabelFrame(self.voicevox_control_frame, text="语音参数", padding="5")
+        params_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # 语速控制
+        speed_frame = ttk.Frame(params_frame)
+        speed_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(speed_frame, text="语速:", width=8).pack(side=tk.LEFT)
+        self.speed_var = tk.DoubleVar(value=1.0)
+        self.speed_scale = ttk.Scale(speed_frame, from_=0.5, to=2.0, variable=self.speed_var,
+                                   orient=tk.HORIZONTAL, command=self.on_speed_changed)
+        self.speed_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        self.speed_label = ttk.Label(speed_frame, text="1.00", width=5)
+        self.speed_label.pack(side=tk.RIGHT)
+        
+        # 音高控制  
+        pitch_frame = ttk.Frame(params_frame)
+        pitch_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(pitch_frame, text="音高:", width=8).pack(side=tk.LEFT)
+        self.pitch_var = tk.DoubleVar(value=0.0)
+        self.pitch_scale = ttk.Scale(pitch_frame, from_=-0.15, to=0.15, variable=self.pitch_var,
+                                   orient=tk.HORIZONTAL, command=self.on_pitch_changed)
+        self.pitch_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        self.pitch_label = ttk.Label(pitch_frame, text="0.00", width=5)
+        self.pitch_label.pack(side=tk.RIGHT)
+        
+        # 抑扬顿挫控制
+        intonation_frame = ttk.Frame(params_frame)
+        intonation_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(intonation_frame, text="抑扬:", width=8).pack(side=tk.LEFT)
+        self.intonation_var = tk.DoubleVar(value=1.0)
+        self.intonation_scale = ttk.Scale(intonation_frame, from_=0.0, to=2.0, variable=self.intonation_var,
+                                        orient=tk.HORIZONTAL, command=self.on_intonation_changed)
+        self.intonation_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        self.intonation_label = ttk.Label(intonation_frame, text="1.00", width=5)
+        self.intonation_label.pack(side=tk.RIGHT)
+        
+        # 音量控制
+        volume_frame = ttk.Frame(params_frame)
+        volume_frame.pack(fill=tk.X, pady=(0, 0))
+        ttk.Label(volume_frame, text="音量:", width=8).pack(side=tk.LEFT)
+        self.volume_var = tk.DoubleVar(value=1.0)
+        self.volume_scale = ttk.Scale(volume_frame, from_=0.0, to=2.0, variable=self.volume_var,
+                                    orient=tk.HORIZONTAL, command=self.on_volume_changed)
+        self.volume_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        self.volume_label = ttk.Label(volume_frame, text="1.00", width=5)
+        self.volume_label.pack(side=tk.RIGHT)
+
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
         # 摄像头控制面板
@@ -1838,6 +1910,34 @@ class VRChatOSCGUI:
         except Exception as e:
             self.log(f"切换VOICEVOX角色失败: {e}")
     
+    def on_speed_changed(self, value):
+        """语速滑块变化回调"""
+        speed_value = float(value)
+        self.speed_label.config(text=f"{speed_value:.2f}")
+        if self.voicevox_client:
+            self.voicevox_client.set_voice_parameters(speed_scale=speed_value)
+    
+    def on_pitch_changed(self, value):
+        """音高滑块变化回调"""
+        pitch_value = float(value)
+        self.pitch_label.config(text=f"{pitch_value:.3f}")
+        if self.voicevox_client:
+            self.voicevox_client.set_voice_parameters(pitch_scale=pitch_value)
+    
+    def on_intonation_changed(self, value):
+        """抑扬顿挫滑块变化回调"""
+        intonation_value = float(value)
+        self.intonation_label.config(text=f"{intonation_value:.2f}")
+        if self.voicevox_client:
+            self.voicevox_client.set_voice_parameters(intonation_scale=intonation_value)
+    
+    def on_volume_changed(self, value):
+        """音量滑块变化回调"""
+        volume_value = float(value)
+        self.volume_label.config(text=f"{volume_value:.2f}")
+        if self.voicevox_client:
+            self.voicevox_client.set_voice_parameters(volume_scale=volume_value)
+
     def test_voicevox(self):
         """测试VOICEVOX语音合成"""
         if not self.voicevox_client or not self.voicevox_connected:
