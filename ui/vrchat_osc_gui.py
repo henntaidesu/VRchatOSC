@@ -387,78 +387,41 @@ class VRChatOSCGUI:
         detected_signatures = set()  # 用于避免重复检测同一摄像头
         
         # 检查多个摄像头ID
-        for i in range(10):  # 检查ID 0-9
+        for i in range(5):  # 减少到检查ID 0-4，提高检测速度
             try:
                 # 主要使用DSHOW后端，这在Windows上最可靠
                 cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
                 
                 if cap.isOpened():
-                    # 尝试读取多帧来验证摄像头稳定性
+                    # 尝试读取一帧来验证摄像头是否可用
                     ret, frame = cap.read()
-                    if ret and frame is not None:
-                        # 读取第二帧确保稳定
-                        ret2, frame2 = cap.read()
-                        if ret2 and frame2 is not None:
-                            # 获取摄像头详细信息
-                            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            fps = cap.get(cv2.CAP_PROP_FPS)
+                    if ret and frame is not None and frame.size > 0:
+                        # 获取摄像头详细信息
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        fps = cap.get(cv2.CAP_PROP_FPS)
+                        
+                        # 创建摄像头特征签名（基于分辨率）
+                        signature = f"{width}x{height}"
+                        
+                        # 检查是否已经检测过相同分辨率的摄像头
+                        if signature not in detected_signatures:
+                            detected_signatures.add(signature)
                             
-                            # 创建摄像头特征签名（基于分辨率和像素特征）
-                            signature = f"{width}x{height}_{frame.shape}"
-                            
-                            # 检查是否已经检测过相同的摄像头
-                            if signature not in detected_signatures:
-                                detected_signatures.add(signature)
-                                
-                                # 尝试获取摄像头名称（仅Windows）
-                                camera_name = self.get_camera_name(i)
-                                if camera_name:
-                                    camera_info = f"{camera_name} (ID:{i}, {width}x{height})"
-                                else:
-                                    camera_info = f"摄像头 {i} ({width}x{height}@{int(fps)}fps)"
-                                
-                                available_cameras.append((i, camera_info))
-                                self.log(f"检测到摄像头: {camera_info}")
-                            else:
-                                self.log(f"跳过重复摄像头 ID {i} (签名: {signature})")
+                            # 简化显示信息
+                            camera_info = f"摄像头 {i} ({width}x{height})"
+                            available_cameras.append((i, camera_info))
+                            self.log(f"检测到摄像头: {camera_info}")
+                        else:
+                            self.log(f"跳过重复摄像头 ID {i} (相同分辨率: {signature})")
                 
                 cap.release()
                     
             except Exception as e:
                 # 忽略检测失败的摄像头
-                self.log(f"摄像头 {i} 检测失败: {e}")
                 continue
         
         return available_cameras
-    
-    def get_camera_name(self, camera_id):
-        """获取摄像头设备名称（Windows专用）"""
-        try:
-            import subprocess
-            import re
-            
-            # 使用PowerShell获取摄像头设备名称
-            cmd = 'powershell "Get-WmiObject -Class Win32_PnPEntity | Where-Object {$_.Name -match \'camera|webcam|video\'} | Select-Object Name"'
-            result = subprocess.run(cmd, capture_output=True, text=True, shell=True, timeout=5)
-            
-            if result.returncode == 0 and result.stdout:
-                lines = result.stdout.strip().split('\n')
-                # 过滤出实际的设备名
-                camera_names = []
-                for line in lines:
-                    line = line.strip()
-                    if line and not line.startswith('Name') and not line.startswith('----'):
-                        camera_names.append(line)
-                
-                # 返回对应索引的摄像头名称
-                if camera_id < len(camera_names):
-                    return camera_names[camera_id]
-            
-        except Exception as e:
-            self.log(f"获取摄像头名称失败: {e}")
-        
-        return None
     
     def refresh_camera_list(self):
         """刷新摄像头列表"""
