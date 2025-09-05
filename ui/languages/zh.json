@@ -136,5 +136,23 @@
   "screenshot_saved": "截图已保存为",
   "expression_data_saved": "表情数据已保存到",
   "save_expression_failed": "保存表情数据失败",
-  "cannot_open_camera_window": "无法打开摄像头窗口"
+  "cannot_open_camera_window": "无法打开摄像头窗口",
+  
+  "add_character": "添加角色",
+  "character_management": "角色管理",
+  "character_name": "角色名称",
+  "character_position": "角色位置",
+  "distance_tracking": "距离跟踪",
+  "distance_to": "到 {name} 的距离",
+  "add_new_character": "添加新角色",
+  "remove_character": "删除角色",
+  "character_x": "X坐标",
+  "character_y": "Y坐标",
+  "character_z": "Z坐标",
+  "update_position": "更新位置",
+  "character_added": "角色已添加",
+  "character_removed": "角色已删除",
+  "invalid_position": "无效的位置坐标",
+  "character_exists": "角色已存在",
+  "select_character_to_remove": "请选择要删除的角色"
 }

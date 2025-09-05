@@ -24,6 +24,7 @@ from src.face.gpu_emotion_detector import GPUFaceCamera
 from .languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
 from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
+from src.avatar import AvatarController
 
 
 class VRChatOSCGUI:
@@ -67,6 +68,12 @@ class VRChatOSCGUI:
         self.face_detection_running = False
         self.current_frame = None
         self.camera_thread = None
+        
+        # Avatar控制器 - 统一管理虚拟人物控制
+        self.avatar_controller = AvatarController(character_data_file="data/vrc_characters.json")
+        
+        # 为了兼容性保留的变量（逐步迁移到avatar_controller）
+        self.character_window = None  # 角色管理窗口引用
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
         self.emotion_model_type = 'ResEmoteNet'  # 默认使用ResEmoteNet情感识别模型
         
@@ -548,6 +555,7 @@ class VRChatOSCGUI:
         self.voicevox_character_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
         
+        
         # VOICEVOX连接状态
         self.voicevox_status_label = ttk.Label(character_frame, text=self.get_text("disconnected"), foreground="red")
         self.voicevox_status_label.pack(side=tk.RIGHT)
@@ -620,6 +628,87 @@ class VRChatOSCGUI:
         self.volume_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         self.volume_label = ttk.Label(volume_frame, text="1.00", width=5)
         self.volume_label.pack(side=tk.RIGHT)
+        
+        # 角色管理区域 - 直接在左侧VOICEVOX区域下方
+        self.setup_character_management_area(self.voicevox_control_frame)
+
+    def setup_character_management_area(self, parent_frame):
+        """设置角色管理区域"""
+        # 角色管理框架
+        character_mgmt_frame = ttk.LabelFrame(parent_frame, text=self.get_text("character_management"), padding="5")
+        character_mgmt_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        character_mgmt_frame.columnconfigure(1, weight=1)
+        
+        # 当前位置显示行
+        pos_frame = ttk.Frame(character_mgmt_frame)
+        pos_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(pos_frame, text=self.get_text("character_position") + ":", width=8).pack(side=tk.LEFT)
+        self.current_pos_label = ttk.Label(pos_frame, text="(0.00, 0.00, 0.00)", foreground="blue")
+        self.current_pos_label.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # 角色添加区域
+        add_frame = ttk.LabelFrame(character_mgmt_frame, text=self.get_text("add_character"), padding="3")
+        add_frame.pack(fill=tk.X, pady=(5, 5))
+        add_frame.columnconfigure(1, weight=1)
+        
+        # 角色名称输入
+        ttk.Label(add_frame, text=self.get_text("character_name") + ":", width=8).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.character_name_entry = ttk.Entry(add_frame, width=12)
+        self.character_name_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
+        
+        # 使用当前位置按钮
+        self.use_current_pos_btn = ttk.Button(add_frame, text=self.get_text("update_position"), 
+                                            command=self.use_current_position, width=8)
+        self.use_current_pos_btn.grid(row=0, column=2, padx=(0, 5))
+        
+        # 添加按钮
+        self.add_character_btn = ttk.Button(add_frame, text=self.get_text("add_character"), 
+                                          command=self.add_character, width=8)
+        self.add_character_btn.grid(row=0, column=3)
+        
+        # 坐标输入行（可折叠，默认隐藏）
+        coord_frame = ttk.Frame(add_frame)
+        coord_frame.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(5, 0))
+        coord_frame.columnconfigure(1, weight=1)
+        coord_frame.columnconfigure(3, weight=1)
+        coord_frame.columnconfigure(5, weight=1)
+        
+        ttk.Label(coord_frame, text="X:", width=2).grid(row=0, column=0, sticky=tk.W)
+        self.character_x_entry = ttk.Entry(coord_frame, width=6)
+        self.character_x_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
+        
+        ttk.Label(coord_frame, text="Y:", width=2).grid(row=0, column=2, sticky=tk.W)
+        self.character_y_entry = ttk.Entry(coord_frame, width=6)
+        self.character_y_entry.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=(0, 5))
+        
+        ttk.Label(coord_frame, text="Z:", width=2).grid(row=0, column=4, sticky=tk.W)
+        self.character_z_entry = ttk.Entry(coord_frame, width=6)
+        self.character_z_entry.grid(row=0, column=5, sticky=(tk.W, tk.E))
+        
+        # 角色列表区域
+        list_frame = ttk.LabelFrame(character_mgmt_frame, text=self.get_text("distance_tracking"), padding="3")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+        
+        # 角色距离显示列表
+        self.character_distance_text = tk.Text(list_frame, height=6, width=35, state='disabled', wrap=tk.WORD)
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.character_distance_text.yview)
+        self.character_distance_text.configure(yscrollcommand=scrollbar.set)
+        
+        self.character_distance_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # 删除角色按钮行
+        delete_frame = ttk.Frame(list_frame)
+        delete_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
+        
+        self.remove_character_btn = ttk.Button(delete_frame, text=self.get_text("remove_character"), 
+                                             command=self.remove_character, width=12)
+        self.remove_character_btn.pack(side=tk.LEFT)
+        
+        ttk.Label(delete_frame, text="(" + self.get_text("character_name") + ")", foreground="gray").pack(side=tk.LEFT, padx=(10, 0))
 
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
@@ -940,6 +1029,14 @@ class VRChatOSCGUI:
         # 隐藏进度条
         self.progress_bar.stop()
         self.progress_bar.grid_remove()
+        
+        # 设置Avatar控制器
+        if self.client:
+            # 设置Avatar控制器的OSC客户端
+            self.avatar_controller.set_osc_client(self.client)
+            
+            # 通过VRChatController设置位置回调
+            self.client.set_position_callback(self.update_player_position)
         
         self.update_ui_state(True)
         self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
@@ -1563,6 +1660,13 @@ class VRChatOSCGUI:
             self.settings_btn.config(text=self.get_text("settings"))
         if hasattr(self, 'send_param_btn'):
             self.send_param_btn.config(text=self.get_text("send_param"))
+        # 更新角色管理区域组件
+        if hasattr(self, 'add_character_btn'):
+            self.add_character_btn.config(text=self.get_text("add_character"))
+        if hasattr(self, 'remove_character_btn'):
+            self.remove_character_btn.config(text=self.get_text("remove_character"))
+        if hasattr(self, 'use_current_pos_btn'):
+            self.use_current_pos_btn.config(text=self.get_text("update_position"))
         if hasattr(self, 'clear_log_btn'):
             self.clear_log_btn.config(text=self.get_text("clear_log"))
         if hasattr(self, 'clear_speech_btn'):
@@ -2272,13 +2376,31 @@ class VRChatOSCGUI:
         
         def test_in_background():
             try:
+                # 分析文本情感并设置Avatar表情
+                if self.avatar_controller.is_avatar_connected():
+                    emotion = self.avatar_controller.analyze_text_emotion(test_text)
+                    self.avatar_controller.start_speaking(test_text, emotion, voice_level=0.8)
+                    self.log(f"设置Avatar表情: {emotion}")
+                
                 success = self.voicevox_client.synthesize_and_play(test_text)
+                
                 if success:
                     self.log(f"VOICEVOX语音测试成功: {test_text}")
                 else:
                     self.log("VOICEVOX语音测试失败")
+                    
+                # 语音播放完成后停止Avatar说话状态
+                if self.avatar_controller.is_avatar_connected():
+                    # 延迟一点时间让语音播放完
+                    def stop_speaking():
+                        self.avatar_controller.stop_speaking()
+                    self.root.after(3000, stop_speaking)  # 3秒后停止
+                    
             except Exception as e:
                 self.log(f"VOICEVOX语音测试出错: {e}")
+                # 出错时也要重置Avatar状态
+                if self.avatar_controller.is_avatar_connected():
+                    self.avatar_controller.stop_speaking()
         
         threading.Thread(target=test_in_background, daemon=True).start()
     
@@ -2289,13 +2411,40 @@ class VRChatOSCGUI:
             
         def synthesize_in_background():
             try:
+                # 分析文本情感并设置Avatar表情和语音状态
+                if self.avatar_controller.is_avatar_connected():
+                    emotion = self.avatar_controller.analyze_text_emotion(text)
+                    self.avatar_controller.start_speaking(text, emotion, voice_level=0.8)
+                    self.log(f"Avatar开始说话 - 表情: {emotion}, 文本: {text[:30]}...")
+                
                 success = self.voicevox_client.synthesize_and_play(text)
+                
                 if success:
                     self.log(f"VOICEVOX语音合成: {text[:50]}...")
+                    
+                    # 估算语音播放时长（简单估算：每个字符约0.15秒）
+                    estimated_duration = len(text) * 150  # 毫秒
+                    min_duration = 2000  # 最少2秒
+                    max_duration = 8000  # 最多8秒
+                    duration = max(min_duration, min(estimated_duration, max_duration))
+                    
+                    # 语音播放完成后停止Avatar说话状态
+                    if self.avatar_controller.is_avatar_connected():
+                        def stop_speaking():
+                            self.avatar_controller.stop_speaking()
+                            self.log("Avatar停止说话")
+                        self.root.after(duration, stop_speaking)
                 else:
                     self.log("VOICEVOX语音合成失败")
+                    # 失败时立即重置Avatar状态
+                    if self.avatar_controller.is_avatar_connected():
+                        self.avatar_controller.stop_speaking()
+                        
             except Exception as e:
                 self.log(f"VOICEVOX语音合成出错: {e}")
+                # 出错时也要重置Avatar状态
+                if self.avatar_controller.is_avatar_connected():
+                    self.avatar_controller.stop_speaking()
         
         threading.Thread(target=synthesize_in_background, daemon=True).start()
         return True
@@ -2347,6 +2496,343 @@ class VRChatOSCGUI:
         self.llm_enabled = self.llm_enabled_var.get()
         status = "启用" if self.llm_enabled else "禁用"
         self.log(f"AI对话功能已{status}")
+    
+    def open_character_management(self):
+        """打开角色管理窗口"""
+        if self.character_window is not None and self.character_window.winfo_exists():
+            self.character_window.lift()
+            self.character_window.focus()
+            return
+        
+        self.character_window = tk.Toplevel(self.root)
+        self.character_window.title(self.get_text("character_management"))
+        self.character_window.geometry("500x400")
+        self.character_window.resizable(True, True)
+        
+        # 创建主框架
+        main_frame = ttk.Frame(self.character_window)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 角色列表框架
+        list_frame = ttk.LabelFrame(main_frame, text=self.get_text("character_management"), padding="5")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 角色列表
+        list_container = ttk.Frame(list_frame)
+        list_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.character_listbox = tk.Listbox(list_container)
+        self.character_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.character_listbox.bind('<<ListboxSelect>>', self.on_character_select)
+        
+        # 滚动条
+        scrollbar = ttk.Scrollbar(list_container, orient="vertical")
+        scrollbar.pack(side=tk.RIGHT, fill="y")
+        self.character_listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.character_listbox.yview)
+        
+        # 距离显示框架
+        distance_frame = ttk.Frame(list_frame)
+        distance_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.distance_label = ttk.Label(distance_frame, text=self.get_text("distance_tracking") + ": --")
+        self.distance_label.pack(side=tk.LEFT)
+        
+        # 当前位置显示框架
+        position_frame = ttk.Frame(list_frame)
+        position_frame.pack(fill=tk.X, pady=(2, 0))
+        
+        self.position_label = ttk.Label(position_frame, text=f"当前位置: ({self.player_position['x']:.1f}, {self.player_position['y']:.1f}, {self.player_position['z']:.1f})")
+        self.position_label.pack(side=tk.LEFT)
+        
+        # 添加角色框架
+        add_frame = ttk.LabelFrame(main_frame, text=self.get_text("add_new_character"), padding="5")
+        add_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 角色名称输入
+        name_frame = ttk.Frame(add_frame)
+        name_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(name_frame, text=self.get_text("character_name") + ":", width=12).pack(side=tk.LEFT)
+        self.character_name_entry = ttk.Entry(name_frame)
+        self.character_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        
+        # 坐标输入
+        coord_frame = ttk.Frame(add_frame)
+        coord_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(coord_frame, text=self.get_text("character_x") + ":", width=6).pack(side=tk.LEFT)
+        self.character_x_entry = ttk.Entry(coord_frame, width=10)
+        self.character_x_entry.pack(side=tk.LEFT, padx=(5, 10))
+        
+        ttk.Label(coord_frame, text=self.get_text("character_y") + ":", width=6).pack(side=tk.LEFT)
+        self.character_y_entry = ttk.Entry(coord_frame, width=10)
+        self.character_y_entry.pack(side=tk.LEFT, padx=(5, 10))
+        
+        ttk.Label(coord_frame, text=self.get_text("character_z") + ":", width=6).pack(side=tk.LEFT)
+        self.character_z_entry = ttk.Entry(coord_frame, width=10)
+        self.character_z_entry.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # 按钮框架
+        button_frame = ttk.Frame(add_frame)
+        button_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Button(button_frame, text=self.get_text("add_character"), 
+                  command=self.add_character).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text=self.get_text("update_position"), 
+                  command=self.update_character_position).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="使用当前位置", 
+                  command=self.use_current_position).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text=self.get_text("remove_character"), 
+                  command=self.remove_character).pack(side=tk.LEFT)
+        
+        # 刷新角色列表
+        self.refresh_character_list()
+        
+        # 启动距离更新线程
+        if not hasattr(self, 'distance_update_running'):
+            self.distance_update_running = True
+            threading.Thread(target=self.distance_update_loop, daemon=True).start()
+    
+    def refresh_character_list(self):
+        """刷新角色列表"""
+        if not hasattr(self, 'character_listbox'):
+            return
+            
+        self.character_listbox.delete(0, tk.END)
+        for name, pos in self.vrc_characters.items():
+            distance = self.calculate_distance(self.player_position, pos)
+            self.character_listbox.insert(tk.END, f"{name} - ({pos['x']:.1f}, {pos['y']:.1f}, {pos['z']:.1f}) - {distance:.2f}m")
+    
+    def on_character_select(self, event):
+        """角色选择事件"""
+        selection = self.character_listbox.curselection()
+        if not selection:
+            return
+        
+        character_info = self.character_listbox.get(selection[0])
+        character_name = character_info.split(" - ")[0]
+        
+        if character_name in self.vrc_characters:
+            pos = self.vrc_characters[character_name]
+            self.character_name_entry.delete(0, tk.END)
+            self.character_name_entry.insert(0, character_name)
+            
+            self.character_x_entry.delete(0, tk.END)
+            self.character_x_entry.insert(0, str(pos['x']))
+            
+            self.character_y_entry.delete(0, tk.END)
+            self.character_y_entry.insert(0, str(pos['y']))
+            
+            self.character_z_entry.delete(0, tk.END)
+            self.character_z_entry.insert(0, str(pos['z']))
+            
+            # 更新距离显示
+            distance = self.calculate_distance(self.player_position, pos)
+            self.distance_label.config(text=f"{self.get_text('distance_to').format(name=character_name)}: {distance:.2f}m")
+    
+    def add_character(self):
+        """添加新角色"""
+        try:
+            name = self.character_name_entry.get().strip()
+            if not name:
+                messagebox.showwarning(self.get_text("warning"), self.get_text("character_name") + self.get_text("param_name_value_required"))
+                return
+            
+            if self.avatar_controller.character_manager.character_exists(name):
+                messagebox.showwarning(self.get_text("warning"), self.get_text("character_exists"))
+                return
+            
+            x = float(self.character_x_entry.get() or 0)
+            y = float(self.character_y_entry.get() or 0)
+            z = float(self.character_z_entry.get() or 0)
+            
+            # 使用Avatar控制器添加角色
+            success = self.avatar_controller.add_character(name, x, y, z)
+            if success:
+                self.refresh_character_list()  # 刷新窗口列表（如果存在）
+                self.update_character_distance_display()  # 更新距离显示
+            
+            # 清空输入框
+            self.character_name_entry.delete(0, tk.END)
+            self.character_x_entry.delete(0, tk.END)
+            self.character_y_entry.delete(0, tk.END)
+            self.character_z_entry.delete(0, tk.END)
+            
+            messagebox.showinfo(self.get_text("success"), self.get_text("character_added"))
+            self.log(f"{self.get_text('character_added')}: {name} ({x}, {y}, {z})")
+            
+        except ValueError:
+            messagebox.showerror(self.get_text("error"), self.get_text("invalid_position"))
+    
+    def update_character_position(self):
+        """更新角色位置"""
+        try:
+            name = self.character_name_entry.get().strip()
+            if not name or name not in self.vrc_characters:
+                messagebox.showwarning(self.get_text("warning"), self.get_text("character_name") + self.get_text("param_name_value_required"))
+                return
+            
+            x = float(self.character_x_entry.get() or 0)
+            y = float(self.character_y_entry.get() or 0)
+            z = float(self.character_z_entry.get() or 0)
+            
+            self.vrc_characters[name] = {"x": x, "y": y, "z": z}
+            self.save_character_data()  # 自动保存
+            self.refresh_character_list()
+            
+            messagebox.showinfo(self.get_text("success"), self.get_text("update_position"))
+            self.log(f"{self.get_text('character_name')} {name} {self.get_text('update_position')}: ({x}, {y}, {z})")
+            
+        except ValueError:
+            messagebox.showerror(self.get_text("error"), self.get_text("invalid_position"))
+    
+    def remove_character(self):
+        """删除角色"""
+        name = self.character_name_entry.get().strip()
+        if not name:
+            messagebox.showwarning(self.get_text("warning"), self.get_text("select_character_to_remove"))
+            return
+        
+        # 使用Avatar控制器删除角色
+        success = self.avatar_controller.remove_character(name)
+        if success:
+            self.refresh_character_list()  # 刷新窗口列表（如果存在）
+            self.update_character_distance_display()  # 更新距离显示
+            
+            # 清空输入框
+            self.character_name_entry.delete(0, tk.END)
+            self.character_x_entry.delete(0, tk.END)
+            self.character_y_entry.delete(0, tk.END)
+            self.character_z_entry.delete(0, tk.END)
+            
+            messagebox.showinfo(self.get_text("success"), self.get_text("character_removed"))
+            self.log(f"{self.get_text('character_removed')}: {name}")
+    
+    def calculate_distance(self, pos1, pos2):
+        """计算3D距离"""
+        dx = pos1['x'] - pos2['x']
+        dy = pos1['y'] - pos2['y']
+        dz = pos1['z'] - pos2['z']
+        return (dx*dx + dy*dy + dz*dz) ** 0.5
+    
+    def distance_update_loop(self):
+        """距离更新循环"""
+        while getattr(self, 'distance_update_running', False):
+            try:
+                # 模拟从VRChat OSC获取玩家位置
+                # 在实际应用中，这里应该从OSC接收玩家位置数据
+                if self.is_connected and hasattr(self, 'character_listbox'):
+                    self.root.after(0, self.refresh_character_list)
+                
+                time.sleep(1)  # 每秒更新一次
+            except Exception:
+                break
+    
+    def update_player_position(self, x, y, z):
+        """更新玩家位置（从OSC调用）"""
+        # 更新Avatar控制器的位置（这会自动处理角色距离计算）
+        self.avatar_controller.update_player_position(x, y, z)
+        
+        # 为了兼容性，也保持旧的变量
+        self.player_position = {"x": x, "y": y, "z": z}
+        
+        # 更新主界面中的位置显示
+        if hasattr(self, 'current_pos_label'):
+            pos_text = f"({x:.2f}, {y:.2f}, {z:.2f})"
+            self.root.after(0, lambda: self.current_pos_label.config(text=pos_text))
+        
+        # 更新主界面中的距离显示
+        self.root.after(0, self.update_character_distance_display)
+        
+        # 更新角色管理窗口中的位置显示
+        if hasattr(self, 'position_label'):
+            self.root.after(0, lambda: self.position_label.config(
+                text=f"当前位置: ({x:.1f}, {y:.1f}, {z:.1f})"
+            ))
+    
+    def use_current_position(self):
+        """使用当前位置填充坐标输入框"""
+        # 从Avatar控制器获取当前位置
+        current_pos = self.avatar_controller.get_player_position()
+        
+        self.character_x_entry.delete(0, tk.END)
+        self.character_x_entry.insert(0, f"{current_pos['x']:.2f}")
+        
+        self.character_y_entry.delete(0, tk.END)
+        self.character_y_entry.insert(0, f"{current_pos['y']:.2f}")
+        
+        self.character_z_entry.delete(0, tk.END)
+        self.character_z_entry.insert(0, f"{current_pos['z']:.2f}")
+    
+    def update_character_distance_display(self):
+        """更新角色距离显示"""
+        if not hasattr(self, 'character_distance_text'):
+            return
+        
+        try:
+            # 使用Avatar控制器获取距离信息
+            distance_text = self.avatar_controller.get_distance_text(max_count=8)  # 显示更多角色
+            
+            # 更新距离显示
+            self.character_distance_text.config(state='normal')
+            self.character_distance_text.delete(1.0, tk.END)
+            self.character_distance_text.insert(tk.END, distance_text)
+            self.character_distance_text.config(state='disabled')
+        except Exception as e:
+            if hasattr(self, 'log'):
+                self.log(f"更新距离显示失败: {e}")
+    
+    def load_character_data(self):
+        """加载角色数据"""
+        try:
+            import json
+            import os
+            
+            # 创建数据目录
+            os.makedirs(os.path.dirname(self.characters_file), exist_ok=True)
+            
+            if os.path.exists(self.characters_file):
+                with open(self.characters_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.vrc_characters = data.get('characters', {})
+                    self.player_position = data.get('player_position', {"x": 0.0, "y": 0.0, "z": 0.0})
+                    
+                    self.log(f"已加载{len(self.vrc_characters)}个角色数据")
+                    
+                    # 初始化角色距离显示
+                    self.root.after(100, self.update_character_distance_display)
+            else:
+                # 创建空文件
+                self.save_character_data()
+                
+        except Exception as e:
+            self.log(f"加载角色数据失败: {e}")
+    
+    def save_character_data(self):
+        """保存角色数据"""
+        try:
+            import json
+            import os
+            
+            # 确保目录存在
+            os.makedirs(os.path.dirname(self.characters_file), exist_ok=True)
+            
+            data = {
+                'characters': self.vrc_characters,
+                'player_position': self.player_position,
+                'version': '1.0',
+                'updated': time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            with open(self.characters_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                
+            if hasattr(self, 'log'):
+                self.log(f"已保存{len(self.vrc_characters)}个角色数据")
+                
+        except Exception as e:
+            if hasattr(self, 'log'):
+                self.log(f"保存角色数据失败: {e}")
     
     def run(self):
         """运行GUI"""

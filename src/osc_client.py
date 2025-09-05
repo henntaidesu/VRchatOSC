@@ -47,6 +47,10 @@ class OSCClient:
         self.vrc_is_speaking = False
         self.vrc_voice_level = 0.0
         
+        # 位置追踪
+        self.player_position = {"x": 0.0, "y": 0.0, "z": 0.0}
+        self.position_callback: Optional[Callable] = None
+        
         # 调试设置
         self.debug_mode = False
         self.voice_parameters_received = set()  # 记录收到的语音相关参数
@@ -71,6 +75,11 @@ class OSCClient:
         
         # 处理参数变化
         self.dispatcher.map("/avatar/parameters/*", self._handle_parameter_change)
+        
+        # 处理位置数据 (VRChat提供的位置信息)
+        self.dispatcher.map("/tracking/head/position", self._handle_position_update)
+        self.dispatcher.map("/tracking/head/rotation", self._handle_rotation_update)
+        self.dispatcher.map("/avatar/change", self._handle_avatar_change)
         
         # 处理通用消息
         self.dispatcher.set_default_handler(self._handle_default_message)
@@ -218,6 +227,36 @@ class OSCClient:
             print("OSC调试模式已启用")
         else:
             print("OSC调试模式已禁用")
+    
+    def _handle_position_update(self, address: str, *args):
+        """处理位置更新"""
+        if len(args) >= 3:
+            x, y, z = args[0], args[1], args[2]
+            self.player_position = {"x": float(x), "y": float(y), "z": float(z)}
+            
+            if self.debug_mode:
+                print(f"[OSC调试] 位置更新: X={x:.2f}, Y={y:.2f}, Z={z:.2f}")
+            
+            if self.position_callback:
+                self.position_callback(float(x), float(y), float(z))
+    
+    def _handle_rotation_update(self, address: str, *args):
+        """处理旋转更新"""
+        if self.debug_mode and args:
+            print(f"[OSC调试] 旋转更新: {args}")
+    
+    def _handle_avatar_change(self, address: str, *args):
+        """处理Avatar变更"""
+        if self.debug_mode and args:
+            print(f"[OSC调试] Avatar变更: {args}")
+    
+    def set_position_callback(self, callback: Callable):
+        """设置位置变化回调函数"""
+        self.position_callback = callback
+    
+    def get_player_position(self):
+        """获取玩家当前位置"""
+        return self.player_position.copy()
     
     def get_received_voice_parameters(self) -> set:
         """获取已接收到的语音参数列表"""

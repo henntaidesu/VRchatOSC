@@ -266,6 +266,10 @@ class VRChatController:
         """设置状态变化回调"""
         self.status_change_callback = callback
     
+    def set_position_callback(self, callback: Callable):
+        """设置位置更新回调"""
+        self.osc_client.set_position_callback(callback)
+    
     def set_voice_threshold(self, threshold: float):
         """设置语音激活阈值"""
         self.speech_engine.set_voice_threshold(threshold)

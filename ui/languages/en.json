@@ -136,5 +136,23 @@
   "screenshot_saved": "Screenshot saved as",
   "expression_data_saved": "Expression data saved to",
   "save_expression_failed": "Failed to save expression data",
-  "cannot_open_camera_window": "Cannot open camera window"
+  "cannot_open_camera_window": "Cannot open camera window",
+  
+  "add_character": "Add Character",
+  "character_management": "Character Management",
+  "character_name": "Character Name",
+  "character_position": "Character Position",
+  "distance_tracking": "Distance Tracking",
+  "distance_to": "Distance to {name}",
+  "add_new_character": "Add New Character",
+  "remove_character": "Remove Character",
+  "character_x": "X Coordinate",
+  "character_y": "Y Coordinate",
+  "character_z": "Z Coordinate",
+  "update_position": "Update Position",
+  "character_added": "Character Added",
+  "character_removed": "Character Removed",
+  "invalid_position": "Invalid Position Coordinates",
+  "character_exists": "Character Already Exists",
+  "select_character_to_remove": "Please select a character to remove"
 }

@@ -136,5 +136,23 @@
   "screenshot_saved": "スクリーンショットが保存されました",
   "expression_data_saved": "表情データが保存されました",
   "save_expression_failed": "表情データの保存に失敗",
-  "cannot_open_camera_window": "カメラウィンドウを開けません"
+  "cannot_open_camera_window": "カメラウィンドウを開けません",
+  
+  "add_character": "キャラクター追加",
+  "character_management": "キャラクター管理",
+  "character_name": "キャラクター名",
+  "character_position": "キャラクター位置",
+  "distance_tracking": "距離追跡",
+  "distance_to": "{name}までの距離",
+  "add_new_character": "新しいキャラクターを追加",
+  "remove_character": "キャラクターを削除",
+  "character_x": "X座標",
+  "character_y": "Y座標",
+  "character_z": "Z座標",
+  "update_position": "位置更新",
+  "character_added": "キャラクターが追加されました",
+  "character_removed": "キャラクターが削除されました",
+  "invalid_position": "無効な位置座標",
+  "character_exists": "キャラクターはすでに存在しています",
+  "select_character_to_remove": "削除するキャラクターを選択してください"
 }
