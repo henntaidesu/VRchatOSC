@@ -33,8 +33,10 @@ class VRChatOSCGUI:
         self.root = tk.Tk()
         self.root.title("VRChat OSC 通信工具")
         
-        # 从配置文件设置窗口大小
-        window_size = f"{self.config.window_width}x{self.config.window_height}"
+        # 设置窗口大小以适应新的左右布局 (600px + 800px + 间距和padding)
+        window_width = 1450  # 600 + 800 + 间距padding约50px
+        window_height = self.config.window_height
+        window_size = f"{window_width}x{window_height}"
         self.root.geometry(window_size)
         self.root.resizable(True, True)
         
@@ -130,18 +132,19 @@ class VRChatOSCGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=0)  # 左侧控制面板，固定宽度
-        main_frame.columnconfigure(1, weight=1)  # 右侧摄像头区域，可扩展
+        main_frame.columnconfigure(1, weight=0)  # 右侧摄像头区域，固定宽度
         
         # 配置主框架行权重
         main_frame.rowconfigure(0, weight=1)  # 主内容区域可扩展
         
-        # 创建左右两个主要区域
-        left_frame = ttk.Frame(main_frame, width=500)  # 固定左侧宽度为500px
+        # 创建左右两个主要区域，都固定宽度500px
+        left_frame = ttk.Frame(main_frame, width=600)  # 固定左侧宽度为500px
         left_frame.grid(row=0, column=0, sticky=(tk.W, tk.N, tk.S), padx=(0, 5))
         left_frame.grid_propagate(False)  # 防止子组件改变frame大小
         
-        right_frame = ttk.Frame(main_frame)
-        right_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+        right_frame = ttk.Frame(main_frame, width=800)  # 固定右侧宽度为500px
+        right_frame.grid(row=0, column=1, sticky=(tk.W, tk.N, tk.S), padx=(5, 0))
+        right_frame.grid_propagate(False)  # 防止子组件改变frame大小
         
         # 配置左右区域的权重
         left_frame.columnconfigure(0, weight=1)
