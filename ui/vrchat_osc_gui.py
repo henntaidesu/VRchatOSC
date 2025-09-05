@@ -392,11 +392,18 @@ class VRChatOSCGUI:
         control_buttons.pack(fill=tk.X, pady=5)
         
         # 摄像头ID选择
-        ttk.Label(control_buttons, text="摄像头ID:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(control_buttons, text="摄像头:").pack(side=tk.LEFT, padx=(0, 5))
         self.camera_id_var = tk.StringVar(value="0")
-        camera_combo = ttk.Combobox(control_buttons, textvariable=self.camera_id_var, 
-                                   values=["0", "1", "2"], width=5, state="readonly")
-        camera_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.camera_combo = ttk.Combobox(control_buttons, textvariable=self.camera_id_var, 
+                                        width=20, state="readonly")
+        self.camera_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 刷新摄像头列表按钮
+        refresh_btn = ttk.Button(control_buttons, text="刷新", command=self.refresh_camera_list)
+        refresh_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 初始化摄像头列表
+        self.refresh_camera_list()
         
         # 开始/停止按钮
         self.camera_start_btn = ttk.Button(control_buttons, text="启动摄像头", command=self.toggle_camera)
@@ -413,11 +420,12 @@ class VRChatOSCGUI:
         camera_display_frame.columnconfigure(0, weight=1)
         camera_display_frame.rowconfigure(0, weight=1)
         
-        # 视频显示标签
-        self.video_label = ttk.Label(camera_display_frame, text="点击启动摄像头按钮开始", 
-                                    background="black", foreground="white",
-                                    font=("Arial", 12))
-        self.video_label.pack(expand=True, fill=tk.BOTH)
+        # 视频显示标签 - 设置固定尺寸和样式
+        self.video_label = tk.Label(camera_display_frame, text="点击启动摄像头按钮开始", 
+                                   bg="black", fg="white",
+                                   font=("Arial", 12),
+                                   width=80, height=30)  # 设置足够的显示空间
+        self.video_label.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
         
         # 表情数据显示区域
         expression_frame = ttk.LabelFrame(parent_frame, text="实时表情数据", padding="5")
@@ -1169,6 +1177,9 @@ class VRChatOSCGUI:
         """启动摄像头"""
         try:
             camera_id = int(self.camera_id_var.get())
+            self.log(f"正在初始化摄像头 ID: {camera_id}")
+            
+            # 初始化摄像头和面部控制器
             self.camera = FaceMeshCamera(camera_id)
             self.face_controller = FaceExpressionController(camera_id)
             
@@ -1176,31 +1187,57 @@ class VRChatOSCGUI:
             self.face_controller.add_expression_callback(self.on_expression_update)
             
             # 启动表情控制器
+            self.log("正在启动面部检测...")
             if self.face_controller.start():
                 self.camera_running = True
                 self.camera_start_btn.config(text="停止摄像头")
                 self.capture_btn.config(state="normal")
-                self.log("摄像头启动成功")
+                self.log("摄像头启动成功，开始视频流...")
+                
+                # 更新显示标签
+                self.video_label.config(text="正在连接摄像头...")
                 
                 # 启动视频更新线程
                 self.camera_thread = threading.Thread(target=self.update_camera_video, daemon=True)
                 self.camera_thread.start()
             else:
-                messagebox.showerror("错误", "无法启动摄像头")
-                self.log("摄像头启动失败")
+                messagebox.showerror("错误", "无法启动面部检测")
+                self.log("面部检测启动失败")
                 
         except Exception as e:
             messagebox.showerror("启动错误", f"启动摄像头失败: {e}")
             self.log(f"摄像头启动错误: {e}")
+            print(f"摄像头启动详细错误: {e}")
+            import traceback
+            self.log(f"错误详情: {traceback.format_exc()}")
     
     def stop_camera(self):
         """停止摄像头"""
         try:
+            self.log("正在停止摄像头...")
             self.camera_running = False
             
-            if self.face_controller:
-                self.face_controller.stop()
+            # 等待视频线程结束
+            if self.camera_thread and self.camera_thread.is_alive():
+                self.log("等待视频线程结束...")
+                self.camera_thread.join(timeout=2)
             
+            # 停止面部控制器
+            if self.face_controller:
+                self.log("停止面部控制器...")
+                self.face_controller.stop()
+                self.face_controller = None
+            
+            # 释放摄像头资源
+            if self.camera:
+                self.log("释放摄像头资源...")
+                if hasattr(self.camera, 'release'):
+                    self.camera.release()
+                elif hasattr(self.camera, 'cap') and self.camera.cap:
+                    self.camera.cap.release()
+                self.camera = None
+            
+            # 更新UI
             self.camera_start_btn.config(text="启动摄像头")
             self.capture_btn.config(state="disabled")
             self.log("摄像头已停止")
@@ -1208,39 +1245,61 @@ class VRChatOSCGUI:
             # 清空视频显示
             self.video_label.config(image="", text="点击启动摄像头按钮开始")
             
+            # 强制垃圾回收
+            import gc
+            gc.collect()
+            
         except Exception as e:
             self.log(f"停止摄像头错误: {e}")
+            print(f"停止摄像头详细错误: {e}")
+            import traceback
+            self.log(f"错误详情: {traceback.format_exc()}")
     
     def update_camera_video(self):
         """视频更新线程"""
-        while self.camera_running:
-            try:
-                frame, expressions = self.camera.get_frame_with_expressions()
-                
-                if frame is not None:
-                    # 转换OpenCV图像为PIL图像
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(frame_rgb)
+        self.log("视频更新线程已启动")
+        try:
+            while self.camera_running:
+                try:
+                    # 检查摄像头是否还在运行
+                    if not self.camera_running:
+                        break
+                        
+                    frame, expressions = self.camera.get_frame_with_expressions()
                     
-                    # 调整图像大小以适应显示区域
-                    display_width = min(400, self.video_label.winfo_width())
-                    display_height = min(300, self.video_label.winfo_height())
-                    
-                    if display_width > 0 and display_height > 0:
+                    if frame is not None:
+                        # 转换OpenCV图像为PIL图像
+                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        img = Image.fromarray(frame_rgb)
+                        
+                        # 固定显示大小，确保有合适的显示区域
+                        display_width = 640
+                        display_height = 480
+                        
+                        # 调整图像大小
                         img = img.resize((display_width, display_height), Image.Resampling.LANCZOS)
+                        
+                        # 转换为PhotoImage
+                        photo = ImageTk.PhotoImage(img)
+                        
+                        # 更新显示（需要在主线程中执行）
+                        self.current_frame = frame  # 保存当前帧用于截图
+                        if self.camera_running:  # 再次检查状态
+                            self.root.after(0, lambda p=photo: self.update_video_display(p))
+                        
+                    time.sleep(0.03)  # 约33fps
                     
-                    # 转换为PhotoImage
-                    photo = ImageTk.PhotoImage(img)
+                except Exception as e:
+                    if self.camera_running:  # 只在运行时记录错误
+                        self.log(f"视频更新错误: {e}")
+                        print(f"视频更新错误: {e}")
+                    time.sleep(0.1)
                     
-                    # 更新显示（需要在主线程中执行）
-                    self.current_frame = frame  # 保存当前帧用于截图
-                    self.root.after(0, lambda: self.update_video_display(photo))
-                    
-                time.sleep(0.03)  # 约33fps
-                
-            except Exception as e:
-                print(f"视频更新错误: {e}")
-                time.sleep(0.1)
+        except Exception as e:
+            self.log(f"视频线程异常: {e}")
+            print(f"视频线程异常: {e}")
+        finally:
+            self.log("视频更新线程已结束")
     
     def update_video_display(self, photo):
         """更新视频显示（在主线程中调用）"""
@@ -1248,7 +1307,10 @@ class VRChatOSCGUI:
             if self.camera_running and photo:
                 self.video_label.config(image=photo, text="")
                 self.video_label.image = photo  # 保持引用防止垃圾回收
+            else:
+                self.log("显示更新失败: 摄像头未运行或照片为空")
         except Exception as e:
+            self.log(f"更新显示错误: {e}")
             print(f"更新显示错误: {e}")
     
     def on_expression_update(self, expressions):
