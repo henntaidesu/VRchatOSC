@@ -456,6 +456,25 @@ class VRChatOSCGUI:
         self.emotion_model_type = self.model_var.get()
         self.log(f"情感识别模型已切换为: {self.emotion_model_type}")
         
+        # 释放现有的GPU检测器
+        if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
+            try:
+                self.gpu_detector.release()
+                self.gpu_detector = None
+                self.log("已释放旧的GPU检测器")
+            except Exception as e:
+                self.log(f"释放旧GPU检测器时出错: {e}")
+        
+        # 如果切换到GPU模型，预初始化检测器
+        if self.emotion_model_type in ['ResEmoteNet', 'FER2013']:
+            try:
+                from src.face.gpu_emotion_detector import GPUEmotionDetector
+                self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
+                self.log(f"成功预初始化GPU情感检测器: {self.emotion_model_type}")
+            except Exception as e:
+                self.log(f"GPU检测器预初始化失败: {e}")
+                self.gpu_detector = None
+        
         # 如果面部识别正在运行，需要重启以应用新模型
         if self.face_detection_running:
             self.log("检测到模型变更，正在重启面部识别以应用新模型...")
@@ -1515,10 +1534,59 @@ class VRChatOSCGUI:
                 if len(faces) > 0:
                     expressions['smile'] = 0.3
             
-            # GPU模型的处理逻辑可以在这里添加
+            elif self.emotion_model_type in ['ResEmoteNet', 'FER2013']:
+                # 使用GPU加速的情感识别模型
+                if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
+                    try:
+                        annotated_frame, expressions = self.gpu_detector.process_frame(frame)
+                        return annotated_frame, expressions
+                    except Exception as gpu_e:
+                        self.log(f"GPU情感识别处理错误: {gpu_e}")
+                        # 回退到简单模式
+                        return self.process_simple_detection(frame)
+                else:
+                    # 如果GPU检测器未初始化，尝试创建
+                    try:
+                        from src.face.gpu_emotion_detector import GPUEmotionDetector
+                        self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
+                        self.log(f"成功初始化GPU情感检测器: {self.emotion_model_type}")
+                        annotated_frame, expressions = self.gpu_detector.process_frame(frame)
+                        return annotated_frame, expressions
+                    except Exception as init_e:
+                        self.log(f"GPU情感检测器初始化失败: {init_e}, 回退到简单模式")
+                        return self.process_simple_detection(frame)
             
         except Exception as e:
             self.log(f"面部识别处理错误: {e}")
+        
+        return frame, expressions
+    
+    def process_simple_detection(self, frame):
+        """简单的面部检测处理（作为GPU模式的后备）"""
+        expressions = {
+            'eyeblink_left': 0.0,
+            'eyeblink_right': 0.0,
+            'mouth_open': 0.0,
+            'smile': 0.0
+        }
+        
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
+            
+            # 绘制面部框
+            for (x, y, w, h) in faces:
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv2.putText(frame, "Face Detected (Simple)", (x, y-10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            # 简单的表情模拟
+            if len(faces) > 0:
+                expressions['smile'] = 0.3
+                
+        except Exception as e:
+            self.log(f"简单面部检测错误: {e}")
         
         return frame, expressions
     
@@ -1531,7 +1599,7 @@ class VRChatOSCGUI:
             # 同时停止面部识别
             if self.face_detection_running:
                 self.face_detection_running = False
-                self.face_detection_btn.config(text="启动面部识别", state="disabled")
+                self.face_detection_btn.config(text=self.get_text("start_face_detection"), state="disabled")
             
             # 等待线程结束
             if self.camera_thread and self.camera_thread.is_alive():
@@ -1542,12 +1610,21 @@ class VRChatOSCGUI:
                 self.camera.release()
                 self.camera = None
             
-            # 更新UI
-            self.camera_start_btn.config(text="启动摄像头")
-            self.capture_btn.config(state="disabled")
-            self.video_label.config(image="", text="点击启动摄像头按钮开始")
+            # 释放GPU检测器资源
+            if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
+                try:
+                    self.gpu_detector.release()
+                    self.gpu_detector = None
+                    self.log("GPU情感检测器资源已释放")
+                except Exception as e:
+                    self.log(f"释放GPU检测器资源时出错: {e}")
             
-            self.log("摄像头已停止")
+            # 更新UI
+            self.camera_start_btn.config(text=self.get_text("start_camera"))
+            self.capture_btn.config(state="disabled")
+            self.video_label.config(image="", text=self.get_text("click_to_start"))
+            
+            self.log(self.get_text("camera_stopped"))
             
         except Exception as e:
             self.log(f"停止摄像头错误: {e}")
