@@ -36,8 +36,8 @@ class VRChatOSCGUI:
         self.root = tk.Tk()
         self.root.title("VRChat OSC 通信工具")
         
-        # 设置窗口大小以适应新的左右布局 (600px + 800px + 间距和padding)
-        window_width = 1450  # 600 + 800 + 间距padding约50px
+        # 设置窗口大小以适应新的左中右三列布局 (400px + 600px + 600px + 间距和padding)
+        window_width = 1650  # 400 + 600 + 600 + 间距padding约50px
         window_height = self.config.window_height
         window_size = f"{window_width}x{window_height}"
         self.root.geometry(window_size)
@@ -525,46 +525,57 @@ class VRChatOSCGUI:
         self.voicevox_control_frame.columnconfigure(0, weight=1)
         self.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
         
-        # 第一行：角色选择和连接状态
-        row1_frame = ttk.Frame(self.voicevox_control_frame)
-        row1_frame.pack(fill=tk.X, pady=(0, 5))
+        # 第一行：期数选择
+        period_frame = ttk.Frame(self.voicevox_control_frame)
+        period_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # VOICEVOX角色选择
-        self.voicevox_character_label = ttk.Label(row1_frame, text="角色:")
-        self.voicevox_character_label.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
-        self.voicevox_character_combo = ttk.Combobox(row1_frame, textvariable=self.voicevox_character_var,
-                                                   width=20, state="readonly")
-        self.voicevox_character_combo.pack(side=tk.LEFT, padx=(0, 10))
-        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
+        # VOICEVOX期数选择
+        ttk.Label(period_frame, text="期数:", width=8).pack(side=tk.LEFT, padx=(0, 5))
+        self.voicevox_period_var = tk.StringVar(value="1期")
+        self.voicevox_period_combo = ttk.Combobox(period_frame, textvariable=self.voicevox_period_var,
+                                                values=["1期", "2期", "3期"],
+                                                width=10, state="readonly")
+        self.voicevox_period_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
         
         # VOICEVOX连接状态
-        self.voicevox_status_label = ttk.Label(row1_frame, text="未连接", foreground="red")
-        self.voicevox_status_label.pack(side=tk.LEFT, padx=(10, 0))
+        self.voicevox_status_label = ttk.Label(period_frame, text="未连接", foreground="red")
+        self.voicevox_status_label.pack(side=tk.RIGHT)
         
-        # 第二行：控制按钮
-        row2_frame = ttk.Frame(self.voicevox_control_frame)
-        row2_frame.pack(fill=tk.X, pady=(5, 0))
+        # 第二行：角色选择
+        character_frame = ttk.Frame(self.voicevox_control_frame)
+        character_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # VOICEVOX角色选择
+        ttk.Label(character_frame, text="角色:", width=8).pack(side=tk.LEFT, padx=(0, 5))
+        self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
+        self.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_character_var,
+                                                   width=25, state="readonly")
+        self.voicevox_character_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
+        
+        # 第三行：控制按钮
+        control_frame = ttk.Frame(self.voicevox_control_frame)
+        control_frame.pack(fill=tk.X, pady=(5, 0))
         
         # VOICEVOX测试按钮
-        self.voicevox_test_btn = ttk.Button(row2_frame, text="测试语音", command=self.test_voicevox)
+        self.voicevox_test_btn = ttk.Button(control_frame, text="测试语音", command=self.test_voicevox)
         self.voicevox_test_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # VOICEVOX启用开关
         self.voicevox_enabled_var = tk.BooleanVar(value=True)
-        self.voicevox_enabled_check = ttk.Checkbutton(row2_frame, text="启用VOICEVOX", 
+        self.voicevox_enabled_check = ttk.Checkbutton(control_frame, text="启用VOICEVOX", 
                                                     variable=self.voicevox_enabled_var)
         self.voicevox_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
         # LLM启用开关
         self.llm_enabled_var = tk.BooleanVar(value=True)
-        self.llm_enabled_check = ttk.Checkbutton(row2_frame, text="启用AI对话", 
+        self.llm_enabled_check = ttk.Checkbutton(control_frame, text="启用AI对话", 
                                                variable=self.llm_enabled_var, 
                                                command=self.toggle_llm_enabled)
         self.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
-        # 第三行：语音参数控制
+        # 第四行：语音参数控制
         params_frame = ttk.LabelFrame(self.voicevox_control_frame, text="语音参数", padding="5")
         params_frame.pack(fill=tk.X, pady=(10, 0))
         
@@ -661,6 +672,11 @@ class VRChatOSCGUI:
         self.capture_btn = ttk.Button(control_buttons, text=self.get_text("screenshot"), command=self.capture_screenshot, 
                                      state="disabled")
         self.capture_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 保存表情数据按钮
+        self.save_expression_btn = ttk.Button(control_buttons, text="保存表情", command=self.save_expression_data,
+                                            state="disabled")
+        self.save_expression_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 摄像头显示区域
         self.camera_display_frame = ttk.LabelFrame(parent_frame, text=self.get_text("camera_feed"), padding="5")
@@ -1597,6 +1613,7 @@ class VRChatOSCGUI:
             self.camera_start_btn.config(text="停止摄像头")
             self.face_detection_btn.config(state="normal")
             self.capture_btn.config(state="normal")
+            self.save_expression_btn.config(state="normal")
             
             # 启动简单的视频显示线程
             self.camera_thread = threading.Thread(target=self.simple_video_loop, daemon=True)
@@ -1677,9 +1694,16 @@ class VRChatOSCGUI:
                     cv2.putText(frame, "Face Detected", (x, y-10), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 
-                # 简单的表情模拟（可以后续扩展）
+                # 简单的表情模拟（基于人脸检测结果）
                 if len(faces) > 0:
-                    expressions['smile'] = 0.3
+                    import math
+                    import time
+                    # 使用时间和正弦函数模拟动态表情变化
+                    t = time.time()
+                    expressions['smile'] = 0.2 + 0.3 * abs(math.sin(t * 0.5))
+                    expressions['eyeblink_left'] = 0.1 + 0.4 * abs(math.sin(t * 2.0))
+                    expressions['eyeblink_right'] = 0.1 + 0.4 * abs(math.sin(t * 2.1))
+                    expressions['mouth_open'] = 0.1 + 0.3 * abs(math.sin(t * 1.5))
             
             elif self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
                 # 使用GPU加速的情感识别模型
@@ -1728,15 +1752,21 @@ class VRChatOSCGUI:
             face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
             faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
             
-            # 绘制面部框
+            # 绘制面部框和更新表情数据
             for (x, y, w, h) in faces:
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 cv2.putText(frame, "Face Detected (Simple)", (x, y-10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
-            # 简单的表情模拟
+            # 为后备简单模式也提供动态表情数据
             if len(faces) > 0:
-                expressions['smile'] = 0.3
+                import math
+                import time
+                t = time.time()
+                expressions['smile'] = 0.2 + 0.3 * abs(math.sin(t * 0.5))
+                expressions['eyeblink_left'] = 0.1 + 0.4 * abs(math.sin(t * 2.0))
+                expressions['eyeblink_right'] = 0.1 + 0.4 * abs(math.sin(t * 2.1))
+                expressions['mouth_open'] = 0.1 + 0.3 * abs(math.sin(t * 1.5))
                 
         except Exception as e:
             self.log(f"简单面部检测错误: {e}")
@@ -1775,6 +1805,7 @@ class VRChatOSCGUI:
             # 更新UI
             self.camera_start_btn.config(text=self.get_text("start_camera"))
             self.capture_btn.config(state="disabled")
+            self.save_expression_btn.config(state="disabled")
             self.video_label.config(image="", text=self.get_text("click_to_start"))
             
             self.log(self.get_text("camera_stopped"))
@@ -1817,9 +1848,45 @@ class VRChatOSCGUI:
                     # 更新进度条
                     progress_value = min(100, max(0, value * 100))
                     self.expression_progress_bars[expr_name]['value'] = progress_value
-                    
+            
+            # 发送表情数据到VRChat OSC（如果连接已建立）
+            self.send_expressions_to_vrchat(expressions)
+            
         except Exception as e:
             print(f"更新表情显示错误: {e}")
+    
+    def send_expressions_to_vrchat(self, expressions):
+        """将表情数据发送到VRChat OSC"""
+        try:
+            if self.osc_client and self.connected:
+                # VRChat表情参数映射
+                vrchat_params = {
+                    'eyeblink_left': '/avatar/parameters/EyeBlinkLeft',
+                    'eyeblink_right': '/avatar/parameters/EyeBlinkRight', 
+                    'mouth_open': '/avatar/parameters/MouthOpen',
+                    'smile': '/avatar/parameters/MouthSmile'
+                }
+                
+                # 发送每个表情参数
+                for expr_name, value in expressions.items():
+                    if expr_name in vrchat_params:
+                        param_address = vrchat_params[expr_name]
+                        # 确保值在0-1范围内
+                        clamped_value = max(0.0, min(1.0, value))
+                        self.osc_client.send_parameter(param_address, clamped_value)
+                        
+        except Exception as e:
+            # 静默处理错误，避免日志过多
+            if hasattr(self, 'last_expression_error_time'):
+                import time
+                current_time = time.time()
+                # 只每10秒记录一次错误
+                if current_time - self.last_expression_error_time > 10:
+                    self.log(f"表情数据发送错误: {e}")
+                    self.last_expression_error_time = current_time
+            else:
+                self.last_expression_error_time = time.time()
+                self.log(f"表情数据发送错误: {e}")
     
     def capture_screenshot(self):
         """截图功能"""
@@ -1840,6 +1907,50 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror("截图错误", f"截图失败: {e}")
             self.log(f"截图错误: {e}")
+    
+    def save_expression_data(self):
+        """保存当前表情数据"""
+        try:
+            # 生成文件名
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"expression_data_{timestamp}.txt"
+            
+            # 保存表情数据
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("VRChat OSC 表情数据导出\n")
+                f.write(f"时间戳: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("=" * 40 + "\n\n")
+                
+                f.write("当前表情参数:\n")
+                for expr_name, value in self.expressions.items():
+                    display_name = {
+                        'eyeblink_left': '左眼眨眼',
+                        'eyeblink_right': '右眼眨眼', 
+                        'mouth_open': '嘴巴张开',
+                        'smile': '微笑'
+                    }.get(expr_name, expr_name)
+                    
+                    f.write(f"  {display_name}: {value:.3f}\n")
+                
+                f.write("\nVRChat OSC 参数地址:\n")
+                vrchat_params = {
+                    'eyeblink_left': '/avatar/parameters/EyeBlinkLeft',
+                    'eyeblink_right': '/avatar/parameters/EyeBlinkRight',
+                    'mouth_open': '/avatar/parameters/MouthOpen', 
+                    'smile': '/avatar/parameters/MouthSmile'
+                }
+                
+                for expr_name, value in self.expressions.items():
+                    if expr_name in vrchat_params:
+                        param_address = vrchat_params[expr_name]
+                        f.write(f"  {param_address}: {value:.3f}\n")
+            
+            messagebox.showinfo("保存成功", f"表情数据已保存到: {filename}")
+            self.log(f"表情数据已保存: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("保存错误", f"保存表情数据失败: {e}")
+            self.log(f"保存表情数据错误: {e}")
     
     def open_camera_window(self):
         """打开摄像头窗口（保留原功能作为备选）"""
@@ -1878,7 +1989,21 @@ class VRChatOSCGUI:
         """更新VOICEVOX UI状态"""
         try:
             if connected:
-                self.voicevox_character_combo['values'] = speaker_names
+                # 连接成功时，初始化期数选择为1期，并加载对应角色
+                current_period = self.voicevox_period_var.get()
+                period_speakers = self.voicevox_client.get_speakers_by_period(current_period)
+                
+                if period_speakers:
+                    speaker_values = [speaker['display'] for speaker in period_speakers]
+                    self.voicevox_character_combo['values'] = speaker_values
+                    # 设置默认角色
+                    if "ずんだもん - ノーマル" in speaker_values:
+                        self.voicevox_character_combo.set("ずんだもん - ノーマル")
+                    else:
+                        self.voicevox_character_combo.set(speaker_values[0])
+                else:
+                    self.voicevox_character_combo['values'] = []
+                    
                 self.voicevox_status_label.config(text="已连接", foreground="green")
                 self.voicevox_test_btn.config(state="normal")
             else:
@@ -1909,6 +2034,39 @@ class VRChatOSCGUI:
                     break
         except Exception as e:
             self.log(f"切换VOICEVOX角色失败: {e}")
+    
+    def on_voicevox_period_changed(self, event=None):
+        """VOICEVOX期数选择变化时的回调"""
+        if not self.voicevox_client or not self.voicevox_connected:
+            return
+            
+        try:
+            selected_period = self.voicevox_period_var.get()
+            # 获取指定期数的角色列表
+            period_speakers = self.voicevox_client.get_speakers_by_period(selected_period)
+            
+            # 更新角色选择框
+            if period_speakers:
+                speaker_values = [speaker['display'] for speaker in period_speakers]
+                self.voicevox_character_combo['values'] = speaker_values
+                # 默认选择第一个角色
+                self.voicevox_character_combo.set(speaker_values[0])
+                
+                # 自动设置第一个角色
+                first_speaker = period_speakers[0]
+                self.voicevox_client.set_speaker(
+                    first_speaker['speaker_id'],
+                    first_speaker['name'],
+                    first_speaker['style']
+                )
+                self.log(f"切换到{selected_period}，角色: {speaker_values[0]}")
+            else:
+                self.voicevox_character_combo['values'] = []
+                self.voicevox_character_combo.set("")
+                self.log(f"未找到{selected_period}的角色")
+                
+        except Exception as e:
+            self.log(f"切换VOICEVOX期数失败: {e}")
     
     def on_speed_changed(self, value):
         """语速滑块变化回调"""
