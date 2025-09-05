@@ -68,6 +68,7 @@ parso==0.8.5
 pickleshare==0.7.5
 pillow==11.0.0
 pipreqs==0.5.0
+pygame==2.6.1
 platformdirs==4.4.0
 prompt_toolkit==3.0.52
 protobuf==4.25.8

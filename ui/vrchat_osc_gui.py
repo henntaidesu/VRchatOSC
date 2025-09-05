@@ -22,6 +22,8 @@ from .settings_window import SettingsWindow
 from src.face.simple_face_detector import SimpleFaceCamera
 from src.face.gpu_emotion_detector import GPUFaceCamera
 from .languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
+from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
+from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 
 
 class VRChatOSCGUI:
@@ -67,6 +69,14 @@ class VRChatOSCGUI:
         self.camera_thread = None
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
         self.emotion_model_type = 'Simple'  # 默认使用简单模型
+        
+        # VOICEVOX相关变量
+        self.voicevox_client = None
+        self.voicevox_connected = False
+        
+        # LLM相关变量
+        self.llm_handler = None
+        self.llm_enabled = True
         
         
         self.setup_ui()
@@ -197,6 +207,41 @@ class VRChatOSCGUI:
         self.upload_voice_btn = ttk.Button(voice_frame, text=self.get_text("upload_voice"), command=self.upload_voice_file)
         self.upload_voice_btn.grid(row=0, column=5, padx=(0, 5))
         
+        # 第二行：VOICEVOX角色选择和语音合成控制
+        voicevox_frame = ttk.Frame(self.message_frame)
+        voicevox_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        # VOICEVOX角色选择
+        self.voicevox_character_label = ttk.Label(voicevox_frame, text="VOICEVOX角色:")
+        self.voicevox_character_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        
+        self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
+        self.voicevox_character_combo = ttk.Combobox(voicevox_frame, textvariable=self.voicevox_character_var,
+                                                   width=20, state="readonly")
+        self.voicevox_character_combo.grid(row=0, column=1, padx=(0, 10))
+        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
+        
+        # VOICEVOX连接状态
+        self.voicevox_status_label = ttk.Label(voicevox_frame, text="未连接", foreground="red")
+        self.voicevox_status_label.grid(row=0, column=2, padx=(10, 5))
+        
+        # VOICEVOX测试按钮
+        self.voicevox_test_btn = ttk.Button(voicevox_frame, text="测试语音", command=self.test_voicevox)
+        self.voicevox_test_btn.grid(row=0, column=3, padx=(10, 5))
+        
+        # VOICEVOX启用开关
+        self.voicevox_enabled_var = tk.BooleanVar(value=True)
+        self.voicevox_enabled_check = ttk.Checkbutton(voicevox_frame, text="启用VOICEVOX", 
+                                                    variable=self.voicevox_enabled_var)
+        self.voicevox_enabled_check.grid(row=0, column=4, padx=(10, 5))
+        
+        # LLM启用开关
+        self.llm_enabled_var = tk.BooleanVar(value=True)
+        self.llm_enabled_check = ttk.Checkbutton(voicevox_frame, text="启用AI对话", 
+                                               variable=self.llm_enabled_var, 
+                                               command=self.toggle_llm_enabled)
+        self.llm_enabled_check.grid(row=0, column=5, padx=(5, 0))
+        
         # 第二行：调试和模式控制
         debug_frame = ttk.Frame(self.message_frame)
         debug_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
@@ -319,6 +364,7 @@ class VRChatOSCGUI:
         self.speech_text.tag_config("持续监听", foreground="#2196F3")  # 蓝色
         self.speech_text.tag_config("录制语音", foreground="#4CAF50")  # 绿色  
         self.speech_text.tag_config("发送语音", foreground="#FF9800")  # 橙色
+        self.speech_text.tag_config("AI回复", foreground="#9C27B0")    # 紫色
         self.speech_text.tag_config("时间戳", foreground="#666666")   # 灰色
         
         # 语音识别框按钮行
@@ -351,6 +397,12 @@ class VRChatOSCGUI:
         
         # 初始状态设置
         self.update_ui_state(False)
+        
+        # 初始化VOICEVOX
+        self.init_voicevox()
+        
+        # 初始化LLM处理器
+        self.init_llm_handler()
     
     def detect_available_cameras(self):
         """检测可用的摄像头"""
@@ -864,6 +916,15 @@ class VRChatOSCGUI:
                     self.client.send_text_message(f"[语音] {text}")
                     # 记录到日志
                     self.log(f"[持续语音] {text}")
+                    
+                    # 如果启用了LLM处理，发送到LLM
+                    if self.llm_enabled and self.llm_handler and self.llm_handler.is_client_ready():
+                        request_id = self.llm_handler.submit_voice_text(text)
+                        if request_id:
+                            self.log(f"[LLM] 已提交语音到AI处理: {text[:50]}...")
+                        else:
+                            self.log("[LLM] 提交语音到AI失败")
+                    
                     # 调用原有的语音结果处理
                     if hasattr(self, 'on_voice_result'):
                         self.on_voice_result(text)
@@ -1105,6 +1166,14 @@ class VRChatOSCGUI:
                         self.client.send_text_message(f"[音频文件] {text}")
                         # 记录到日志
                         self.log(f"[成功] 音频文件识别并发送: {text}")
+                        
+                        # 如果启用了LLM处理，发送到LLM
+                        if self.llm_enabled and self.llm_handler and self.llm_handler.is_client_ready():
+                            request_id = self.llm_handler.submit_voice_text(text)
+                            if request_id:
+                                self.log(f"[LLM] 已提交音频文件到AI处理: {text[:50]}...")
+                            else:
+                                self.log("[LLM] 提交音频文件到AI失败")
                     else:
                         self.log("[错误] 音频文件识别失败")
                         
@@ -1708,6 +1777,160 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror("摄像头错误", f"无法打开摄像头窗口: {e}")
             self.log(f"打开摄像头窗口失败: {e}")
+    
+    def init_voicevox(self):
+        """初始化VOICEVOX客户端"""
+        def init_in_background():
+            try:
+                self.voicevox_client = get_voicevox_client()
+                if self.voicevox_client.test_connection():
+                    self.voicevox_connected = True
+                    # 获取角色列表
+                    speakers_list = self.voicevox_client.get_speakers_list()
+                    speaker_names = [speaker['display'] for speaker in speakers_list]
+                    
+                    # 更新UI（必须在主线程中执行）
+                    self.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
+                    self.log("VOICEVOX连接成功")
+                else:
+                    self.root.after(0, lambda: self.update_voicevox_ui([], False))
+                    self.log("VOICEVOX连接失败")
+            except Exception as e:
+                self.log(f"初始化VOICEVOX失败: {e}")
+                self.root.after(0, lambda: self.update_voicevox_ui([], False))
+        
+        # 在后台线程中初始化，避免阻塞UI
+        threading.Thread(target=init_in_background, daemon=True).start()
+    
+    def update_voicevox_ui(self, speaker_names, connected):
+        """更新VOICEVOX UI状态"""
+        try:
+            if connected:
+                self.voicevox_character_combo['values'] = speaker_names
+                self.voicevox_status_label.config(text="已连接", foreground="green")
+                self.voicevox_test_btn.config(state="normal")
+            else:
+                self.voicevox_character_combo['values'] = []
+                self.voicevox_status_label.config(text="未连接", foreground="red")  
+                self.voicevox_test_btn.config(state="disabled")
+        except Exception as e:
+            self.log(f"更新VOICEVOX UI失败: {e}")
+    
+    def on_voicevox_character_changed(self, event=None):
+        """VOICEVOX角色选择变化时的回调"""
+        if not self.voicevox_client or not self.voicevox_connected:
+            return
+            
+        try:
+            selected_display = self.voicevox_character_var.get()
+            speakers_list = self.voicevox_client.get_speakers_list()
+            
+            # 找到对应的角色信息
+            for speaker in speakers_list:
+                if speaker['display'] == selected_display:
+                    self.voicevox_client.set_speaker(
+                        speaker['speaker_id'], 
+                        speaker['name'], 
+                        speaker['style']
+                    )
+                    self.log(f"切换VOICEVOX角色: {selected_display}")
+                    break
+        except Exception as e:
+            self.log(f"切换VOICEVOX角色失败: {e}")
+    
+    def test_voicevox(self):
+        """测试VOICEVOX语音合成"""
+        if not self.voicevox_client or not self.voicevox_connected:
+            messagebox.showwarning("警告", "VOICEVOX未连接")
+            return
+            
+        # 根据当前角色选择测试文本
+        current_speaker = self.voicevox_client.get_current_speaker_info()
+        
+        if "ずんだもん" in current_speaker['name']:
+            test_text = "こんにちは！ずんだもんなのだ！"
+        elif "四国めたん" in current_speaker['name']:
+            test_text = "こんにちは、四国めたんです！"
+        else:
+            test_text = "こんにちは！VOICEVOX音声合成のテストです。"
+        
+        def test_in_background():
+            try:
+                success = self.voicevox_client.synthesize_and_play(test_text)
+                if success:
+                    self.log(f"VOICEVOX语音测试成功: {test_text}")
+                else:
+                    self.log("VOICEVOX语音测试失败")
+            except Exception as e:
+                self.log(f"VOICEVOX语音测试出错: {e}")
+        
+        threading.Thread(target=test_in_background, daemon=True).start()
+    
+    def synthesize_with_voicevox(self, text):
+        """使用VOICEVOX合成并播放文本（用于LLM输出）"""
+        if not self.voicevox_enabled_var.get() or not self.voicevox_client or not self.voicevox_connected:
+            return False
+            
+        def synthesize_in_background():
+            try:
+                success = self.voicevox_client.synthesize_and_play(text)
+                if success:
+                    self.log(f"VOICEVOX语音合成: {text[:50]}...")
+                else:
+                    self.log("VOICEVOX语音合成失败")
+            except Exception as e:
+                self.log(f"VOICEVOX语音合成出错: {e}")
+        
+        threading.Thread(target=synthesize_in_background, daemon=True).start()
+        return True
+    
+    def init_llm_handler(self):
+        """初始化LLM处理器"""
+        def init_in_background():
+            try:
+                self.llm_handler = VoiceLLMHandler(config=self.config)
+                
+                # 设置LLM响应回调
+                self.llm_handler.set_response_callback(self.on_llm_response)
+                
+                if self.llm_handler.is_client_ready():
+                    # 启动处理器
+                    self.llm_handler.start_processing()
+                    self.log("LLM处理器初始化成功")
+                else:
+                    self.log("LLM处理器初始化失败：客户端未就绪")
+                    
+            except Exception as e:
+                self.log(f"初始化LLM处理器失败: {e}")
+        
+        # 在后台线程中初始化
+        threading.Thread(target=init_in_background, daemon=True).start()
+    
+    def on_llm_response(self, response: VoiceLLMResponse):
+        """处理LLM响应"""
+        def update_ui():
+            if response.success:
+                # 显示LLM回复在语音识别框中
+                self.add_speech_output(response.llm_response, "AI回复")
+                
+                # 发送到VRChat聊天框
+                self.client.send_text_message(f"[AI] {response.llm_response}")
+                
+                # 使用VOICEVOX合成语音
+                self.synthesize_with_voicevox(response.llm_response)
+                
+                self.log(f"LLM响应: {response.llm_response[:100]}...")
+            else:
+                self.log(f"LLM处理失败: {response.error}")
+        
+        # 在主线程中更新UI
+        self.root.after(0, update_ui)
+    
+    def toggle_llm_enabled(self):
+        """切换LLM启用状态"""
+        self.llm_enabled = self.llm_enabled_var.get()
+        status = "启用" if self.llm_enabled else "禁用"
+        self.log(f"AI对话功能已{status}")
     
     def run(self):
         """运行GUI"""
