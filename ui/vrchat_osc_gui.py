@@ -64,6 +64,7 @@ class VRChatOSCGUI:
         self.camera_running = False
         self.current_frame = None
         self.camera_thread = None
+        self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
         
         # 界面文本配置
         self.ui_texts = {
@@ -379,6 +380,142 @@ class VRChatOSCGUI:
         
         # 初始状态设置
         self.update_ui_state(False)
+    
+    def detect_available_cameras(self):
+        """检测可用的摄像头"""
+        available_cameras = []
+        detected_signatures = set()  # 用于避免重复检测同一摄像头
+        
+        # 检查多个摄像头ID
+        for i in range(10):  # 检查ID 0-9
+            try:
+                # 主要使用DSHOW后端，这在Windows上最可靠
+                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                
+                if cap.isOpened():
+                    # 尝试读取多帧来验证摄像头稳定性
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        # 读取第二帧确保稳定
+                        ret2, frame2 = cap.read()
+                        if ret2 and frame2 is not None:
+                            # 获取摄像头详细信息
+                            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            fps = cap.get(cv2.CAP_PROP_FPS)
+                            
+                            # 创建摄像头特征签名（基于分辨率和像素特征）
+                            signature = f"{width}x{height}_{frame.shape}"
+                            
+                            # 检查是否已经检测过相同的摄像头
+                            if signature not in detected_signatures:
+                                detected_signatures.add(signature)
+                                
+                                # 尝试获取摄像头名称（仅Windows）
+                                camera_name = self.get_camera_name(i)
+                                if camera_name:
+                                    camera_info = f"{camera_name} (ID:{i}, {width}x{height})"
+                                else:
+                                    camera_info = f"摄像头 {i} ({width}x{height}@{int(fps)}fps)"
+                                
+                                available_cameras.append((i, camera_info))
+                                self.log(f"检测到摄像头: {camera_info}")
+                            else:
+                                self.log(f"跳过重复摄像头 ID {i} (签名: {signature})")
+                
+                cap.release()
+                    
+            except Exception as e:
+                # 忽略检测失败的摄像头
+                self.log(f"摄像头 {i} 检测失败: {e}")
+                continue
+        
+        return available_cameras
+    
+    def get_camera_name(self, camera_id):
+        """获取摄像头设备名称（Windows专用）"""
+        try:
+            import subprocess
+            import re
+            
+            # 使用PowerShell获取摄像头设备名称
+            cmd = 'powershell "Get-WmiObject -Class Win32_PnPEntity | Where-Object {$_.Name -match \'camera|webcam|video\'} | Select-Object Name"'
+            result = subprocess.run(cmd, capture_output=True, text=True, shell=True, timeout=5)
+            
+            if result.returncode == 0 and result.stdout:
+                lines = result.stdout.strip().split('\n')
+                # 过滤出实际的设备名
+                camera_names = []
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith('Name') and not line.startswith('----'):
+                        camera_names.append(line)
+                
+                # 返回对应索引的摄像头名称
+                if camera_id < len(camera_names):
+                    return camera_names[camera_id]
+            
+        except Exception as e:
+            self.log(f"获取摄像头名称失败: {e}")
+        
+        return None
+    
+    def refresh_camera_list(self):
+        """刷新摄像头列表"""
+        try:
+            self.log("正在检测可用摄像头...")
+            
+            # 显示检测状态
+            self.camera_combo['values'] = ['正在检测...']
+            self.camera_combo.set('正在检测...')
+            self.root.update()
+            
+            # 在后台线程中检测摄像头
+            def detect_cameras():
+                try:
+                    available_cameras = self.detect_available_cameras()
+                    
+                    # 在主线程中更新UI
+                    self.root.after(0, lambda: self.update_camera_list(available_cameras))
+                    
+                except Exception as e:
+                    self.root.after(0, lambda: self.log(f"检测摄像头失败: {e}"))
+            
+            # 启动检测线程
+            import threading
+            thread = threading.Thread(target=detect_cameras, daemon=True)
+            thread.start()
+            
+        except Exception as e:
+            self.log(f"刷新摄像头列表失败: {e}")
+            self.camera_combo['values'] = ['检测失败']
+            self.camera_combo.set('检测失败')
+    
+    def update_camera_list(self, available_cameras):
+        """更新摄像头列表（在主线程中调用）"""
+        try:
+            if available_cameras:
+                # 创建显示列表
+                camera_values = [info for _, info in available_cameras]
+                self.camera_combo['values'] = camera_values
+                
+                # 保存ID映射
+                self.camera_id_mapping = {info: cam_id for cam_id, info in available_cameras}
+                
+                # 默认选择第一个摄像头
+                self.camera_combo.set(camera_values[0])
+                self.log(f"检测到 {len(available_cameras)} 个可用摄像头")
+                
+            else:
+                self.camera_combo['values'] = ['未检测到摄像头']
+                self.camera_combo.set('未检测到摄像头')
+                self.camera_id_mapping = {}
+                self.log("未检测到可用摄像头")
+                
+        except Exception as e:
+            self.log(f"更新摄像头列表失败: {e}")
+            self.camera_combo['values'] = ['更新失败']
+            self.camera_combo.set('更新失败')
     
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
@@ -1176,8 +1313,21 @@ class VRChatOSCGUI:
     def start_camera(self):
         """启动摄像头"""
         try:
-            camera_id = int(self.camera_id_var.get())
-            self.log(f"正在初始化摄像头 ID: {camera_id}")
+            # 获取选中的摄像头信息
+            selected_camera = self.camera_id_var.get()
+            
+            # 从映射中获取实际的摄像头ID
+            if hasattr(self, 'camera_id_mapping') and selected_camera in self.camera_id_mapping:
+                camera_id = self.camera_id_mapping[selected_camera]
+            else:
+                # 后备方案：尝试从字符串中解析ID
+                try:
+                    camera_id = int(selected_camera.split()[1]) if '摄像头' in selected_camera else int(selected_camera)
+                except:
+                    camera_id = 0
+                    self.log("无法解析摄像头ID，使用默认摄像头0")
+            
+            self.log(f"正在启动摄像头: {selected_camera} (ID: {camera_id})")
             
             # 初始化摄像头和面部控制器
             self.camera = FaceMeshCamera(camera_id)
