@@ -2,8 +2,61 @@
 """
 多语言支持字典
 支持中文、日语、英语三种语言的界面文本
+使用JSON格式存储语言数据
 """
 
+import json
+import os
+
+class LanguageManager:
+    """语言管理器，负责加载和管理JSON格式的语言文件"""
+    
+    def __init__(self):
+        self.language_dir = os.path.dirname(__file__)
+        self._languages = {}
+        self._load_languages()
+    
+    def _load_languages(self):
+        """加载所有语言文件"""
+        language_files = {
+            'zh': 'zh.json',
+            'ja': 'ja.json', 
+            'en': 'en.json'
+        }
+        
+        for lang_code, filename in language_files.items():
+            file_path = os.path.join(self.language_dir, filename)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    self._languages[lang_code] = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Warning: Could not load language file {filename}: {e}")
+                self._languages[lang_code] = {}
+    
+    def get_text(self, language_code: str, key: str, default: str = None) -> str:
+        """
+        根据语言代码和键值获取对应的文本
+        
+        Args:
+            language_code: 语言代码 ('zh', 'ja', 'en')
+            key: 文本键值
+            default: 默认值，如果找不到对应文本则返回此值
+            
+        Returns:
+            对应语言的文本，如果找不到则返回默认值或键值本身
+        """
+        if language_code in self._languages:
+            return self._languages[language_code].get(key, default or key)
+        return default or key
+    
+    def get_available_languages(self) -> list:
+        """获取所有可用的语言代码"""
+        return list(self._languages.keys())
+
+# 创建全局语言管理器实例
+_language_manager = LanguageManager()
+
+# 向后兼容的旧字典结构（如果JSON文件加载失败时使用）
 LANGUAGE_TEXTS = {
     "zh": {
         # 基本界面
@@ -293,6 +346,7 @@ DISPLAY_TO_LANGUAGE_MAP = {
     "English": "en"
 }
 
+# 便捷函数，使用全局语言管理器
 def get_text(language_code: str, key: str, default: str = None) -> str:
     """
     根据语言代码和键值获取对应的文本
@@ -305,12 +359,22 @@ def get_text(language_code: str, key: str, default: str = None) -> str:
     Returns:
         对应语言的文本，如果找不到则返回默认值或键值本身
     """
+    # 首先尝试从JSON文件加载的数据获取
+    result = _language_manager.get_text(language_code, key, None)
+    if result != key:  # 如果找到了对应的翻译
+        return result
+    
+    # 如果JSON数据中没有找到，回退到旧的字典数据
     if language_code in LANGUAGE_TEXTS:
         return LANGUAGE_TEXTS[language_code].get(key, default or key)
     return default or key
 
 def get_available_languages() -> list:
     """获取所有可用的语言代码"""
+    # 优先返回JSON数据中的语言
+    json_languages = _language_manager.get_available_languages()
+    if json_languages:
+        return json_languages
     return list(LANGUAGE_TEXTS.keys())
 
 def get_language_display_names() -> list:

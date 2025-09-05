@@ -21,6 +21,7 @@ from src.config_manager import config_manager
 from .settings_window import SettingsWindow
 from src.face.simple_face_detector import SimpleFaceCamera
 from src.face.gpu_emotion_detector import GPUFaceCamera
+from .languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
 
 
 class VRChatOSCGUI:
@@ -67,135 +68,6 @@ class VRChatOSCGUI:
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
         self.emotion_model_type = 'Simple'  # 默认使用简单模型
         
-        # 界面文本配置 - 中日英三语支持
-        self.ui_texts = {
-            "zh": {
-                "title": "VRChat OSC 通信工具",
-                "connection_settings": "连接设置",
-                "host_address": "主机地址:",
-                "send_port": "发送端口:",
-                "receive_port": "接收端口:",
-                "connect": "连接",
-                "disconnect": "断开",
-                "connecting": "连接中...",
-                "message_send": "消息发送",
-                "recognition_language": "识别语言:",
-                "compute_device": "计算设备:",
-                "record_voice": "录制语音",
-                "start_listening": "开始监听",
-                "stop_listening": "停止监听",
-                "upload_voice": "上传语音",
-                "send_voice": "发送语音",
-                "stop_recording": "停止录制",
-                "voice_threshold": "语音阈值:",
-                "ui_language": "界面语言:",
-                "send_text": "发送文字",
-                # 摄像头相关
-                "camera_control": "摄像头控制",
-                "camera": "摄像头:",
-                "model": "模型:",
-                "refresh": "刷新",
-                "start_camera": "启动摄像头",
-                "stop_camera": "停止摄像头",
-                "start_face_detection": "启动面部识别",
-                "stop_face_detection": "停止面部识别",
-                "screenshot": "截图",
-                "camera_feed": "摄像头画面",
-                "realtime_expression": "实时表情数据",
-                "click_to_start": "点击启动摄像头按钮开始",
-                "left_eye_blink": "左眼眨眼",
-                "right_eye_blink": "右眼眨眼", 
-                "mouth_open": "嘴巴张开",
-                "smile": "微笑",
-                "detecting_cameras": "正在检测摄像头...",
-                "no_cameras_found": "未检测到摄像头",
-                "detection_failed": "检测失败"
-            },
-            "ja": {
-                "title": "VRChat OSC 通信ツール",
-                "connection_settings": "接続設定",
-                "host_address": "ホストアドレス:",
-                "send_port": "送信ポート:",
-                "receive_port": "受信ポート:",
-                "connect": "接続",
-                "disconnect": "切断",
-                "connecting": "接続中...",
-                "message_send": "メッセージ送信",
-                "recognition_language": "認識言語:",
-                "compute_device": "計算デバイス:",
-                "record_voice": "音声録音",
-                "start_listening": "監視開始",
-                "stop_listening": "監視停止",
-                "upload_voice": "音声アップロード",
-                "send_voice": "音声送信",
-                "stop_recording": "録音停止",
-                "voice_threshold": "音声閾値:",
-                "ui_language": "UI言語:",
-                "send_text": "テキスト送信",
-                # 摄像头相关
-                "camera_control": "カメラ制御",
-                "camera": "カメラ:",
-                "model": "モデル:",
-                "refresh": "更新",
-                "start_camera": "カメラ開始",
-                "stop_camera": "カメラ停止",
-                "start_face_detection": "顔認識開始",
-                "stop_face_detection": "顔認識停止",
-                "screenshot": "スクリーンショット",
-                "camera_feed": "カメラ映像",
-                "realtime_expression": "リアルタイム表情データ",
-                "click_to_start": "カメラ開始ボタンをクリック",
-                "left_eye_blink": "左目まばたき",
-                "right_eye_blink": "右目まばたき",
-                "mouth_open": "口を開く",
-                "smile": "笑顔",
-                "detecting_cameras": "カメラを検出中...",
-                "no_cameras_found": "カメラが見つかりません",
-                "detection_failed": "検出失敗"
-            },
-            "en": {
-                "title": "VRChat OSC Communication Tool",
-                "connection_settings": "Connection Settings",
-                "host_address": "Host Address:",
-                "send_port": "Send Port:",
-                "receive_port": "Receive Port:",
-                "connect": "Connect",
-                "disconnect": "Disconnect", 
-                "connecting": "Connecting...",
-                "message_send": "Message Sending",
-                "recognition_language": "Recognition Language:",
-                "compute_device": "Compute Device:",
-                "record_voice": "Record Voice",
-                "start_listening": "Start Listening",
-                "stop_listening": "Stop Listening",
-                "upload_voice": "Upload Voice",
-                "send_voice": "Send Voice",
-                "stop_recording": "Stop Recording",
-                "voice_threshold": "Voice Threshold:",
-                "ui_language": "UI Language:",
-                "send_text": "Send Text",
-                # 摄像头相关
-                "camera_control": "Camera Control",
-                "camera": "Camera:",
-                "model": "Model:",
-                "refresh": "Refresh",
-                "start_camera": "Start Camera",
-                "stop_camera": "Stop Camera", 
-                "start_face_detection": "Start Face Detection",
-                "stop_face_detection": "Stop Face Detection",
-                "screenshot": "Screenshot",
-                "camera_feed": "Camera Feed",
-                "realtime_expression": "Real-time Expression Data",
-                "click_to_start": "Click Start Camera button to begin",
-                "left_eye_blink": "Left Eye Blink",
-                "right_eye_blink": "Right Eye Blink",
-                "mouth_open": "Mouth Open",
-                "smile": "Smile",
-                "detecting_cameras": "Detecting cameras...",
-                "no_cameras_found": "No cameras detected",
-                "detection_failed": "Detection failed"
-            }
-        }
         
         self.setup_ui()
         
@@ -204,7 +76,7 @@ class VRChatOSCGUI:
     
     def get_text(self, key):
         """获取当前语言的文本"""
-        return self.ui_texts[self.ui_language.get()].get(key, key)
+        return get_text(self.ui_language.get(), key, key)
     
     def setup_ui(self):
         """设置用户界面"""
@@ -254,16 +126,21 @@ class VRChatOSCGUI:
         # 界面语言选择
         ttk.Label(self.connection_frame, text=self.get_text("ui_language")).grid(row=0, column=6, sticky=tk.W, padx=(10, 5))
         
-        # 创建语言映射变量
+        # 创建语言选择变量
         self.ui_language_display = tk.StringVar()
-        self.language_map = {"中文": "zh", "日本語": "ja", "English": "en"}
-        self.reverse_language_map = {"zh": "中文", "ja": "日本語", "en": "English"}
         
-        # 设置初始显示值
-        self.ui_language_display.set(self.reverse_language_map[self.ui_language.get()])
+        # 获取可用的语言显示名称
+        display_names = get_language_display_names()
+        
+        # 设置当前语言的显示
+        current_lang = self.ui_language.get()
+        for display_name, lang_code in DISPLAY_TO_LANGUAGE_MAP.items():
+            if lang_code == current_lang:
+                self.ui_language_display.set(display_name)
+                break
         
         self.ui_language_combo = ttk.Combobox(self.connection_frame, textvariable=self.ui_language_display,
-                                            values=["中文", "日本語"], width=8, state="readonly")
+                                            values=display_names, width=8, state="readonly")
         self.ui_language_combo.grid(row=0, column=7, padx=(0, 10))
         self.ui_language_combo.bind("<<ComboboxSelected>>", self.on_language_changed)
         
@@ -1349,7 +1226,7 @@ class VRChatOSCGUI:
     def on_language_changed(self, event=None):
         """语言选择框改变事件"""
         selected_display = self.ui_language_display.get()
-        selected_lang = self.language_map.get(selected_display, "zh")
+        selected_lang = DISPLAY_TO_LANGUAGE_MAP.get(selected_display, "zh")
         
         # 更新内部语言变量
         self.ui_language.set(selected_lang)
