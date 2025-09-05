@@ -20,12 +20,12 @@ class FaceMeshDetector:
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
         
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            max_num_faces=max_num_faces,
-            refine_landmarks=True,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
-        )
+        # 延迟初始化FaceMesh以避免启动时卡死
+        self.face_mesh = None
+        self.max_num_faces = max_num_faces
+        self.min_detection_confidence = min_detection_confidence
+        self.min_tracking_confidence = min_tracking_confidence
+        self.initialized = False
         
         self.logger = logging.getLogger(__name__)
         
@@ -35,6 +35,24 @@ class FaceMeshDetector:
         self.MOUTH_INDICES = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 78]
         self.EYEBROW_LEFT = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46]
         self.EYEBROW_RIGHT = [296, 334, 293, 300, 276, 283, 282, 295, 285, 336]
+    
+    def _ensure_initialized(self):
+        """确保FaceMesh已初始化"""
+        if not self.initialized:
+            try:
+                self.logger.info("正在初始化MediaPipe Face Mesh...")
+                self.face_mesh = self.mp_face_mesh.FaceMesh(
+                    max_num_faces=self.max_num_faces,
+                    refine_landmarks=False,  # 禁用精细化以提高性能和稳定性
+                    min_detection_confidence=self.min_detection_confidence,
+                    min_tracking_confidence=self.min_tracking_confidence,
+                    static_image_mode=False
+                )
+                self.initialized = True
+                self.logger.info("MediaPipe Face Mesh初始化完成")
+            except Exception as e:
+                self.logger.error(f"初始化MediaPipe Face Mesh失败: {e}")
+                raise
 
     def calculate_eye_aspect_ratio(self, landmarks: List, eye_indices: List[int], 
                                  image_width: int, image_height: int) -> float:
@@ -142,6 +160,9 @@ class FaceMeshDetector:
         Returns:
             Tuple of (annotated_frame, expressions_dict)
         """
+        # 确保MediaPipe已初始化
+        self._ensure_initialized()
+        
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(rgb_frame)
         

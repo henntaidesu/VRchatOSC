@@ -19,8 +19,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
 from .settings_window import SettingsWindow
-from src.face.face_mesh_detector import FaceMeshCamera
-from src.face.face_controller import FaceExpressionController
+from src.face.simple_face_detector import SimpleFaceCamera
+from src.face.gpu_emotion_detector import GPUFaceCamera
 
 
 class VRChatOSCGUI:
@@ -60,11 +60,12 @@ class VRChatOSCGUI:
         
         # 摄像头相关变量
         self.camera = None
-        self.face_controller = None
         self.camera_running = False
+        self.face_detection_running = False
         self.current_frame = None
         self.camera_thread = None
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
+        self.emotion_model_type = 'Simple'  # 默认使用简单模型
         
         # 界面文本配置
         self.ui_texts = {
@@ -480,6 +481,18 @@ class VRChatOSCGUI:
             self.camera_combo['values'] = ['更新失败']
             self.camera_combo.set('更新失败')
     
+    def on_model_changed(self, event=None):
+        """模型选择变更处理"""
+        self.emotion_model_type = self.model_var.get()
+        self.log(f"情感识别模型已切换为: {self.emotion_model_type}")
+        
+        # 如果摄像头正在运行，需要重启以应用新模型
+        if self.camera_running:
+            self.log("检测到模型变更，正在重启摄像头以应用新模型...")
+            self.stop_camera()
+            # 延迟一点再启动
+            self.root.after(1000, self.start_camera)
+    
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
         # 摄像头控制面板
@@ -491,28 +504,42 @@ class VRChatOSCGUI:
         control_buttons = ttk.Frame(camera_control_frame)
         control_buttons.pack(fill=tk.X, pady=5)
         
-        # 摄像头ID选择
+        # 摄像头选择
         ttk.Label(control_buttons, text="摄像头:").pack(side=tk.LEFT, padx=(0, 5))
         self.camera_id_var = tk.StringVar(value="0")
         self.camera_combo = ttk.Combobox(control_buttons, textvariable=self.camera_id_var, 
-                                        width=20, state="readonly")
+                                        width=15, state="readonly")
         self.camera_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 模型选择
+        ttk.Label(control_buttons, text="模型:").pack(side=tk.LEFT, padx=(0, 5))
+        self.model_var = tk.StringVar(value="Simple")
+        model_combo = ttk.Combobox(control_buttons, textvariable=self.model_var,
+                                  values=["Simple", "ResEmoteNet", "FER2013"], 
+                                  width=10, state="readonly")
+        model_combo.pack(side=tk.LEFT, padx=(0, 10))
+        model_combo.bind("<<ComboboxSelected>>", self.on_model_changed)
         
         # 刷新摄像头列表按钮
         refresh_btn = ttk.Button(control_buttons, text="刷新", command=self.refresh_camera_list)
-        refresh_btn.pack(side=tk.LEFT, padx=(0, 10))
+        refresh_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 初始化摄像头列表
         self.refresh_camera_list()
         
-        # 开始/停止按钮
-        self.camera_start_btn = ttk.Button(control_buttons, text="启动摄像头", command=self.toggle_camera)
-        self.camera_start_btn.pack(side=tk.LEFT, padx=(0, 10))
+        # 摄像头启动/停止按钮
+        self.camera_start_btn = ttk.Button(control_buttons, text="启动摄像头", command=self.toggle_camera_only)
+        self.camera_start_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 面部识别启动/停止按钮  
+        self.face_detection_btn = ttk.Button(control_buttons, text="启动面部识别", 
+                                           command=self.toggle_face_detection, state="disabled")
+        self.face_detection_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 截图按钮
         self.capture_btn = ttk.Button(control_buttons, text="截图", command=self.capture_screenshot, 
                                      state="disabled")
-        self.capture_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.capture_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 摄像头显示区域
         camera_display_frame = ttk.LabelFrame(parent_frame, text="摄像头画面", padding="5")
@@ -1011,7 +1038,7 @@ class VRChatOSCGUI:
         """窗口关闭事件处理"""
         try:
             if self.camera_running:
-                self.stop_camera()
+                self.stop_camera_only()
             if self.is_listening:
                 self.stop_voice_listening()
             if self.is_connected:
@@ -1266,12 +1293,187 @@ class VRChatOSCGUI:
         # 记录语言切换
         self.log(f"界面语言已切换为: {selected_display}")
     
-    def toggle_camera(self):
-        """切换摄像头状态"""
+    def toggle_camera_only(self):
+        """只切换摄像头状态（不包含面部识别）"""
         if not self.camera_running:
-            self.start_camera()
+            self.start_camera_only()
         else:
-            self.stop_camera()
+            self.stop_camera_only()
+    
+    def toggle_face_detection(self):
+        """切换面部识别状态"""
+        if not self.face_detection_running:
+            self.start_face_detection()
+        else:
+            self.stop_face_detection()
+    
+    def start_camera_only(self):
+        """只启动摄像头（不启动面部识别）"""
+        try:
+            # 获取选中的摄像头信息
+            selected_camera = self.camera_id_var.get()
+            
+            # 从映射中获取实际的摄像头ID
+            if hasattr(self, 'camera_id_mapping') and selected_camera in self.camera_id_mapping:
+                camera_id = self.camera_id_mapping[selected_camera]
+            else:
+                try:
+                    camera_id = int(selected_camera.split()[1]) if '摄像头' in selected_camera else int(selected_camera)
+                except:
+                    camera_id = 0
+                    self.log("无法解析摄像头ID，使用默认摄像头0")
+            
+            self.log(f"正在启动摄像头: {selected_camera} (ID: {camera_id})")
+            
+            # 直接使用OpenCV启动摄像头
+            self.camera = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+            
+            if not self.camera.isOpened():
+                raise RuntimeError(f"无法打开摄像头 {camera_id}")
+            
+            # 测试读取
+            ret, frame = self.camera.read()
+            if not ret or frame is None:
+                raise RuntimeError(f"摄像头 {camera_id} 无法读取画面")
+            
+            # 设置分辨率
+            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            
+            self.camera_running = True
+            self.camera_start_btn.config(text="停止摄像头")
+            self.face_detection_btn.config(state="normal")
+            self.capture_btn.config(state="normal")
+            
+            # 启动简单的视频显示线程
+            self.camera_thread = threading.Thread(target=self.simple_video_loop, daemon=True)
+            self.camera_thread.start()
+            
+            self.log("摄像头启动成功")
+            
+        except Exception as e:
+            self.log(f"摄像头启动失败: {e}")
+            if self.camera:
+                self.camera.release()
+                self.camera = None
+    
+    def simple_video_loop(self):
+        """简单的视频显示循环（不包含面部识别）"""
+        while self.camera_running and self.camera and self.camera.isOpened():
+            try:
+                ret, frame = self.camera.read()
+                if ret and frame is not None:
+                    # 调整图像大小
+                    display_frame = cv2.resize(frame, (640, 480))
+                    
+                    # 如果启用了面部识别，进行处理
+                    if self.face_detection_running:
+                        display_frame, expressions = self.process_face_detection(display_frame)
+                        # 更新表情显示
+                        self.root.after(0, lambda: self._update_expression_display(expressions))
+                    
+                    # 转换为显示格式
+                    frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(frame_rgb)
+                    photo = ImageTk.PhotoImage(img)
+                    
+                    # 更新显示
+                    self.current_frame = frame
+                    self.root.after(0, lambda p=photo: self.update_video_display(p))
+                    
+                time.sleep(0.03)  # 约33fps
+                
+            except Exception as e:
+                if self.camera_running:
+                    self.log(f"视频循环错误: {e}")
+                time.sleep(0.1)
+    
+    def start_face_detection(self):
+        """启动面部识别"""
+        try:
+            self.log(f"正在启动面部识别模型: {self.emotion_model_type}")
+            
+            # 这里不需要重新创建摄像头实例，只是设置标志
+            self.face_detection_running = True
+            self.face_detection_btn.config(text="停止面部识别")
+            
+            self.log("面部识别启动成功")
+            
+        except Exception as e:
+            self.log(f"面部识别启动失败: {e}")
+    
+    def process_face_detection(self, frame):
+        """处理面部识别"""
+        expressions = {
+            'eyeblink_left': 0.0,
+            'eyeblink_right': 0.0,
+            'mouth_open': 0.0,
+            'smile': 0.0
+        }
+        
+        try:
+            if self.emotion_model_type == 'Simple':
+                # 使用简单的OpenCV检测
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
+                
+                # 绘制面部框
+                for (x, y, w, h) in faces:
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    cv2.putText(frame, "Face Detected", (x, y-10), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                
+                # 简单的表情模拟（可以后续扩展）
+                if len(faces) > 0:
+                    expressions['smile'] = 0.3
+            
+            # GPU模型的处理逻辑可以在这里添加
+            
+        except Exception as e:
+            self.log(f"面部识别处理错误: {e}")
+        
+        return frame, expressions
+    
+    def stop_camera_only(self):
+        """只停止摄像头"""
+        try:
+            self.log("正在停止摄像头...")
+            self.camera_running = False
+            
+            # 同时停止面部识别
+            if self.face_detection_running:
+                self.face_detection_running = False
+                self.face_detection_btn.config(text="启动面部识别", state="disabled")
+            
+            # 等待线程结束
+            if self.camera_thread and self.camera_thread.is_alive():
+                self.camera_thread.join(timeout=2)
+            
+            # 释放摄像头
+            if self.camera:
+                self.camera.release()
+                self.camera = None
+            
+            # 更新UI
+            self.camera_start_btn.config(text="启动摄像头")
+            self.capture_btn.config(state="disabled")
+            self.video_label.config(image="", text="点击启动摄像头按钮开始")
+            
+            self.log("摄像头已停止")
+            
+        except Exception as e:
+            self.log(f"停止摄像头错误: {e}")
+    
+    def stop_face_detection(self):
+        """停止面部识别"""
+        try:
+            self.face_detection_running = False
+            self.face_detection_btn.config(text="启动面部识别")
+            self.log("面部识别已停止")
+            
+        except Exception as e:
+            self.log(f"停止面部识别错误: {e}")
     
     def start_camera(self):
         """启动摄像头"""
