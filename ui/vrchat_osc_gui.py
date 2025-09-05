@@ -67,7 +67,7 @@ class VRChatOSCGUI:
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
         self.emotion_model_type = 'Simple'  # 默认使用简单模型
         
-        # 界面文本配置
+        # 界面文本配置 - 中日英三语支持
         self.ui_texts = {
             "zh": {
                 "title": "VRChat OSC 通信工具",
@@ -89,7 +89,27 @@ class VRChatOSCGUI:
                 "stop_recording": "停止录制",
                 "voice_threshold": "语音阈值:",
                 "ui_language": "界面语言:",
-                "send_text": "发送文字"
+                "send_text": "发送文字",
+                # 摄像头相关
+                "camera_control": "摄像头控制",
+                "camera": "摄像头:",
+                "model": "模型:",
+                "refresh": "刷新",
+                "start_camera": "启动摄像头",
+                "stop_camera": "停止摄像头",
+                "start_face_detection": "启动面部识别",
+                "stop_face_detection": "停止面部识别",
+                "screenshot": "截图",
+                "camera_feed": "摄像头画面",
+                "realtime_expression": "实时表情数据",
+                "click_to_start": "点击启动摄像头按钮开始",
+                "left_eye_blink": "左眼眨眼",
+                "right_eye_blink": "右眼眨眼", 
+                "mouth_open": "嘴巴张开",
+                "smile": "微笑",
+                "detecting_cameras": "正在检测摄像头...",
+                "no_cameras_found": "未检测到摄像头",
+                "detection_failed": "检测失败"
             },
             "ja": {
                 "title": "VRChat OSC 通信ツール",
@@ -111,7 +131,69 @@ class VRChatOSCGUI:
                 "stop_recording": "録音停止",
                 "voice_threshold": "音声閾値:",
                 "ui_language": "UI言語:",
-                "send_text": "テキスト送信"
+                "send_text": "テキスト送信",
+                # 摄像头相关
+                "camera_control": "カメラ制御",
+                "camera": "カメラ:",
+                "model": "モデル:",
+                "refresh": "更新",
+                "start_camera": "カメラ開始",
+                "stop_camera": "カメラ停止",
+                "start_face_detection": "顔認識開始",
+                "stop_face_detection": "顔認識停止",
+                "screenshot": "スクリーンショット",
+                "camera_feed": "カメラ映像",
+                "realtime_expression": "リアルタイム表情データ",
+                "click_to_start": "カメラ開始ボタンをクリック",
+                "left_eye_blink": "左目まばたき",
+                "right_eye_blink": "右目まばたき",
+                "mouth_open": "口を開く",
+                "smile": "笑顔",
+                "detecting_cameras": "カメラを検出中...",
+                "no_cameras_found": "カメラが見つかりません",
+                "detection_failed": "検出失敗"
+            },
+            "en": {
+                "title": "VRChat OSC Communication Tool",
+                "connection_settings": "Connection Settings",
+                "host_address": "Host Address:",
+                "send_port": "Send Port:",
+                "receive_port": "Receive Port:",
+                "connect": "Connect",
+                "disconnect": "Disconnect", 
+                "connecting": "Connecting...",
+                "message_send": "Message Sending",
+                "recognition_language": "Recognition Language:",
+                "compute_device": "Compute Device:",
+                "record_voice": "Record Voice",
+                "start_listening": "Start Listening",
+                "stop_listening": "Stop Listening",
+                "upload_voice": "Upload Voice",
+                "send_voice": "Send Voice",
+                "stop_recording": "Stop Recording",
+                "voice_threshold": "Voice Threshold:",
+                "ui_language": "UI Language:",
+                "send_text": "Send Text",
+                # 摄像头相关
+                "camera_control": "Camera Control",
+                "camera": "Camera:",
+                "model": "Model:",
+                "refresh": "Refresh",
+                "start_camera": "Start Camera",
+                "stop_camera": "Stop Camera", 
+                "start_face_detection": "Start Face Detection",
+                "stop_face_detection": "Stop Face Detection",
+                "screenshot": "Screenshot",
+                "camera_feed": "Camera Feed",
+                "realtime_expression": "Real-time Expression Data",
+                "click_to_start": "Click Start Camera button to begin",
+                "left_eye_blink": "Left Eye Blink",
+                "right_eye_blink": "Right Eye Blink",
+                "mouth_open": "Mouth Open",
+                "smile": "Smile",
+                "detecting_cameras": "Detecting cameras...",
+                "no_cameras_found": "No cameras detected",
+                "detection_failed": "Detection failed"
             }
         }
         
@@ -174,8 +256,8 @@ class VRChatOSCGUI:
         
         # 创建语言映射变量
         self.ui_language_display = tk.StringVar()
-        self.language_map = {"中文": "zh", "日本語": "ja"}
-        self.reverse_language_map = {"zh": "中文", "ja": "日本語"}
+        self.language_map = {"中文": "zh", "日本語": "ja", "English": "en"}
+        self.reverse_language_map = {"zh": "中文", "ja": "日本語", "en": "English"}
         
         # 设置初始显示值
         self.ui_language_display.set(self.reverse_language_map[self.ui_language.get()])
@@ -486,12 +568,12 @@ class VRChatOSCGUI:
         self.emotion_model_type = self.model_var.get()
         self.log(f"情感识别模型已切换为: {self.emotion_model_type}")
         
-        # 如果摄像头正在运行，需要重启以应用新模型
-        if self.camera_running:
-            self.log("检测到模型变更，正在重启摄像头以应用新模型...")
-            self.stop_camera()
+        # 如果面部识别正在运行，需要重启以应用新模型
+        if self.face_detection_running:
+            self.log("检测到模型变更，正在重启面部识别以应用新模型...")
+            self.stop_face_detection()
             # 延迟一点再启动
-            self.root.after(1000, self.start_camera)
+            self.root.after(1000, self.start_face_detection)
     
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
@@ -1475,146 +1557,6 @@ class VRChatOSCGUI:
         except Exception as e:
             self.log(f"停止面部识别错误: {e}")
     
-    def start_camera(self):
-        """启动摄像头"""
-        try:
-            # 获取选中的摄像头信息
-            selected_camera = self.camera_id_var.get()
-            
-            # 从映射中获取实际的摄像头ID
-            if hasattr(self, 'camera_id_mapping') and selected_camera in self.camera_id_mapping:
-                camera_id = self.camera_id_mapping[selected_camera]
-            else:
-                # 后备方案：尝试从字符串中解析ID
-                try:
-                    camera_id = int(selected_camera.split()[1]) if '摄像头' in selected_camera else int(selected_camera)
-                except:
-                    camera_id = 0
-                    self.log("无法解析摄像头ID，使用默认摄像头0")
-            
-            self.log(f"正在启动摄像头: {selected_camera} (ID: {camera_id})")
-            
-            # 初始化摄像头和面部控制器
-            self.camera = FaceMeshCamera(camera_id)
-            self.face_controller = FaceExpressionController(camera_id)
-            
-            # 添加表情变化回调
-            self.face_controller.add_expression_callback(self.on_expression_update)
-            
-            # 启动表情控制器
-            self.log("正在启动面部检测...")
-            if self.face_controller.start():
-                self.camera_running = True
-                self.camera_start_btn.config(text="停止摄像头")
-                self.capture_btn.config(state="normal")
-                self.log("摄像头启动成功，开始视频流...")
-                
-                # 更新显示标签
-                self.video_label.config(text="正在连接摄像头...")
-                
-                # 启动视频更新线程
-                self.camera_thread = threading.Thread(target=self.update_camera_video, daemon=True)
-                self.camera_thread.start()
-            else:
-                messagebox.showerror("错误", "无法启动面部检测")
-                self.log("面部检测启动失败")
-                
-        except Exception as e:
-            messagebox.showerror("启动错误", f"启动摄像头失败: {e}")
-            self.log(f"摄像头启动错误: {e}")
-            print(f"摄像头启动详细错误: {e}")
-            import traceback
-            self.log(f"错误详情: {traceback.format_exc()}")
-    
-    def stop_camera(self):
-        """停止摄像头"""
-        try:
-            self.log("正在停止摄像头...")
-            self.camera_running = False
-            
-            # 等待视频线程结束
-            if self.camera_thread and self.camera_thread.is_alive():
-                self.log("等待视频线程结束...")
-                self.camera_thread.join(timeout=2)
-            
-            # 停止面部控制器
-            if self.face_controller:
-                self.log("停止面部控制器...")
-                self.face_controller.stop()
-                self.face_controller = None
-            
-            # 释放摄像头资源
-            if self.camera:
-                self.log("释放摄像头资源...")
-                if hasattr(self.camera, 'release'):
-                    self.camera.release()
-                elif hasattr(self.camera, 'cap') and self.camera.cap:
-                    self.camera.cap.release()
-                self.camera = None
-            
-            # 更新UI
-            self.camera_start_btn.config(text="启动摄像头")
-            self.capture_btn.config(state="disabled")
-            self.log("摄像头已停止")
-            
-            # 清空视频显示
-            self.video_label.config(image="", text="点击启动摄像头按钮开始")
-            
-            # 强制垃圾回收
-            import gc
-            gc.collect()
-            
-        except Exception as e:
-            self.log(f"停止摄像头错误: {e}")
-            print(f"停止摄像头详细错误: {e}")
-            import traceback
-            self.log(f"错误详情: {traceback.format_exc()}")
-    
-    def update_camera_video(self):
-        """视频更新线程"""
-        self.log("视频更新线程已启动")
-        try:
-            while self.camera_running:
-                try:
-                    # 检查摄像头是否还在运行
-                    if not self.camera_running:
-                        break
-                        
-                    frame, expressions = self.camera.get_frame_with_expressions()
-                    
-                    if frame is not None:
-                        # 转换OpenCV图像为PIL图像
-                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        img = Image.fromarray(frame_rgb)
-                        
-                        # 固定显示大小，确保有合适的显示区域
-                        display_width = 640
-                        display_height = 480
-                        
-                        # 调整图像大小
-                        img = img.resize((display_width, display_height), Image.Resampling.LANCZOS)
-                        
-                        # 转换为PhotoImage
-                        photo = ImageTk.PhotoImage(img)
-                        
-                        # 更新显示（需要在主线程中执行）
-                        self.current_frame = frame  # 保存当前帧用于截图
-                        if self.camera_running:  # 再次检查状态
-                            self.root.after(0, lambda p=photo: self.update_video_display(p))
-                        
-                    time.sleep(0.03)  # 约33fps
-                    
-                except Exception as e:
-                    if self.camera_running:  # 只在运行时记录错误
-                        self.log(f"视频更新错误: {e}")
-                        print(f"视频更新错误: {e}")
-                    time.sleep(0.1)
-                    
-        except Exception as e:
-            self.log(f"视频线程异常: {e}")
-            print(f"视频线程异常: {e}")
-        finally:
-            self.log("视频更新线程已结束")
     
     def update_video_display(self, photo):
         """更新视频显示（在主线程中调用）"""
@@ -1628,10 +1570,6 @@ class VRChatOSCGUI:
             self.log(f"更新显示错误: {e}")
             print(f"更新显示错误: {e}")
     
-    def on_expression_update(self, expressions):
-        """表情数据更新回调"""
-        # 在主线程中更新UI
-        self.root.after(0, lambda: self._update_expression_display(expressions))
     
     def _update_expression_display(self, expressions):
         """更新表情显示（在主线程中调用）"""
