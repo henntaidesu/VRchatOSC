@@ -154,12 +154,12 @@ class VRChatOSCGUI:
         self.connection_frame.columnconfigure(5, weight=1)
         
         # 消息发送框架 - 放在左侧区域
-        message_frame = ttk.LabelFrame(left_frame, text="消息发送", padding="5")
-        message_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        message_frame.columnconfigure(0, weight=1)
+        self.message_frame = ttk.LabelFrame(left_frame, text=self.get_text("message_send"), padding="5")
+        self.message_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.message_frame.columnconfigure(0, weight=1)
         
         # 文字消息输入
-        text_frame = ttk.Frame(message_frame)
+        text_frame = ttk.Frame(self.message_frame)
         text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         text_frame.columnconfigure(0, weight=1)
         
@@ -167,88 +167,93 @@ class VRChatOSCGUI:
         self.message_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
         self.message_entry.bind("<Return>", lambda e: self.send_text_message())
         
-        ttk.Button(text_frame, text="发送文字", command=self.send_text_message).grid(row=0, column=1)
+        self.send_text_btn = ttk.Button(text_frame, text=self.get_text("send_text"), command=self.send_text_message)
+        self.send_text_btn.grid(row=0, column=1)
         
         # 语音设置框架
-        voice_frame = ttk.Frame(message_frame)
+        voice_frame = ttk.Frame(self.message_frame)
         voice_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
         
         # 第一行：语言选择、设备选择、开始监听、上传语音
-        ttk.Label(voice_frame, text="识别语言:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        language_combo = ttk.Combobox(voice_frame, textvariable=self.language_var, 
+        self.recognition_language_label = ttk.Label(voice_frame, text=self.get_text("recognition_language"))
+        self.recognition_language_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.language_combo = ttk.Combobox(voice_frame, textvariable=self.language_var, 
                                     values=["zh-CN", "ja-JP"], 
                                     width=10, state="readonly")
-        language_combo.grid(row=0, column=1, padx=(0, 10))
+        self.language_combo.grid(row=0, column=1, padx=(0, 10))
         
-        ttk.Label(voice_frame, text="计算设备:").grid(row=0, column=2, sticky=tk.W, padx=(10, 5))
-        device_combo = ttk.Combobox(voice_frame, textvariable=self.device_var,
+        self.compute_device_label = ttk.Label(voice_frame, text=self.get_text("compute_device"))
+        self.compute_device_label.grid(row=0, column=2, sticky=tk.W, padx=(10, 5))
+        self.device_combo = ttk.Combobox(voice_frame, textvariable=self.device_var,
                                    values=["auto", "cuda", "cpu"],
                                    width=10, state="readonly")
-        device_combo.grid(row=0, column=3, padx=(0, 10))
+        self.device_combo.grid(row=0, column=3, padx=(0, 10))
         
         # 开始监听按钮
-        self.listen_btn = ttk.Button(voice_frame, text="开始监听", command=self.toggle_voice_listening)
+        self.listen_btn = ttk.Button(voice_frame, text=self.get_text("start_listening"), command=self.toggle_voice_listening)
         self.listen_btn.grid(row=0, column=4, padx=(10, 5))
         
         # 语音文件上传按钮
-        self.upload_voice_btn = ttk.Button(voice_frame, text="上传语音", command=self.upload_voice_file)
+        self.upload_voice_btn = ttk.Button(voice_frame, text=self.get_text("upload_voice"), command=self.upload_voice_file)
         self.upload_voice_btn.grid(row=0, column=5, padx=(0, 5))
         
         # 第二行：调试和模式控制
-        debug_frame = ttk.Frame(message_frame)
+        debug_frame = ttk.Frame(self.message_frame)
         debug_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         # 调试模式开关
         self.debug_var = tk.BooleanVar(value=self.config.osc_debug_mode)
-        debug_check = ttk.Checkbutton(debug_frame, text="OSC调试模式", 
+        self.debug_check = ttk.Checkbutton(debug_frame, text=self.get_text("debug"), 
                                      variable=self.debug_var, command=self.toggle_debug_mode)
-        debug_check.grid(row=0, column=0, padx=(0, 10))
+        self.debug_check.grid(row=0, column=0, padx=(0, 10))
         
         # 强制备用模式开关
         self.fallback_var = tk.BooleanVar(value=self.config.use_fallback_mode)
-        fallback_check = ttk.Checkbutton(debug_frame, text="强制备用模式", 
+        self.fallback_check = ttk.Checkbutton(debug_frame, text="强制备用模式", 
                                         variable=self.fallback_var, command=self.toggle_fallback_mode)
-        fallback_check.grid(row=0, column=1, padx=(0, 10))
+        self.fallback_check.grid(row=0, column=1, padx=(0, 10))
         
         # 禁用备用模式开关
         self.disable_fallback_var = tk.BooleanVar(value=self.config.disable_fallback_mode)
-        disable_fallback_check = ttk.Checkbutton(debug_frame, text="禁用备用模式", 
+        self.disable_fallback_check = ttk.Checkbutton(debug_frame, text="禁用备用模式", 
                                                  variable=self.disable_fallback_var, command=self.toggle_disable_fallback_mode)
-        disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
+        self.disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
         
         # 高级设置按钮
-        self.settings_btn = ttk.Button(debug_frame, text="高级设置", command=self.open_settings)
+        self.settings_btn = ttk.Button(debug_frame, text=self.get_text("settings"), command=self.open_settings)
         self.settings_btn.grid(row=0, column=3, padx=(0, 5))
         
         # 状态显示按钮
-        self.status_btn = ttk.Button(debug_frame, text="显示状态", command=self.show_debug_status)
+        self.status_btn = ttk.Button(debug_frame, text=self.get_text("show_status"), command=self.show_debug_status)
         self.status_btn.grid(row=0, column=4, padx=(0, 5))
         
         # 摄像头按钮 - 现在用于在主界面显示/隐藏摄像头区域
-        self.camera_btn = ttk.Button(debug_frame, text="摄像头窗口", command=self.open_camera_window)
+        self.camera_btn = ttk.Button(debug_frame, text=self.get_text("camera_window"), command=self.open_camera_window)
         self.camera_btn.grid(row=0, column=5, padx=(0, 5))
         
         # 语音阈值设置
-        threshold_frame = ttk.Frame(message_frame)
+        threshold_frame = ttk.Frame(self.message_frame)
         threshold_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
-        ttk.Label(threshold_frame, text="语音阈值:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.voice_threshold_label = ttk.Label(threshold_frame, text=self.get_text("voice_threshold"))
+        self.voice_threshold_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.threshold_var = tk.DoubleVar(value=self.config.voice_threshold)
-        threshold_scale = ttk.Scale(threshold_frame, from_=0.005, to=0.05, 
+        self.threshold_scale = ttk.Scale(threshold_frame, from_=0.005, to=0.05, 
                                    variable=self.threshold_var, orient='horizontal',
                                    command=self.update_voice_threshold)
-        threshold_scale.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
+        self.threshold_scale.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
         
         self.threshold_label = ttk.Label(threshold_frame, text=f"{self.config.voice_threshold:.3f}")
         self.threshold_label.grid(row=0, column=2, padx=(0, 15))
         
         # 断句检测设置
+        # TODO: Add sentence pause threshold to language files
         ttk.Label(threshold_frame, text="断句间隔:").grid(row=0, column=3, sticky=tk.W, padx=(0, 5))
         self.pause_var = tk.DoubleVar(value=self.config.sentence_pause_threshold)
-        pause_scale = ttk.Scale(threshold_frame, from_=0.2, to=1.0, 
+        self.pause_scale = ttk.Scale(threshold_frame, from_=0.2, to=1.0, 
                                variable=self.pause_var, orient='horizontal',
                                command=self.update_pause_threshold)
-        pause_scale.grid(row=0, column=4, sticky=(tk.W, tk.E), padx=(0, 10))
+        self.pause_scale.grid(row=0, column=4, sticky=(tk.W, tk.E), padx=(0, 10))
         
         self.pause_label = ttk.Label(threshold_frame, text=f"{self.config.sentence_pause_threshold:.1f}s")
         self.pause_label.grid(row=0, column=5)
@@ -258,52 +263,56 @@ class VRChatOSCGUI:
         
         
         # 参数设置框架 - 放在左侧区域
-        param_frame = ttk.LabelFrame(left_frame, text="Avatar参数", padding="5")
-        param_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        param_frame.columnconfigure(0, weight=1)
-        param_frame.columnconfigure(2, weight=1)
+        self.param_frame = ttk.LabelFrame(left_frame, text=self.get_text("avatar_params"), padding="5")
+        self.param_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.param_frame.columnconfigure(0, weight=1)
+        self.param_frame.columnconfigure(2, weight=1)
         
         # 参数名输入
-        ttk.Label(param_frame, text="参数名:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.param_name_entry = ttk.Entry(param_frame, width=20)
+        self.param_name_label = ttk.Label(self.param_frame, text=self.get_text("param_name"))
+        self.param_name_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.param_name_entry = ttk.Entry(self.param_frame, width=20)
         self.param_name_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
         
         # 参数值输入
-        ttk.Label(param_frame, text="参数值:").grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
-        self.param_value_entry = ttk.Entry(param_frame, width=15)
+        self.param_value_label = ttk.Label(self.param_frame, text=self.get_text("param_value"))
+        self.param_value_label.grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
+        self.param_value_entry = ttk.Entry(self.param_frame, width=15)
         self.param_value_entry.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=(0, 10))
         self.param_value_entry.bind("<Return>", lambda e: self.send_parameter())
         
         # 发送参数按钮
-        ttk.Button(param_frame, text="发送参数", command=self.send_parameter).grid(row=0, column=4)
+        self.send_param_btn = ttk.Button(self.param_frame, text=self.get_text("send_param"), command=self.send_parameter)
+        self.send_param_btn.grid(row=0, column=4)
         
         # 日志显示框架 - 放在左侧区域
-        log_frame = ttk.LabelFrame(left_frame, text="日志", padding="5")
-        log_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        log_frame.columnconfigure(0, weight=1)
-        log_frame.rowconfigure(0, weight=1)
+        self.log_frame = ttk.LabelFrame(left_frame, text=self.get_text("log"), padding="5")
+        self.log_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        self.log_frame.columnconfigure(0, weight=1)
+        self.log_frame.rowconfigure(0, weight=1)
         
         # 配置左侧框架行权重
         left_frame.rowconfigure(3, weight=1)
         
         # 日志文本框 - 减小高度为语音识别框让出空间
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, font=("Consolas", 9))
+        self.log_text = scrolledtext.ScrolledText(self.log_frame, height=10, font=("Consolas", 9))
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 清空日志按钮
-        ttk.Button(log_frame, text="清空日志", command=self.clear_log).grid(row=1, column=0, pady=(5, 0))
+        self.clear_log_btn = ttk.Button(self.log_frame, text=self.get_text("clear_log"), command=self.clear_log)
+        self.clear_log_btn.grid(row=1, column=0, pady=(5, 0))
         
         # 语音识别输出框架 - 放在左侧区域
-        speech_frame = ttk.LabelFrame(left_frame, text="语音识别输出 (基于VRChat语音状态)", padding="5")
-        speech_frame.grid(row=4, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        speech_frame.columnconfigure(0, weight=1)
-        speech_frame.rowconfigure(0, weight=1)
+        self.speech_frame = ttk.LabelFrame(left_frame, text=self.get_text("speech_output"), padding="5")
+        self.speech_frame.grid(row=4, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        self.speech_frame.columnconfigure(0, weight=1)
+        self.speech_frame.rowconfigure(0, weight=1)
         
         # 配置左侧框架行权重 - 为语音识别框分配空间
         left_frame.rowconfigure(4, weight=1)
         
         # 语音识别文本框
-        self.speech_text = scrolledtext.ScrolledText(speech_frame, height=8, font=("微软雅黑", 12), wrap=tk.WORD)
+        self.speech_text = scrolledtext.ScrolledText(self.speech_frame, height=8, font=("微软雅黑", 12), wrap=tk.WORD)
         self.speech_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 配置语音识别输出的颜色标签
@@ -313,14 +322,16 @@ class VRChatOSCGUI:
         self.speech_text.tag_config("时间戳", foreground="#666666")   # 灰色
         
         # 语音识别框按钮行
-        speech_button_frame = ttk.Frame(speech_frame)
+        speech_button_frame = ttk.Frame(self.speech_frame)
         speech_button_frame.grid(row=1, column=0, pady=(5, 0), sticky=(tk.W, tk.E))
         
         # 清空语音识别按钮
-        ttk.Button(speech_button_frame, text="清空语音记录", command=self.clear_speech_output).grid(row=0, column=0, padx=(0, 5))
+        self.clear_speech_btn = ttk.Button(speech_button_frame, text=self.get_text("clear_speech"), command=self.clear_speech_output)
+        self.clear_speech_btn.grid(row=0, column=0, padx=(0, 5))
         
         # 保存语音记录按钮
-        ttk.Button(speech_button_frame, text="保存语音记录", command=self.save_speech_output).grid(row=0, column=1, padx=(5, 0))
+        self.save_speech_btn = ttk.Button(speech_button_frame, text=self.get_text("save_speech"), command=self.save_speech_output)
+        self.save_speech_btn.grid(row=0, column=1, padx=(5, 0))
         
         # 右侧摄像头区域
         self.setup_camera_area(right_frame)
@@ -455,69 +466,71 @@ class VRChatOSCGUI:
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
         # 摄像头控制面板
-        camera_control_frame = ttk.LabelFrame(parent_frame, text="摄像头控制", padding="5")
-        camera_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        camera_control_frame.columnconfigure(0, weight=1)
+        self.camera_control_frame = ttk.LabelFrame(parent_frame, text=self.get_text("camera_control"), padding="5")
+        self.camera_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.camera_control_frame.columnconfigure(0, weight=1)
         
         # 摄像头控制按钮
-        control_buttons = ttk.Frame(camera_control_frame)
+        control_buttons = ttk.Frame(self.camera_control_frame)
         control_buttons.pack(fill=tk.X, pady=5)
         
         # 摄像头选择
-        ttk.Label(control_buttons, text="摄像头:").pack(side=tk.LEFT, padx=(0, 5))
+        self.camera_label = ttk.Label(control_buttons, text=self.get_text("camera"))
+        self.camera_label.pack(side=tk.LEFT, padx=(0, 5))
         self.camera_id_var = tk.StringVar(value="0")
         self.camera_combo = ttk.Combobox(control_buttons, textvariable=self.camera_id_var, 
                                         width=15, state="readonly")
         self.camera_combo.pack(side=tk.LEFT, padx=(0, 10))
         
         # 模型选择
-        ttk.Label(control_buttons, text="模型:").pack(side=tk.LEFT, padx=(0, 5))
+        self.model_label = ttk.Label(control_buttons, text=self.get_text("model"))
+        self.model_label.pack(side=tk.LEFT, padx=(0, 5))
         self.model_var = tk.StringVar(value="Simple")
-        model_combo = ttk.Combobox(control_buttons, textvariable=self.model_var,
+        self.model_combo = ttk.Combobox(control_buttons, textvariable=self.model_var,
                                   values=["Simple", "ResEmoteNet", "FER2013"], 
                                   width=10, state="readonly")
-        model_combo.pack(side=tk.LEFT, padx=(0, 10))
-        model_combo.bind("<<ComboboxSelected>>", self.on_model_changed)
+        self.model_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.model_combo.bind("<<ComboboxSelected>>", self.on_model_changed)
         
         # 刷新摄像头列表按钮
-        refresh_btn = ttk.Button(control_buttons, text="刷新", command=self.refresh_camera_list)
-        refresh_btn.pack(side=tk.LEFT, padx=(0, 5))
+        self.refresh_btn = ttk.Button(control_buttons, text=self.get_text("refresh"), command=self.refresh_camera_list)
+        self.refresh_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 初始化摄像头列表
         self.refresh_camera_list()
         
         # 摄像头启动/停止按钮
-        self.camera_start_btn = ttk.Button(control_buttons, text="启动摄像头", command=self.toggle_camera_only)
+        self.camera_start_btn = ttk.Button(control_buttons, text=self.get_text("start_camera"), command=self.toggle_camera_only)
         self.camera_start_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 面部识别启动/停止按钮  
-        self.face_detection_btn = ttk.Button(control_buttons, text="启动面部识别", 
+        self.face_detection_btn = ttk.Button(control_buttons, text=self.get_text("start_face_detection"), 
                                            command=self.toggle_face_detection, state="disabled")
         self.face_detection_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 截图按钮
-        self.capture_btn = ttk.Button(control_buttons, text="截图", command=self.capture_screenshot, 
+        self.capture_btn = ttk.Button(control_buttons, text=self.get_text("screenshot"), command=self.capture_screenshot, 
                                      state="disabled")
         self.capture_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 摄像头显示区域
-        camera_display_frame = ttk.LabelFrame(parent_frame, text="摄像头画面", padding="5")
-        camera_display_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        camera_display_frame.columnconfigure(0, weight=1)
-        camera_display_frame.rowconfigure(0, weight=1)
+        self.camera_display_frame = ttk.LabelFrame(parent_frame, text=self.get_text("camera_feed"), padding="5")
+        self.camera_display_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        self.camera_display_frame.columnconfigure(0, weight=1)
+        self.camera_display_frame.rowconfigure(0, weight=1)
         
         # 视频显示标签 - 设置固定尺寸和样式
-        self.video_label = tk.Label(camera_display_frame, text="点击启动摄像头按钮开始", 
+        self.video_label = tk.Label(self.camera_display_frame, text=self.get_text("click_to_start"), 
                                    bg="black", fg="white",
                                    font=("Arial", 12),
                                    width=80, height=30)  # 设置足够的显示空间
         self.video_label.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
         
         # 表情数据显示区域
-        expression_frame = ttk.LabelFrame(parent_frame, text="实时表情数据", padding="5")
-        expression_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        expression_frame.columnconfigure(1, weight=1)
-        expression_frame.columnconfigure(3, weight=1)
+        self.expression_frame = ttk.LabelFrame(parent_frame, text=self.get_text("realtime_expression"), padding="5")
+        self.expression_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.expression_frame.columnconfigure(1, weight=1)
+        self.expression_frame.columnconfigure(3, weight=1)
         
         # 表情数据标签
         self.expressions = {
@@ -536,22 +549,22 @@ class VRChatOSCGUI:
         for expr_name in self.expressions.keys():
             # 表情名称
             display_name = {
-                'eyeblink_left': '左眼眨眼',
-                'eyeblink_right': '右眼眨眼',
-                'mouth_open': '嘴巴张开',
-                'smile': '微笑'
+                'eyeblink_left': self.get_text('left_eye_blink'),
+                'eyeblink_right': self.get_text('right_eye_blink'),
+                'mouth_open': self.get_text('mouth_open'),
+                'smile': self.get_text('smile')
             }.get(expr_name, expr_name)
             
-            ttk.Label(expression_frame, text=f"{display_name}:").grid(
+            ttk.Label(self.expression_frame, text=f"{display_name}:").grid(
                 row=row, column=col*2, sticky=tk.W, padx=(0, 5))
             
             # 数值显示
-            value_label = ttk.Label(expression_frame, text="0.00", width=6)
+            value_label = ttk.Label(self.expression_frame, text="0.00", width=6)
             value_label.grid(row=row, column=col*2+1, sticky=tk.W, padx=(0, 20))
             self.expression_labels[expr_name] = value_label
             
             # 进度条
-            progress = ttk.Progressbar(expression_frame, length=100, mode='determinate')
+            progress = ttk.Progressbar(self.expression_frame, length=100, mode='determinate')
             progress.grid(row=row, column=col*2+2, sticky=(tk.W, tk.E), padx=(0, 20))
             progress['maximum'] = 100
             self.expression_progress_bars[expr_name] = progress
@@ -1234,23 +1247,138 @@ class VRChatOSCGUI:
         # 更新窗口标题
         self.root.title(self.get_text("title"))
         
-        # 更新界面文本
+        # 更新所有界面框架标题
         self.connection_frame.config(text=self.get_text("connection_settings"))
+        self.message_frame.config(text=self.get_text("message_send"))
+        self.param_frame.config(text=self.get_text("avatar_params"))
+        self.log_frame.config(text=self.get_text("log"))
+        self.speech_frame.config(text=self.get_text("speech_output"))
         
-        # 更新连接按钮文本
+        # 更新摄像头区域文本
+        if hasattr(self, 'camera_control_frame'):
+            self.camera_control_frame.config(text=self.get_text("camera_control"))
+            self.camera_display_frame.config(text=self.get_text("camera_feed"))
+            self.expression_frame.config(text=self.get_text("realtime_expression"))
+        
+        # 更新所有标签文本
+        if hasattr(self, 'text_message_label'):
+            self.text_message_label.config(text=self.get_text("text_message"))
+        if hasattr(self, 'recognition_language_label'):
+            self.recognition_language_label.config(text=self.get_text("recognition_language"))
+        if hasattr(self, 'compute_device_label'):
+            self.compute_device_label.config(text=self.get_text("compute_device"))
+        if hasattr(self, 'voice_threshold_label'):
+            self.voice_threshold_label.config(text=self.get_text("voice_threshold"))
+        if hasattr(self, 'param_name_label'):
+            self.param_name_label.config(text=self.get_text("param_name"))
+        if hasattr(self, 'param_value_label'):
+            self.param_value_label.config(text=self.get_text("param_value"))
+        
+        # 更新摄像头控制标签
+        if hasattr(self, 'camera_label'):
+            self.camera_label.config(text=self.get_text("camera"))
+            self.model_label.config(text=self.get_text("model"))
+        
+        # 更新所有按钮文本
         if self.is_connected:
             self.connect_btn.config(text=self.get_text("disconnect"))
         else:
             self.connect_btn.config(text=self.get_text("connect"))
             
-        # 更新监听按钮文本
         if self.is_listening:
             self.listen_btn.config(text=self.get_text("stop_listening"))
         else:
             self.listen_btn.config(text=self.get_text("start_listening"))
         
+        if hasattr(self, 'send_text_btn'):
+            self.send_text_btn.config(text=self.get_text("send_text"))
+        if hasattr(self, 'upload_voice_btn'):
+            self.upload_voice_btn.config(text=self.get_text("upload_voice"))
+        if hasattr(self, 'record_voice_btn'):
+            self.record_voice_btn.config(text=self.get_text("record_voice"))
+        if hasattr(self, 'debug_check'):
+            self.debug_check.config(text=self.get_text("debug"))
+        if hasattr(self, 'status_btn'):
+            self.status_btn.config(text=self.get_text("show_status"))
+        if hasattr(self, 'camera_btn'):
+            self.camera_btn.config(text=self.get_text("camera_window"))
+        if hasattr(self, 'settings_btn'):
+            self.settings_btn.config(text=self.get_text("settings"))
+        if hasattr(self, 'send_param_btn'):
+            self.send_param_btn.config(text=self.get_text("send_param"))
+        if hasattr(self, 'clear_log_btn'):
+            self.clear_log_btn.config(text=self.get_text("clear_log"))
+        if hasattr(self, 'clear_speech_btn'):
+            self.clear_speech_btn.config(text=self.get_text("clear_speech"))
+        if hasattr(self, 'save_speech_btn'):
+            self.save_speech_btn.config(text=self.get_text("save_speech"))
+        
+        # 更新摄像头控制按钮
+        if hasattr(self, 'refresh_btn'):
+            self.refresh_btn.config(text=self.get_text("refresh"))
+        if hasattr(self, 'camera_start_btn'):
+            if self.camera_running:
+                self.camera_start_btn.config(text=self.get_text("stop_camera"))
+            else:
+                self.camera_start_btn.config(text=self.get_text("start_camera"))
+        if hasattr(self, 'face_detection_btn'):
+            if self.face_detection_running:
+                self.face_detection_btn.config(text=self.get_text("stop_face_detection"))
+            else:
+                self.face_detection_btn.config(text=self.get_text("start_face_detection"))
+        if hasattr(self, 'capture_btn'):
+            self.capture_btn.config(text=self.get_text("screenshot"))
+        
+        # 更新摄像头显示区域文本
+        if hasattr(self, 'video_label') and not self.camera_running:
+            self.video_label.config(text=self.get_text("click_to_start"))
+        
+        # 重新构建表情数据标签（因为标签名称需要更新）
+        if hasattr(self, 'expression_labels'):
+            self.refresh_expression_labels()
+        
         # 记录语言切换
         self.log(f"界面语言已切换为: {selected_display}")
+    
+    def refresh_expression_labels(self):
+        """刷新表情数据标签的文本"""
+        # 销毁现有的表情显示组件
+        for widget in self.expression_frame.winfo_children():
+            widget.destroy()
+        
+        # 重新创建表情显示组件
+        row = 0
+        col = 0
+        self.expression_labels = {}
+        self.expression_progress_bars = {}
+        
+        for expr_name in self.expressions.keys():
+            # 表情名称
+            display_name = {
+                'eyeblink_left': self.get_text('left_eye_blink'),
+                'eyeblink_right': self.get_text('right_eye_blink'),
+                'mouth_open': self.get_text('mouth_open'),
+                'smile': self.get_text('smile')
+            }.get(expr_name, expr_name)
+            
+            ttk.Label(self.expression_frame, text=f"{display_name}:").grid(
+                row=row, column=col*2, sticky=tk.W, padx=(0, 5))
+            
+            # 数值显示
+            value_label = ttk.Label(self.expression_frame, text="0.00", width=6)
+            value_label.grid(row=row, column=col*2+1, sticky=tk.W, padx=(0, 20))
+            self.expression_labels[expr_name] = value_label
+            
+            # 进度条
+            progress = ttk.Progressbar(self.expression_frame, length=100, mode='determinate')
+            progress.grid(row=row, column=col*2+2, sticky=(tk.W, tk.E), padx=(0, 20))
+            progress['maximum'] = 100
+            self.expression_progress_bars[expr_name] = progress
+            
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
     
     def toggle_camera_only(self):
         """只切换摄像头状态（不包含面部识别）"""
