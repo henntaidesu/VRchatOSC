@@ -297,7 +297,7 @@ class ResEmoteNetDetector:
             # 转换为灰度图进行面部检测
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = self.face_cascade.detectMultiScale(
-                gray, 1.1, 4, minSize=(100, 100)
+                gray, 1.05, 2, minSize=(30, 30), maxSize=(300, 300)
             )
             
             annotated_frame = frame.copy()

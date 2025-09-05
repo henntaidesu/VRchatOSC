@@ -748,6 +748,23 @@ class VRChatOSCGUI:
             if col >= 2:
                 col = 0
                 row += 1
+        
+        # 添加分隔线和整体状态显示
+        row += 1
+        separator = ttk.Separator(self.expression_frame, orient='horizontal')
+        separator.grid(row=row, column=0, columnspan=6, sticky=(tk.W, tk.E), pady=(10, 5))
+        
+        row += 1
+        # 整体情感状态显示
+        ttk.Label(self.expression_frame, text="整体状态:").grid(
+            row=row, column=0, sticky=tk.W, padx=(0, 5))
+        
+        self.overall_status_label = ttk.Label(self.expression_frame, text="中立 (0.00)", width=15)
+        self.overall_status_label.grid(row=row, column=1, sticky=tk.W, padx=(0, 5))
+        
+        self.overall_status_progress = ttk.Progressbar(self.expression_frame, length=250, mode='determinate')
+        self.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
+        self.overall_status_progress['maximum'] = 100
     
     def log(self, message: str):
         """添加日志消息"""
@@ -1603,6 +1620,23 @@ class VRChatOSCGUI:
             if col >= 2:
                 col = 0
                 row += 1
+        
+        # 添加分隔线和整体状态显示
+        row += 1
+        separator = ttk.Separator(self.expression_frame, orient='horizontal')
+        separator.grid(row=row, column=0, columnspan=6, sticky=(tk.W, tk.E), pady=(10, 5))
+        
+        row += 1
+        # 整体情感状态显示
+        ttk.Label(self.expression_frame, text="整体状态:").grid(
+            row=row, column=0, sticky=tk.W, padx=(0, 5))
+        
+        self.overall_status_label = ttk.Label(self.expression_frame, text="中立 (0.00)", width=15)
+        self.overall_status_label.grid(row=row, column=1, sticky=tk.W, padx=(0, 5))
+        
+        self.overall_status_progress = ttk.Progressbar(self.expression_frame, length=250, mode='determinate')
+        self.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
+        self.overall_status_progress['maximum'] = 100
     
     def toggle_camera_only(self):
         """只切换摄像头状态（不包含面部识别）"""
@@ -1917,11 +1951,56 @@ class VRChatOSCGUI:
                     progress_value = min(100, max(0, value * 100))
                     self.expression_progress_bars[expr_name]['value'] = progress_value
             
+            # 更新整体情感状态
+            self._update_overall_status(expressions)
+            
             # 发送表情数据到VRChat OSC（如果连接已建立）
             self.send_expressions_to_vrchat(expressions)
             
         except Exception as e:
             print(f"更新表情显示错误: {e}")
+    
+    def _update_overall_status(self, expressions):
+        """更新整体情感状态显示"""
+        try:
+            if hasattr(self, 'overall_status_label') and hasattr(self, 'overall_status_progress'):
+                # 找出最强的情感（排除中立）
+                non_neutral_expressions = {k: v for k, v in expressions.items() if k != 'neutral'}
+                
+                if non_neutral_expressions:
+                    # 获取最强情感
+                    dominant_emotion = max(non_neutral_expressions.items(), key=lambda x: x[1])
+                    emotion_name, intensity = dominant_emotion
+                    
+                    # 如果最强情感的强度很低，显示中立状态
+                    if intensity < 0.1:
+                        display_name = "中立"
+                        display_intensity = expressions.get('neutral', 0.0)
+                    else:
+                        # 情感名称映射
+                        emotion_names = {
+                            'angry': '愤怒',
+                            'disgust': '厌恶',
+                            'fear': '恐惧',
+                            'happy': '高兴',
+                            'sad': '伤心',
+                            'surprise': '惊讶',
+                            'neutral': '中立'
+                        }
+                        display_name = emotion_names.get(emotion_name, emotion_name)
+                        display_intensity = intensity
+                else:
+                    # 所有情感都为0，显示中立
+                    display_name = "中立"
+                    display_intensity = expressions.get('neutral', 0.0)
+                
+                # 更新显示
+                self.overall_status_label.config(text=f"{display_name} ({display_intensity:.2f})")
+                progress_value = min(100, max(0, display_intensity * 100))
+                self.overall_status_progress['value'] = progress_value
+                
+        except Exception as e:
+            print(f"更新整体状态错误: {e}")
     
     def send_expressions_to_vrchat(self, expressions):
         """将表情数据发送到VRChat OSC"""
