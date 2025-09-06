@@ -25,7 +25,7 @@ from .languages.language_dict import get_text, get_language_display_names, DISPL
 from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
-from src.avatar.multi_instance_ai_manager import MultiInstanceAIManager
+from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
 
 
 class VRChatOSCGUI:
@@ -73,8 +73,8 @@ class VRChatOSCGUI:
         # Avatar控制器 - 统一管理虚拟人物控制
         self.avatar_controller = AvatarController(character_data_file="data/vrc_characters.json")
         
-        # 多实例AI管理器 - 支持独立的VRChat实例
-        self.multi_ai_manager = None  # 延迟初始化，等待VOICEVOX连接
+        # 单AI角色VRC管理器
+        self.single_ai_manager = None  # 延迟初始化，等待VOICEVOX连接
         
         # 为了兼容性保留的变量（逐步迁移到avatar_controller）
         self.character_window = None  # 角色管理窗口引用
@@ -665,26 +665,13 @@ class VRChatOSCGUI:
         self.active_ai_label = ttk.Label(status_frame, text="当前激活: 无", foreground="blue")
         self.active_ai_label.pack(side=tk.LEFT)
         
-        # AI角色列表和控制
+        # AI角色控制
         control_frame = ttk.LabelFrame(parent_frame, text="AI角色控制", padding="5")
         control_frame.pack(fill=tk.X, pady=(5, 5))
-        control_frame.columnconfigure(1, weight=1)
-        
-        # AI角色选择
-        ttk.Label(control_frame, text="角色:", width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.ai_character_var = tk.StringVar()
-        self.ai_character_combo = ttk.Combobox(control_frame, textvariable=self.ai_character_var, 
-                                              width=15, state="readonly")
-        self.ai_character_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
-        self.ai_character_combo.bind("<<ComboboxSelected>>", lambda e: self.update_multi_ai_character_status())
         
         # 激活/停用按钮
-        self.activate_ai_btn = ttk.Button(control_frame, text="激活", command=self.toggle_multi_ai_character, width=8)
-        self.activate_ai_btn.grid(row=0, column=2, padx=(0, 5))
-        
-        # 删除按钮
-        self.delete_ai_btn = ttk.Button(control_frame, text="删除", command=self.delete_multi_ai_character, width=8)
-        self.delete_ai_btn.grid(row=0, column=3)
+        self.activate_ai_btn = ttk.Button(control_frame, text="激活", command=self.toggle_ai_character, width=8)
+        self.activate_ai_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 创建新AI角色区域
         create_frame = ttk.LabelFrame(parent_frame, text="创建AI角色", padding="5")
@@ -705,34 +692,98 @@ class VRChatOSCGUI:
         self.ai_personality_combo.grid(row=0, column=3, padx=(0, 5))
         
         # 创建按钮
-        self.create_ai_btn = ttk.Button(create_frame, text="创建", command=self.create_multi_ai_character, width=8)
+        self.create_ai_btn = ttk.Button(create_frame, text="创建", command=self.create_ai_character, width=8)
         self.create_ai_btn.grid(row=0, column=4)
         
+        # VRC OSC连接控制区域
+        vrc_control_frame = ttk.LabelFrame(parent_frame, text="VRC OSC连接", padding="5")
+        vrc_control_frame.pack(fill=tk.X, pady=(5, 5))
+        
+        # OSC连接状态和控制
+        osc_status_row = ttk.Frame(vrc_control_frame)
+        osc_status_row.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(osc_status_row, text="OSC状态:", width=8).pack(side=tk.LEFT)
+        self.ai_osc_status_label = ttk.Label(osc_status_row, text="未连接", foreground="red")
+        self.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.ai_osc_connect_btn = ttk.Button(osc_status_row, text="连接VRC", command=self.toggle_ai_osc_connection, width=8)
+        self.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # VRC消息发送区域
+        vrc_message_frame = ttk.LabelFrame(parent_frame, text="VRC消息控制", padding="5")
+        vrc_message_frame.pack(fill=tk.X, pady=(5, 5))
+        
+        # 文本消息发送
+        text_message_row = ttk.Frame(vrc_message_frame)
+        text_message_row.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(text_message_row, text="发送文本:", width=8).pack(side=tk.LEFT)
+        self.ai_text_entry = ttk.Entry(text_message_row)
+        self.ai_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.ai_text_entry.bind("<Return>", lambda e: self.ai_send_text_message())
+        
+        self.ai_send_text_btn = ttk.Button(text_message_row, text="发送", command=self.ai_send_text_message, width=6)
+        self.ai_send_text_btn.pack(side=tk.LEFT)
+        
+        # 语音文件上传
+        voice_upload_row = ttk.Frame(vrc_message_frame)
+        voice_upload_row.pack(fill=tk.X, pady=(0, 5))
+        
+        self.ai_upload_voice_btn = ttk.Button(voice_upload_row, text="上传语音文件", command=self.ai_upload_voice_file, width=12)
+        self.ai_upload_voice_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.ai_voice_file_label = ttk.Label(voice_upload_row, text="未选择文件", foreground="gray")
+        self.ai_voice_file_label.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # VOICEVOX语音控制
+        voicevox_control_row = ttk.Frame(vrc_message_frame)
+        voicevox_control_row.pack(fill=tk.X, pady=(5, 0))
+        
+        self.ai_voicevox_generate_btn = ttk.Button(voicevox_control_row, text="生成并发送语音", command=self.ai_generate_and_send_voice, width=15)
+        self.ai_voicevox_generate_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Label(voicevox_control_row, text="内容:", width=5).pack(side=tk.LEFT)
+        self.ai_voicevox_text_entry = ttk.Entry(voicevox_control_row)
+        self.ai_voicevox_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.ai_voicevox_text_entry.bind("<Return>", lambda e: self.ai_generate_and_send_voice())
+        
         # AI行为控制区域
-        behavior_frame = ttk.LabelFrame(parent_frame, text="行为控制", padding="5")
+        behavior_frame = ttk.LabelFrame(parent_frame, text="AI行为控制", padding="5")
         behavior_frame.pack(fill=tk.X, pady=(5, 5))
         
         # 控制按钮行
         button_row = ttk.Frame(behavior_frame)
         button_row.pack(fill=tk.X)
         
-        self.ai_greet_btn = ttk.Button(button_row, text="打招呼", command=self.multi_ai_greet, width=8)
+        self.ai_greet_btn = ttk.Button(button_row, text="AI打招呼", command=self.ai_greet, width=10)
         self.ai_greet_btn.pack(side=tk.LEFT, padx=(0, 5))
         
-        self.ai_speak_btn = ttk.Button(button_row, text="说话", command=self.multi_ai_speak_custom, width=8)
+        self.ai_speak_btn = ttk.Button(button_row, text="AI说话", command=self.ai_speak_custom, width=10)
         self.ai_speak_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 自定义说话文本输入
         speak_frame = ttk.Frame(behavior_frame)
         speak_frame.pack(fill=tk.X, pady=(5, 0))
         
-        ttk.Label(speak_frame, text="说话内容:", width=8).pack(side=tk.LEFT)
+        ttk.Label(speak_frame, text="AI说话内容:", width=10).pack(side=tk.LEFT)
         self.ai_speak_entry = ttk.Entry(speak_frame)
         self.ai_speak_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.ai_speak_entry.bind("<Return>", lambda e: self.multi_ai_speak_custom())
+        self.ai_speak_entry.bind("<Return>", lambda e: self.ai_speak_custom())
         
-        # 初始化AI角色列表
-        self.refresh_multi_ai_character_list()
+        # 语音队列状态显示
+        queue_frame = ttk.LabelFrame(parent_frame, text="语音队列状态", padding="5")
+        queue_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.ai_voice_queue_text = tk.Text(queue_frame, height=4, width=40, state='disabled', wrap=tk.WORD)
+        queue_scrollbar = ttk.Scrollbar(queue_frame, orient="vertical", command=self.ai_voice_queue_text.yview)
+        self.ai_voice_queue_text.configure(yscrollcommand=queue_scrollbar.set)
+        
+        self.ai_voice_queue_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        queue_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 初始化AI角色界面状态
+        self.update_ai_character_status()
     
     def setup_position_marker_interface(self, parent_frame):
         """设置位置标记界面（原角色管理功能）"""
@@ -1435,10 +1486,10 @@ class VRChatOSCGUI:
             if self.is_connected:
                 self.disconnect_from_vrchat()
             
-            # 清理多实例AI管理器
-            if self.multi_ai_manager:
-                print("正在清理所有VRChat实例...")
-                self.multi_ai_manager.cleanup_all()
+            # 清理AI角色管理器
+            if self.single_ai_manager:
+                print("正在清理AI角色管理器...")
+                self.single_ai_manager.cleanup()
                 
             self.root.destroy()
         except Exception as e:
@@ -2357,8 +2408,8 @@ class VRChatOSCGUI:
                 # 连接成功时，更新Avatar控制器的VOICEVOX客户端
                 self.avatar_controller.set_voicevox_client(self.voicevox_client)
                 
-                # 初始化多实例AI管理器
-                self.init_multi_ai_manager()
+                # 初始化单AI角色管理器
+                self.init_single_ai_manager()
                 
                 # 初始化期数选择为1期，并加载对应角色
                 current_period = self.voicevox_period_var.get()
@@ -3155,26 +3206,64 @@ class VRChatOSCGUI:
         except Exception as e:
             self.log(f"更新AI角色状态显示错误: {e}")
     
-    def init_multi_ai_manager(self):
-        """初始化多实例AI管理器"""
+    def init_single_ai_manager(self):
+        """初始化单AI角色管理器"""
         try:
-            if not self.multi_ai_manager:
-                self.multi_ai_manager = MultiInstanceAIManager(voicevox_client=self.voicevox_client)
-                self.log("多实例AI管理器初始化成功")
+            if not self.single_ai_manager:
+                self.single_ai_manager = SingleAIVRCManager(voicevox_client=self.voicevox_client)
                 
-                # 刷新AI角色界面
-                self.refresh_multi_ai_character_list()
+                # 设置状态回调函数
+                self.single_ai_manager.set_status_callback(self.on_ai_status_change)
+                
+                self.log("单AI角色管理器初始化成功")
+                
+                # 刷新AI角色界面状态
+                self.update_ai_character_status()
             else:
                 # 更新现有管理器的VOICEVOX客户端
-                self.multi_ai_manager.update_voicevox_client(self.voicevox_client)
+                self.single_ai_manager.update_voicevox_client(self.voicevox_client)
                 
         except Exception as e:
-            self.log(f"初始化多实例AI管理器失败: {e}")
+            self.log(f"初始化单AI角色管理器失败: {e}")
     
-    # === 多实例AI角色控制方法 ===
+    def on_ai_status_change(self, event_type: str, data: dict):
+        """AI状态变化回调"""
+        if event_type == "vrc_connected":
+            self.root.after(0, lambda: self.ai_osc_status_label.config(text="已连接", foreground="green"))
+            self.root.after(0, lambda: self.ai_osc_connect_btn.config(text="断开连接"))
+            self.log("AI角色VRC连接成功")
+        elif event_type == "vrc_disconnected":
+            self.root.after(0, lambda: self.ai_osc_status_label.config(text="未连接", foreground="red"))
+            self.root.after(0, lambda: self.ai_osc_connect_btn.config(text="连接VRC"))
+            self.log("AI角色VRC连接断开")
+        elif event_type == "ai_character_created":
+            self.log(f"AI角色创建成功: {data.get('name')} (人格: {data.get('personality')})")
+        elif event_type == "ai_activated":
+            self.log(f"AI角色激活: {data.get('name')}")
+        elif event_type == "ai_deactivated":
+            self.log(f"AI角色停用: {data.get('name')}")
+        
+        # 更新界面状态
+        self.root.after(0, self.update_ai_character_status)
     
-    def create_multi_ai_character(self):
-        """创建多实例AI角色"""
+    def on_voice_queue_status_change(self, event_type: str, item):
+        """语音队列状态变化回调"""
+        if event_type == "item_added":
+            self.log(f"语音已添加到队列: {item.text[:30]}...")
+        elif event_type == "processing":
+            self.log(f"正在处理语音: {item.text[:30]}...")
+        elif event_type == "completed":
+            self.log(f"语音处理完成: {item.text[:30]}...")
+        elif event_type == "error":
+            self.log(f"语音处理失败: {item.text[:30]}...")
+        
+        # 更新语音队列显示
+        self.root.after(0, self.update_voice_queue_display)
+    
+    # === 单AI角色控制方法 ===
+    
+    def create_ai_character(self):
+        """创建AI角色"""
         name = self.new_ai_name_entry.get().strip()
         personality = self.ai_personality_var.get()
         
@@ -3182,43 +3271,30 @@ class VRChatOSCGUI:
             messagebox.showwarning("警告", "请输入AI角色名称")
             return
         
-        if not self.multi_ai_manager:
-            messagebox.showerror("错误", "多实例AI管理器未初始化，请先连接VOICEVOX")
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化，请先连接VOICEVOX")
             return
         
         try:
-            # 询问是否自动启动VRC实例
-            auto_start = messagebox.askyesno(
-                "创建AI角色", 
-                f"是否为AI角色 '{name}' 自动启动VRChat实例？\n\n"
-                "选择'是'：将立即启动一个独立的VRChat客户端\n"
-                "选择'否'：稍后手动启动VRC实例"
-            )
+            from src.avatar.ai_character import AIPersonality
+            personality_enum = AIPersonality(personality)
             
-            success = self.multi_ai_manager.create_ai_character_with_instance(
-                name=name,
-                personality=personality,
-                auto_start_vrc=auto_start
-            )
+            success = self.single_ai_manager.create_ai_character(name, personality_enum)
             
             if success:
                 messagebox.showinfo("成功", 
                     f"AI角色 '{name}' 创建成功！\n\n"
-                    f"人格类型: {personality}\n"
-                    f"VRC实例: {'已启动' if auto_start else '待启动'}\n\n"
-                    "提示：每个AI角色都有独立的VRChat实例和OSC端口"
+                    f"人格类型: {personality}\n\n"
+                    "接下来请连接VRC来激活AI角色"
                 )
                 self.new_ai_name_entry.delete(0, tk.END)
-                self.refresh_multi_ai_character_list()
-                self.log(f"创建多实例AI角色: {name} (人格: {personality}, 自动启动: {auto_start})")
-                
-                if auto_start:
-                    self.log(f"正在为AI角色 '{name}' 启动VRChat实例，请稍等...")
+                self.update_ai_character_status()
+                self.log(f"创建AI角色: {name} (人格: {personality})")
             else:
-                messagebox.showerror("错误", f"创建AI角色失败 - 可能是角色名称重复或VRC实例创建失败")
+                messagebox.showerror("错误", "创建AI角色失败")
         except Exception as e:
             messagebox.showerror("错误", f"创建AI角色时出错: {e}")
-            self.log(f"创建多实例AI角色错误: {e}")
+            self.log(f"创建AI角色错误: {e}")
     
     def toggle_multi_ai_character(self):
         """激活/停用多实例AI角色"""
@@ -3437,6 +3513,303 @@ class VRChatOSCGUI:
                     
         except Exception as e:
             self.log(f"更新多实例AI角色状态显示错误: {e}")
+    
+    # === 新的单AI角色控制方法 ===
+    
+    def toggle_ai_osc_connection(self):
+        """切换AI角色OSC连接状态"""
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            status = self.single_ai_manager.get_status()
+            
+            if status["vrc_connected"]:
+                # 断开连接
+                self.single_ai_manager.disconnect_from_vrc()
+                messagebox.showinfo("成功", "已断开VRChat连接")
+            else:
+                # 连接VRChat
+                success = self.single_ai_manager.connect_to_vrc()
+                if success:
+                    messagebox.showinfo("成功", "VRChat连接成功！\n\n现在可以发送文本和语音消息了")
+                else:
+                    messagebox.showerror("错误", "VRChat连接失败，请检查VRChat是否开启OSC")
+                    
+        except Exception as e:
+            messagebox.showerror("错误", f"切换OSC连接时出错: {e}")
+            self.log(f"切换AI角色OSC连接错误: {e}")
+    
+    def toggle_ai_character(self):
+        """激活/停用AI角色"""
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            status = self.single_ai_manager.get_status()
+            
+            if not status["ai_character_exists"]:
+                messagebox.showwarning("警告", "请先创建AI角色")
+                return
+            
+            if not status["vrc_connected"]:
+                messagebox.showwarning("警告", "请先连接VRChat")
+                return
+            
+            if status["ai_active"]:
+                # 停用AI角色
+                success = self.single_ai_manager.deactivate_ai_character()
+                if success:
+                    messagebox.showinfo("成功", "AI角色已停用")
+                else:
+                    messagebox.showerror("错误", "停用AI角色失败")
+            else:
+                # 激活AI角色
+                success = self.single_ai_manager.activate_ai_character()
+                if success:
+                    messagebox.showinfo("成功", "AI角色已激活！\n\nAI角色现在会自动说话和做表情了")
+                else:
+                    messagebox.showerror("错误", "激活AI角色失败")
+                    
+        except Exception as e:
+            messagebox.showerror("错误", f"切换AI角色状态时出错: {e}")
+            self.log(f"切换AI角色状态错误: {e}")
+    
+    def ai_send_text_message(self):
+        """发送文本消息到VRChat"""
+        text = self.ai_text_entry.get().strip()
+        
+        if not text:
+            messagebox.showwarning("警告", "请输入要发送的文本")
+            return
+        
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            success = self.single_ai_manager.send_text_message(text)
+            if success:
+                self.log(f"文本消息已发送: {text}")
+                self.ai_text_entry.delete(0, tk.END)
+            else:
+                messagebox.showerror("错误", "发送文本消息失败，请检查VRChat连接")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"发送文本消息时出错: {e}")
+            self.log(f"发送文本消息错误: {e}")
+    
+    def ai_upload_voice_file(self):
+        """上传语音文件"""
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        # 选择语音文件
+        file_path = filedialog.askopenfilename(
+            title="选择语音文件",
+            filetypes=[
+                ("音频文件", "*.wav *.mp3 *.flac *.ogg *.m4a"),
+                ("WAV文件", "*.wav"),
+                ("MP3文件", "*.mp3"),
+                ("所有文件", "*.*")
+            ]
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            success = self.single_ai_manager.upload_voice_file(file_path)
+            if success:
+                filename = os.path.basename(file_path)
+                self.ai_voice_file_label.config(text=f"已添加: {filename}", foreground="green")
+                self.log(f"语音文件已添加到队列: {filename}")
+                messagebox.showinfo("成功", f"语音文件已添加到播放队列：\n{filename}")
+            else:
+                messagebox.showerror("错误", "添加语音文件失败")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"上传语音文件时出错: {e}")
+            self.log(f"上传语音文件错误: {e}")
+    
+    def ai_generate_and_send_voice(self):
+        """生成并发送VOICEVOX语音"""
+        text = self.ai_voicevox_text_entry.get().strip()
+        
+        if not text:
+            messagebox.showwarning("警告", "请输入要合成的文本")
+            return
+        
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            # 获取当前选择的VOICEVOX角色ID
+            speaker_id = 0  # 默认使用第一个角色，可以后续扩展为从界面获取
+            
+            success = self.single_ai_manager.generate_and_send_voice(text, speaker_id)
+            if success:
+                self.log(f"VOICEVOX语音已生成并添加到队列: {text}")
+                self.ai_voicevox_text_entry.delete(0, tk.END)
+                messagebox.showinfo("成功", f"语音已添加到播放队列：\n{text[:50]}...")
+            else:
+                messagebox.showerror("错误", "生成语音失败")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"生成语音时出错: {e}")
+            self.log(f"生成VOICEVOX语音错误: {e}")
+    
+    def ai_greet(self):
+        """让AI角色打招呼"""
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            success = self.single_ai_manager.make_ai_greet()
+            if success:
+                status = self.single_ai_manager.get_status()
+                self.log(f"AI角色 '{status['ai_character_name']}' 执行打招呼")
+            else:
+                messagebox.showwarning("警告", "AI角色未激活或执行失败")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"AI角色打招呼时出错: {e}")
+            self.log(f"AI角色打招呼错误: {e}")
+    
+    def ai_speak_custom(self):
+        """让AI角色说自定义内容"""
+        text = self.ai_speak_entry.get().strip()
+        
+        if not text:
+            messagebox.showwarning("警告", "请输入要说的内容")
+            return
+        
+        if not self.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            success = self.single_ai_manager.make_ai_speak(text)
+            if success:
+                status = self.single_ai_manager.get_status()
+                self.log(f"AI角色 '{status['ai_character_name']}' 说话: {text}")
+                self.ai_speak_entry.delete(0, tk.END)
+            else:
+                messagebox.showwarning("警告", "AI角色未激活或执行失败")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"AI角色说话时出错: {e}")
+            self.log(f"AI角色说话错误: {e}")
+    
+    def update_ai_character_status(self):
+        """更新AI角色状态显示"""
+        if not self.single_ai_manager:
+            return
+        
+        try:
+            status = self.single_ai_manager.get_status()
+            
+            # 更新激活状态显示
+            if hasattr(self, 'active_ai_label'):
+                if status["ai_character_exists"]:
+                    if status["ai_active"]:
+                        status_text = f"当前角色: {status['ai_character_name']} (已激活)"
+                        self.active_ai_label.config(text=status_text, foreground="green")
+                        
+                        # 更新按钮状态
+                        if hasattr(self, 'activate_ai_btn'):
+                            self.activate_ai_btn.config(text="停用")
+                        
+                        # 启用控制按钮
+                        self._set_ai_controls_state("normal")
+                        
+                    else:
+                        status_text = f"当前角色: {status['ai_character_name']} (未激活)"
+                        self.active_ai_label.config(text=status_text, foreground="orange")
+                        
+                        if hasattr(self, 'activate_ai_btn'):
+                            self.activate_ai_btn.config(text="激活")
+                        
+                        # 部分启用控制按钮（VRC连接相关的可用）
+                        self._set_ai_controls_state("disabled")
+                        
+                else:
+                    status_text = "当前角色: 无"
+                    self.active_ai_label.config(text=status_text, foreground="red")
+                    
+                    if hasattr(self, 'activate_ai_btn'):
+                        self.activate_ai_btn.config(text="激活")
+                    
+                    # 禁用所有控制按钮
+                    self._set_ai_controls_state("disabled")
+            
+            # 更新OSC连接状态显示
+            if hasattr(self, 'ai_osc_status_label'):
+                if status["vrc_connected"]:
+                    self.ai_osc_status_label.config(text="已连接", foreground="green")
+                    if hasattr(self, 'ai_osc_connect_btn'):
+                        self.ai_osc_connect_btn.config(text="断开连接")
+                else:
+                    self.ai_osc_status_label.config(text="未连接", foreground="red")
+                    if hasattr(self, 'ai_osc_connect_btn'):
+                        self.ai_osc_connect_btn.config(text="连接VRC")
+            
+        except Exception as e:
+            self.log(f"更新AI角色状态显示错误: {e}")
+    
+    def _set_ai_controls_state(self, state):
+        """设置AI控制按钮状态"""
+        controls = [
+            'ai_greet_btn', 'ai_speak_btn', 'ai_speak_entry',
+            'ai_send_text_btn', 'ai_text_entry',
+            'ai_upload_voice_btn', 'ai_voicevox_generate_btn', 'ai_voicevox_text_entry'
+        ]
+        
+        for control_name in controls:
+            if hasattr(self, control_name):
+                control = getattr(self, control_name)
+                if hasattr(control, 'config'):
+                    control.config(state=state)
+    
+    def update_voice_queue_display(self):
+        """更新语音队列显示"""
+        if not hasattr(self, 'ai_voice_queue_text') or not self.single_ai_manager:
+            return
+        
+        try:
+            items = self.single_ai_manager.get_voice_queue_items(10)
+            
+            display_text = ""
+            for item in items:
+                status_symbol = {
+                    "pending": "⏳",
+                    "processing": "🔄", 
+                    "completed": "✅",
+                    "error": "❌"
+                }.get(item.get("status", "pending"), "❓")
+                
+                display_text += f"{status_symbol} [{item.get('time', '')}] {item.get('text', '')}\n"
+            
+            if not display_text:
+                display_text = "队列为空"
+            
+            # 更新文本显示
+            self.ai_voice_queue_text.config(state='normal')
+            self.ai_voice_queue_text.delete(1.0, tk.END)
+            self.ai_voice_queue_text.insert(tk.END, display_text)
+            self.ai_voice_queue_text.config(state='disabled')
+            
+        except Exception as e:
+            self.log(f"更新语音队列显示错误: {e}")
+    
+    def refresh_ai_character_list(self):
+        """刷新AI角色列表（兼容方法）"""
+        self.update_ai_character_status()
     
     def run(self):
         """运行GUI"""
