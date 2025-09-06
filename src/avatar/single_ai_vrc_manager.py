@@ -122,10 +122,23 @@ class SingleAIVRCManager:
             # 初始化语音队列管理器
             self.init_voice_queue_manager()
             
+            # 检查远程音频服务连接状态
+            audio_service_status = self.check_remote_audio_service(host)
+            
             print(f"VRChat连接成功 (发送端口: {send_port}, 接收端口: {receive_port})")
+            if audio_service_status:
+                print(f"✅ 远程音频服务连接正常 ({host}:9003)")
+            else:
+                print(f"⚠️  远程音频服务未连接 ({host}:9003)")
+                print("💡 请在AI端机器上运行: python remote_audio.py")
             
             if self.status_callback:
-                self.status_callback("vrc_connected", {"host": host, "send_port": send_port, "receive_port": receive_port})
+                self.status_callback("vrc_connected", {
+                    "host": host, 
+                    "send_port": send_port, 
+                    "receive_port": receive_port,
+                    "audio_service_connected": audio_service_status
+                })
             
             return True
             
@@ -174,6 +187,33 @@ class SingleAIVRCManager:
             
         except Exception as e:
             print(f"初始化语音队列管理器失败: {e}")
+    
+    def check_remote_audio_service(self, host: str) -> bool:
+        """检查远程音频服务是否可用
+        
+        Args:
+            host: AI端主机地址
+            
+        Returns:
+            bool: 音频服务是否可用
+        """
+        try:
+            import sys
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            sys.path.append(project_root)
+            
+            from remote_audio import RemoteAudioClient
+            
+            # 尝试连接远程音频服务
+            client = RemoteAudioClient(host=host, port=9003)
+            
+            # 测试连接
+            return client.ping()
+            
+        except Exception as e:
+            print(f"检查远程音频服务失败: {e}")
+            return False
     
     def activate_ai_character(self) -> bool:
         """激活AI角色"""
@@ -319,6 +359,15 @@ class SingleAIVRCManager:
             "ai_active": self.is_ai_active,
             "ai_personality": self.ai_personality.value if self.ai_character else None
         }
+        
+        # 添加远程音频服务状态
+        if self.is_vrc_connected and self.vrc_controller:
+            ai_host = self.vrc_controller.osc_client.host
+            status["audio_service_connected"] = self.check_remote_audio_service(ai_host)
+            status["ai_host"] = ai_host
+        else:
+            status["audio_service_connected"] = False
+            status["ai_host"] = None
         
         if self.voice_queue_manager:
             status["voice_queue"] = self.voice_queue_manager.get_queue_status()

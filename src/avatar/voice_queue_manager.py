@@ -151,11 +151,13 @@ class VoiceQueueManager:
     
     def _processing_loop(self):
         """语音队列处理主循环"""
+        print("语音队列处理主循环已启动")
         while self.is_processing:
             try:
                 # 从队列获取项目（超时1秒）
                 try:
                     item = self.voice_queue.get(timeout=1)
+                    print(f"从队列获取到项目: {item.item_id}")
                 except queue.Empty:
                     continue
                 
@@ -170,8 +172,10 @@ class VoiceQueueManager:
                 # 根据类型处理项目
                 success = False
                 if item.item_type == VoiceItemType.VOICEVOX:
+                    print(f"处理VOICEVOX语音项目: {item.item_id}")
                     success = self._process_voicevox_item(item)
                 elif item.item_type == VoiceItemType.FILE:
+                    print(f"处理语音文件项目: {item.item_id}")
                     success = self._process_file_item(item)
                 
                 # 更新状态
@@ -208,6 +212,8 @@ class VoiceQueueManager:
     
     def _process_voicevox_item(self, item: VoiceQueueItem) -> bool:
         """处理VOICEVOX语音项目"""
+        print(f"开始处理VOICEVOX项目: {item.item_id}")
+        
         if not self.voicevox_client:
             print("VOICEVOX客户端未连接")
             return False
@@ -215,12 +221,15 @@ class VoiceQueueManager:
         try:
             # 生成临时文件路径
             temp_file = os.path.join(self.temp_dir, f"{item.item_id}.wav")
+            print(f"临时文件路径: {temp_file}")
             
             # 设置说话人ID
             if item.speaker_id > 0:
                 self.voicevox_client.set_speaker(item.speaker_id)
+                print(f"设置说话人ID: {item.speaker_id}")
             
             # 使用VOICEVOX合成语音并保存到文件
+            print(f"开始合成语音: {item.text[:50]}...")
             success = self.voicevox_client.save_audio(
                 text=item.text,
                 output_path=temp_file
@@ -230,13 +239,19 @@ class VoiceQueueManager:
                 print(f"VOICEVOX语音合成失败: {item.text}")
                 return False
             
+            print(f"语音文件生成成功: {temp_file}")
             item.file_path = temp_file
             
             # 发送到AI角色的VRC
-            return self._send_voice_to_character(item)
+            print(f"准备发送语音到VRC角色: {item.character_name}")
+            result = self._send_voice_to_character(item)
+            print(f"发送到VRC结果: {result}")
+            return result
             
         except Exception as e:
             print(f"处理VOICEVOX项目时出错: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _process_file_item(self, item: VoiceQueueItem) -> bool:
@@ -255,25 +270,56 @@ class VoiceQueueManager:
     
     def _send_voice_to_character(self, item: VoiceQueueItem) -> bool:
         """将语音发送到指定AI角色的VRC实例"""
+        print(f"尝试发送语音到角色: {item.character_name}")
+        
         if not self.ai_manager:
             print("AI管理器未设置")
             return False
         
         try:
-            # 获取AI角色对应的OSC客户端
-            osc_client = self.ai_manager.osc_clients.get(item.character_name)
+            # 检查AI管理器类型，支持SingleAIVRCManager
+            osc_client = None
+            avatar_controller = None
+            
+            # 处理SingleAIVRCManager类型
+            if hasattr(self.ai_manager, 'vrc_controller') and self.ai_manager.vrc_controller:
+                osc_client = self.ai_manager.vrc_controller.osc_client
+                # 尝试从AI角色获取avatar_controller
+                if hasattr(self.ai_manager, 'ai_character') and self.ai_manager.ai_character:
+                    avatar_controller = getattr(self.ai_manager.ai_character, 'avatar_controller', None)
+                else:
+                    avatar_controller = None
+                print(f"找到SingleAI VRC控制器的OSC客户端: {osc_client}")
+                print(f"AI角色Avatar控制器: {avatar_controller}")
+            
+            # 处理传统的多AI管理器类型
+            elif hasattr(self.ai_manager, 'osc_clients'):
+                print(f"获取OSC客户端列表: {list(self.ai_manager.osc_clients.keys())}")
+                osc_client = self.ai_manager.osc_clients.get(item.character_name)
+                avatar_controller = self.ai_manager.avatar_controllers.get(item.character_name)
+            
             if not osc_client:
                 print(f"未找到AI角色 '{item.character_name}' 的OSC客户端")
+                if hasattr(self.ai_manager, 'osc_clients'):
+                    print(f"可用的OSC客户端: {list(self.ai_manager.osc_clients.keys())}")
                 return False
             
-            # 设置Avatar表情（基于emotion）
-            avatar_controller = self.ai_manager.avatar_controllers.get(item.character_name)
-            if avatar_controller:
-                avatar_controller.start_speaking(item.text, item.emotion, voice_level=0.8)
+            print(f"找到OSC客户端: {osc_client}")
             
-            # 发送语音文件到VRChat（这里需要实现具体的VRC语音发送逻辑）
-            # 注意：VRChat OSC目前不直接支持语音文件上传，这里可能需要其他方式
+            # 设置Avatar表情（基于emotion）
+            if avatar_controller:
+                print(f"设置Avatar表情: {item.emotion}")
+                if hasattr(avatar_controller, 'start_speaking'):
+                    avatar_controller.start_speaking(item.text, item.emotion, voice_level=0.8)
+                else:
+                    print("Avatar控制器不支持start_speaking方法")
+            else:
+                print("未找到Avatar控制器")
+            
+            # 发送语音文件到VRChat
+            print(f"开始发送语音文件到VRChat: {item.file_path}")
             success = self._upload_voice_to_vrc(osc_client, item.file_path)
+            print(f"语音文件发送结果: {success}")
             
             if success:
                 print(f"语音已发送到VRChat角色: {item.character_name}")
@@ -282,64 +328,202 @@ class VoiceQueueManager:
                 if avatar_controller:
                     # 估算播放时长
                     duration = self._estimate_audio_duration(item.file_path)
-                    threading.Timer(duration, lambda: avatar_controller.stop_speaking()).start()
+                    print(f"预计播放时长: {duration}秒")
+                    if hasattr(avatar_controller, 'stop_speaking'):
+                        threading.Timer(duration, lambda: avatar_controller.stop_speaking()).start()
+                    else:
+                        print("Avatar控制器不支持stop_speaking方法")
             
             return success
             
         except Exception as e:
             print(f"发送语音到角色时出错: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _upload_voice_to_vrc(self, osc_client, file_path: str) -> bool:
-        """模拟麦克风发声（通过OSC控制麦克风状态 + 音频播放）"""
+        """播放音频到本地VRChat麦克风（无需OSC音频传输）"""
         try:
-            import pygame
             import os
             
             if not os.path.exists(file_path):
                 print(f"语音文件不存在: {file_path}")
                 return False
             
-            # 1. 通过OSC取消静音（模拟按下麦克风）
-            osc_client.send_message("/input/Voice", 1)
-            print("OSC: 取消麦克风静音")
+            print(f"🎤 准备播放音频到VRC虚拟麦克风: {file_path}")
             
-            # 等待前一个语音播放完成（顺序播放）
+            # 方案1: 尝试使用9003端口的远程音频服务
+            success = self._use_remote_audio_service(file_path)
+            if success:
+                print("✅ 通过远程音频服务播放成功")
+                return True
+            
+            # 方案2: 回退到OSC音频传输（如果远程音频服务不可用）
+            print("📡 远程音频服务不可用，使用OSC音频传输")
+            return self._use_osc_audio_transmission(osc_client, file_path)
+            
+        except Exception as e:
+            print(f"播放音频失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _play_to_virtual_microphone(self, file_path: str, duration: float) -> bool:
+        """播放音频到虚拟麦克风设备"""
+        try:
+            # 使用专门的虚拟麦克风模块
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
+            from ..audio.virtual_microphone import virtual_microphone
+            
+            print(f"🎤 开始播放到虚拟麦克风: {file_path}")
+            success = virtual_microphone.play_audio_with_mic_simulation(file_path)
+            
+            if success:
+                print(f"✅ 虚拟麦克风播放成功，时长{duration:.2f}秒")
+            else:
+                print("❌ 虚拟麦克风播放失败")
+            
+            return success
+            
+        except Exception as e:
+            print(f"虚拟麦克风播放失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _play_audio_to_system(self, file_path: str) -> bool:
+        """播放音频到系统默认输出"""
+        try:
+            import pygame
+            
+            # 初始化pygame mixer
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
             
+            # 等待前一个音频播放完成
             while pygame.mixer.music.get_busy():
                 time.sleep(0.1)
             
-            # 2. 播放音频文件（通过默认音频设备，VRC可以通过虚拟音频线接收）
+            # 播放音频
             pygame.mixer.music.load(file_path)
             pygame.mixer.music.play()
             
-            print(f"开始播放语音文件并模拟麦克风发声: {file_path}")
-            
-            # 3. 等待播放完成
-            while pygame.mixer.music.get_busy():
-                time.sleep(0.1)
-            
-            # 4. 通过OSC静音麦克风（模拟松开麦克风）
-            osc_client.send_message("/input/Voice", 0)
-            print("OSC: 麦克风静音")
-            
-            # 5. 重置OSC状态（解决已知的OSC Voice bug）
-            time.sleep(0.1)
-            osc_client.send_message("/input/Voice", 0)
-            
-            print("语音播放完成，麦克风状态已重置")
             return True
             
         except Exception as e:
-            print(f"模拟麦克风发声失败: {e}")
-            # 确保在错误情况下也重置麦克风状态
-            try:
-                osc_client.send_message("/input/Voice", 0)
-                osc_client.send_message("/input/Voice", 0)  # 重置状态
-            except:
-                pass
+            print(f"系统音频播放失败: {e}")
+            return False
+    
+    def _use_remote_audio_service(self, file_path: str) -> bool:
+        """使用9003端口的远程音频服务（连接AI端IP）"""
+        try:
+            # 导入远程音频客户端
+            import sys
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            sys.path.append(project_root)
+            
+            from remote_audio import RemoteAudioClient
+            
+            # 获取AI端IP地址（从ai_manager获取）
+            ai_host = self._get_ai_host_address()
+            if not ai_host:
+                print("❌ 无法获取AI端IP地址")
+                return False
+            
+            print(f"🔌 尝试连接远程音频服务: {ai_host}:9003")
+            
+            # 连接远程AI端的音频服务
+            client = RemoteAudioClient(host=ai_host, port=9003)
+            
+            # 测试连接
+            if not client.ping():
+                print(f"❌ 无法连接到远程音频服务 ({ai_host}:9003)")
+                print("💡 请在AI端机器上运行: python remote_audio.py")
+                return False
+            
+            print(f"✅ 成功连接到远程音频服务 ({ai_host}:9003)")
+            
+            # 播放音频文件
+            success = client.play_audio_file(file_path)
+            
+            if success:
+                print("🎤 远程音频服务播放完成")
+                return True
+            else:
+                print("❌ 远程音频服务播放失败")
+                return False
+                
+        except Exception as e:
+            print(f"远程音频服务调用失败: {e}")
+            return False
+    
+    def _get_ai_host_address(self) -> str:
+        """获取AI端主机地址"""
+        try:
+            # 从AI管理器获取主机地址
+            if hasattr(self.ai_manager, 'vrc_controller') and self.ai_manager.vrc_controller:
+                if hasattr(self.ai_manager.vrc_controller, 'osc_client'):
+                    return self.ai_manager.vrc_controller.osc_client.host
+            
+            # 从传统多AI管理器获取
+            if hasattr(self.ai_manager, 'osc_clients'):
+                for client in self.ai_manager.osc_clients.values():
+                    if hasattr(client, 'host'):
+                        return client.host
+            
+            print("⚠️  无法从AI管理器获取主机地址，使用默认127.0.0.1")
+            return "127.0.0.1"
+            
+        except Exception as e:
+            print(f"获取AI主机地址失败: {e}")
+            return "127.0.0.1"
+    
+    def _use_osc_audio_transmission(self, osc_client, file_path: str) -> bool:
+        """使用OSC音频传输（备选方案）"""
+        try:
+            import base64
+            
+            # 读取音频文件并编码
+            with open(file_path, 'rb') as f:
+                audio_data = f.read()
+            
+            # 将音频数据编码为base64，通过OSC发送
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            
+            # 估算播放时长
+            duration = self._estimate_audio_duration(file_path)
+            
+            # 通过自定义OSC消息发送音频数据
+            chunk_size = 8192  # 每块大小
+            total_chunks = len(audio_base64) // chunk_size + (1 if len(audio_base64) % chunk_size else 0)
+            
+            print(f"📦 OSC音频传输：分块发送{total_chunks}块")
+            
+            # 发送音频开始信号
+            osc_client.send_message("/vrchat/audio/start", [total_chunks, duration])
+            
+            # 分块发送音频数据
+            for i in range(total_chunks):
+                start_idx = i * chunk_size
+                end_idx = min((i + 1) * chunk_size, len(audio_base64))
+                chunk_data = audio_base64[start_idx:end_idx]
+                
+                osc_client.send_message("/vrchat/audio/chunk", [i, chunk_data])
+                time.sleep(0.01)  # 小延迟确保传输顺序
+            
+            # 发送音频结束信号
+            osc_client.send_message("/vrchat/audio/end", [])
+            
+            print(f"📡 OSC音频传输完成，预计播放{duration:.2f}秒")
+            return True
+            
+        except Exception as e:
+            print(f"OSC音频传输失败: {e}")
             return False
     
     def _estimate_audio_duration(self, file_path: str) -> float:

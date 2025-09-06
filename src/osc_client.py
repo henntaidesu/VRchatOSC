@@ -63,6 +63,12 @@ class OSCClient:
             "Talking", "MouthMove", "VoiceActivity"
         ]
         
+        # 音频传输相关
+        self.audio_chunks = {}  # 存储接收到的音频块
+        self.audio_total_chunks = 0
+        self.audio_duration = 0.0
+        self.audio_receiving = False
+        
         print(f"OSC客户端初始化完成")
         print(f"发送地址: {host}:{send_port}")
         print(f"接收端口: {receive_port}")
@@ -80,6 +86,11 @@ class OSCClient:
         self.dispatcher.map("/tracking/head/position", self._handle_position_update)
         self.dispatcher.map("/tracking/head/rotation", self._handle_rotation_update)
         self.dispatcher.map("/avatar/change", self._handle_avatar_change)
+        
+        # 处理音频传输消息
+        self.dispatcher.map("/vrchat/audio/start", self._handle_audio_start)
+        self.dispatcher.map("/vrchat/audio/chunk", self._handle_audio_chunk)
+        self.dispatcher.map("/vrchat/audio/end", self._handle_audio_end)
         
         # 处理通用消息
         self.dispatcher.set_default_handler(self._handle_default_message)
@@ -361,3 +372,233 @@ class OSCClient:
             diagnosis["suggestions"] = ["VRChat OSC连接正常"]
         
         return diagnosis
+    
+    def _handle_audio_start(self, address: str, *args):
+        """处理音频传输开始"""
+        if len(args) >= 2:
+            self.audio_total_chunks = int(args[0])
+            self.audio_duration = float(args[1])
+            self.audio_chunks = {}
+            self.audio_receiving = True
+            print(f"开始接收音频数据，共{self.audio_total_chunks}块，时长{self.audio_duration:.2f}秒")
+    
+    def _handle_audio_chunk(self, address: str, *args):
+        """处理音频数据块"""
+        if len(args) >= 2 and self.audio_receiving:
+            chunk_index = int(args[0])
+            chunk_data = str(args[1])
+            self.audio_chunks[chunk_index] = chunk_data
+            print(f"接收音频块 {chunk_index + 1}/{self.audio_total_chunks}")
+    
+    def _handle_audio_end(self, address: str, *args):
+        """处理音频传输结束并播放"""
+        if not self.audio_receiving:
+            return
+        
+        print("音频数据接收完成，开始重组并播放")
+        
+        try:
+            # 重组音频数据
+            complete_audio_data = ""
+            for i in range(self.audio_total_chunks):
+                if i in self.audio_chunks:
+                    complete_audio_data += self.audio_chunks[i]
+                else:
+                    print(f"缺少音频块 {i}")
+                    return
+            
+            # 解码音频数据
+            import base64
+            import tempfile
+            import os
+            
+            audio_bytes = base64.b64decode(complete_audio_data)
+            
+            # 保存到临时文件
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_file.write(audio_bytes)
+                temp_audio_path = temp_file.name
+            
+            print(f"音频文件已保存到临时位置: {temp_audio_path}")
+            
+            # 🎤 VRC内音频播放：播放到虚拟麦克风让VRC接收
+            print("🎤 VRC内音频播放：准备播放到虚拟麦克风")
+            success = self._play_audio_to_virtual_microphone_for_vrc(temp_audio_path, self.audio_duration)
+            
+            if success:
+                print(f"✅ VRC内音频播放成功，预计时长{self.audio_duration:.2f}秒")
+                print("🔊 其他VRC用户现在应该能听到AI的声音")
+            else:
+                print("❌ VRC内音频播放失败")
+                print("💡 请确保已安装VB-Audio Virtual Cable并在VRC中设置麦克风")
+            
+            # 播放完成后清理临时文件
+            def cleanup_temp_file():
+                import time
+                time.sleep(self.audio_duration + 1.0)  # 等待播放完成
+                try:
+                    os.unlink(temp_audio_path)
+                    print("临时音频文件已清理")
+                except:
+                    pass
+            
+            import threading
+            threading.Thread(target=cleanup_temp_file, daemon=True).start()
+            
+        except Exception as e:
+            print(f"处理接收到的音频数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # 重置接收状态
+            self.audio_receiving = False
+            self.audio_chunks = {}
+            self.audio_total_chunks = 0
+    
+    def _play_audio_to_virtual_microphone_for_vrc(self, temp_audio_path: str, duration: float) -> bool:
+        """专门为VRC播放音频到虚拟麦克风设备"""
+        try:
+            # 优先使用sounddevice进行精确的音频设备控制
+            try:
+                import sounddevice as sd
+                import soundfile as sf
+                
+                print("🔍 检测可用音频设备...")
+                devices = sd.query_devices()
+                virtual_device_id = None
+                
+                # 寻找VB-Audio Virtual Cable设备
+                for i, device in enumerate(devices):
+                    device_name = device['name']
+                    print(f"   设备 {i:2d}: {device_name} ({'输出' if device['max_output_channels'] > 0 else '输入'})")
+                    
+                    # 寻找CABLE Input设备（这是我们要播放到的设备）
+                    if device['max_output_channels'] > 0:  # 必须是输出设备
+                        device_name_lower = device_name.lower()
+                        if any(keyword in device_name_lower for keyword in [
+                            'cable input', 'vb-audio virtual cable', 'voicemeeter input', 'vb-cable'
+                        ]):
+                            virtual_device_id = i
+                            print(f"🎤 找到虚拟麦克风设备: {device_name} (ID: {i})")
+                            break
+                
+                if virtual_device_id is not None:
+                    # 读取音频文件
+                    data, sample_rate = sf.read(temp_audio_path)
+                    
+                    print(f"📡 播放音频到虚拟麦克风设备 {virtual_device_id}")
+                    print(f"   音频参数: {len(data)} samples, {sample_rate} Hz")
+                    
+                    # 播放音频并等待完成
+                    sd.play(data, sample_rate, device=virtual_device_id)
+                    sd.wait()  # 等待播放完成
+                    
+                    print("🎤 虚拟麦克风播放完成")
+                    return True
+                else:
+                    print("⚠️  未找到合适的虚拟麦克风设备")
+                    print("💡 需要安装VB-Audio Virtual Cable: https://vb-audio.com/Cable/")
+                    return False
+                    
+            except ImportError:
+                print("❌ sounddevice未安装")
+                print("💡 请运行: pip install sounddevice soundfile")
+                return False
+            except Exception as e:
+                print(f"❌ sounddevice播放失败: {e}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 虚拟麦克风播放完全失败: {e}")
+            return False
+
+    def _play_audio_to_virtual_microphone(self, temp_audio_path: str, duration: float) -> bool:
+        """播放音频到虚拟麦克风设备 (AI端VRChat使用)"""
+        try:
+            # 方法1：尝试使用sounddevice播放到虚拟设备
+            try:
+                import sounddevice as sd
+                import soundfile as sf
+                
+                # 读取音频文件
+                data, sample_rate = sf.read(temp_audio_path)
+                
+                # 寻找虚拟麦克风设备
+                devices = sd.query_devices()
+                virtual_device_id = None
+                
+                for i, device in enumerate(devices):
+                    device_name = device['name'].lower()
+                    if any(keyword in device_name for keyword in [
+                        'cable input', 'vb-audio', 'virtual audio', 
+                        'voicemeeter input', 'microphone (vb-audio'
+                    ]):
+                        if device['max_output_channels'] > 0:
+                            virtual_device_id = i
+                            print(f"🎤 找到虚拟麦克风设备: {device['name']} (ID: {i})")
+                            break
+                
+                if virtual_device_id is not None:
+                    print(f"📡 播放音频到虚拟麦克风设备 {virtual_device_id}")
+                    sd.play(data, sample_rate, device=virtual_device_id)
+                    sd.wait()  # 等待播放完成
+                    print("🎤 虚拟麦克风播放完成")
+                    return True
+                else:
+                    print("⚠️  未找到虚拟麦克风设备")
+                    return False
+                    
+            except ImportError:
+                print("sounddevice未安装，尝试pygame方案")
+                return self._play_audio_with_pygame(temp_audio_path)
+            except Exception as e:
+                print(f"sounddevice播放失败: {e}")
+                return self._play_audio_with_pygame(temp_audio_path)
+                
+        except Exception as e:
+            print(f"虚拟麦克风播放失败: {e}")
+            return False
+    
+    def _play_audio_with_pygame(self, temp_audio_path: str) -> bool:
+        """使用pygame播放音频 (备选方案)"""
+        try:
+            import pygame
+            if not pygame.mixer.get_init():
+                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+            
+            # 等待前一个音频播放完成
+            while pygame.mixer.music.get_busy():
+                import time
+                time.sleep(0.1)
+            
+            # 播放音频
+            pygame.mixer.music.load(temp_audio_path)
+            pygame.mixer.music.play()
+            
+            print("🔊 pygame音频播放完成 (备选方案)")
+            return True
+            
+        except Exception as e:
+            print(f"pygame播放失败: {e}")
+            return False
+    
+    def _play_audio_to_system_output(self, temp_audio_path: str) -> bool:
+        """播放音频到系统默认输出 (最后备选方案)"""
+        try:
+            import subprocess
+            import platform
+            system = platform.system()
+            
+            if system == "Windows":
+                subprocess.Popen(['start', temp_audio_path], shell=True)
+            elif system == "Darwin":  # macOS
+                subprocess.Popen(['open', temp_audio_path])
+            elif system == "Linux":
+                subprocess.Popen(['xdg-open', temp_audio_path])
+            
+            print("🔊 系统默认播放器播放音频")
+            return True
+            
+        except Exception as e:
+            print(f"系统播放器失败: {e}")
+            return False

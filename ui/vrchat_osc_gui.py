@@ -632,6 +632,35 @@ class VRChatOSCGUI:
         self.volume_label = ttk.Label(volume_frame, text="1.00", width=5)
         self.volume_label.pack(side=tk.RIGHT)
         
+        # 语音参数控制按钮
+        params_button_frame = ttk.Frame(params_frame)
+        params_button_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # 预设配置下拉菜单
+        preset_frame = ttk.Frame(params_button_frame)
+        preset_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        ttk.Label(preset_frame, text="预设:").pack(side=tk.LEFT, padx=(0, 5))
+        self.voice_preset_var = tk.StringVar(value="默认")
+        self.voice_preset_combo = ttk.Combobox(preset_frame, textvariable=self.voice_preset_var, 
+                                             values=["默认", "慢速清晰", "快速自然", "低音温和", "高音活泼", "机器人", "自定义"], 
+                                             state="readonly", width=10)
+        self.voice_preset_combo.pack(side=tk.LEFT, padx=(0, 5))
+        self.voice_preset_combo.bind('<<ComboboxSelected>>', self.on_voice_preset_changed)
+        
+        # 控制按钮
+        button_frame = ttk.Frame(params_button_frame)
+        button_frame.pack(side=tk.RIGHT)
+        
+        self.preview_btn = ttk.Button(button_frame, text="试听", command=self.preview_voice, width=6)
+        self.preview_btn.pack(side=tk.LEFT, padx=(5, 2))
+        
+        self.reset_params_btn = ttk.Button(button_frame, text="重置", command=self.reset_voice_params, width=6)
+        self.reset_params_btn.pack(side=tk.LEFT, padx=(2, 2))
+        
+        self.save_params_btn = ttk.Button(button_frame, text="保存", command=self.save_voice_params, width=6)
+        self.save_params_btn.pack(side=tk.LEFT, padx=(2, 0))
+        
         # 角色管理区域 - 直接在左侧VOICEVOX区域下方
         self.setup_character_management_area(self.voicevox_control_frame)
 
@@ -2542,6 +2571,8 @@ class VRChatOSCGUI:
                     )
                     self.config.save_config()
                     self.log(f"切换VOICEVOX角色: {selected_display}")
+                    # 自动加载该角色的语音参数
+                    self.load_voice_params_for_speaker(speaker['name'], speaker['style'])
                     break
         except Exception as e:
             self.log(f"切换VOICEVOX角色失败: {e}")
@@ -2615,6 +2646,207 @@ class VRChatOSCGUI:
         self.volume_label.config(text=f"{volume_value:.2f}")
         if self.voicevox_client:
             self.voicevox_client.set_voice_parameters(volume_scale=volume_value)
+    
+    def on_voice_preset_changed(self, event=None):
+        """语音预设变化回调"""
+        preset = self.voice_preset_var.get()
+        
+        # 定义预设参数
+        presets = {
+            "默认": {"speed": 1.0, "pitch": 0.0, "intonation": 1.0, "volume": 1.0},
+            "慢速清晰": {"speed": 0.8, "pitch": -0.05, "intonation": 1.2, "volume": 1.1},
+            "快速自然": {"speed": 1.3, "pitch": 0.02, "intonation": 0.9, "volume": 0.9},
+            "低音温和": {"speed": 0.9, "pitch": -0.1, "intonation": 0.8, "volume": 1.0},
+            "高音活泼": {"speed": 1.2, "pitch": 0.08, "intonation": 1.4, "volume": 1.1},
+            "机器人": {"speed": 1.1, "pitch": -0.12, "intonation": 0.6, "volume": 0.8}
+        }
+        
+        if preset in presets and preset != "自定义":
+            params = presets[preset]
+            # 更新滑块值
+            self.speed_var.set(params["speed"])
+            self.pitch_var.set(params["pitch"])
+            self.intonation_var.set(params["intonation"])
+            self.volume_var.set(params["volume"])
+            
+            # 更新标签显示
+            self.speed_label.config(text=f"{params['speed']:.2f}")
+            self.pitch_label.config(text=f"{params['pitch']:.3f}")
+            self.intonation_label.config(text=f"{params['intonation']:.2f}")
+            self.volume_label.config(text=f"{params['volume']:.2f}")
+            
+            # 应用参数到VOICEVOX
+            if self.voicevox_client:
+                self.voicevox_client.set_voice_parameters(
+                    speed_scale=params["speed"],
+                    pitch_scale=params["pitch"],
+                    intonation_scale=params["intonation"],
+                    volume_scale=params["volume"]
+                )
+            
+            self.log(f"应用语音预设: {preset}")
+    
+    def preview_voice(self):
+        """语音试听"""
+        if not self.voicevox_client or not self.voicevox_connected:
+            messagebox.showwarning("警告", "VOICEVOX未连接")
+            return
+        
+        # 获取当前角色信息
+        current_speaker = self.voicevox_client.get_current_speaker_info()
+        
+        # 根据角色选择试听文本
+        preview_texts = {
+            "ずんだもん": "こんにちは！ずんだもんなのだ！この声はどうなのだ？",
+            "四国めたん": "こんにちは、四国めたんです。この設定はいかがですか？",
+            "春日部つむぎ": "こんにちは、春日部つむぎです。声の調子はどうでしょう？",
+            "雨晴はう": "こんにちは、雨晴はうです。パラメータの確認です。",
+            "波音リツ": "こんにちは、波音リツです。音声テストですね。"
+        }
+        
+        # 选择测试文本
+        test_text = preview_texts.get(current_speaker['name'], "こんにちは！音声パラメータのテストです。")
+        
+        def preview_in_background():
+            try:
+                success = self.voicevox_client.synthesize_and_play(test_text)
+                if success:
+                    self.log("语音试听播放成功")
+                else:
+                    self.log("语音试听播放失败")
+            except Exception as e:
+                self.log(f"语音试听错误: {e}")
+        
+        # 在后台线程中播放
+        import threading
+        threading.Thread(target=preview_in_background, daemon=True).start()
+    
+    def reset_voice_params(self):
+        """重置语音参数"""
+        # 重置为默认值
+        self.speed_var.set(1.0)
+        self.pitch_var.set(0.0)
+        self.intonation_var.set(1.0)
+        self.volume_var.set(1.0)
+        
+        # 更新标签
+        self.speed_label.config(text="1.00")
+        self.pitch_label.config(text="0.000")
+        self.intonation_label.config(text="1.00")
+        self.volume_label.config(text="1.00")
+        
+        # 重置预设选择
+        self.voice_preset_var.set("默认")
+        
+        # 应用到VOICEVOX
+        if self.voicevox_client:
+            self.voicevox_client.set_voice_parameters(
+                speed_scale=1.0,
+                pitch_scale=0.0,
+                intonation_scale=1.0,
+                volume_scale=1.0
+            )
+        
+        self.log("语音参数已重置为默认值")
+    
+    def save_voice_params(self):
+        """保存语音参数"""
+        try:
+            import json
+            import os
+            
+            # 获取当前参数
+            params = {
+                "speed": self.speed_var.get(),
+                "pitch": self.pitch_var.get(),
+                "intonation": self.intonation_var.get(),
+                "volume": self.volume_var.get()
+            }
+            
+            # 获取当前角色信息
+            if self.voicevox_client:
+                speaker_info = self.voicevox_client.get_current_speaker_info()
+                speaker_key = f"{speaker_info['name']}_{speaker_info['style']}"
+            else:
+                speaker_key = "default"
+            
+            # 保存到配置文件
+            config_dir = "data"
+            config_file = os.path.join(config_dir, "voice_params.json")
+            
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir)
+            
+            # 读取现有配置
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    all_params = json.load(f)
+            else:
+                all_params = {}
+            
+            # 保存当前角色的参数
+            all_params[speaker_key] = params
+            
+            # 写入文件
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(all_params, f, indent=2, ensure_ascii=False)
+            
+            # 更新预设为"自定义"
+            self.voice_preset_var.set("自定义")
+            
+            self.log(f"语音参数已保存 ({speaker_key})")
+            
+        except Exception as e:
+            self.log(f"保存语音参数失败: {e}")
+            messagebox.showerror("错误", f"保存失败: {e}")
+    
+    def load_voice_params_for_speaker(self, speaker_name, speaker_style):
+        """为指定角色加载保存的语音参数"""
+        try:
+            import json
+            import os
+            
+            config_file = os.path.join("data", "voice_params.json")
+            if not os.path.exists(config_file):
+                return
+            
+            # 读取配置文件
+            with open(config_file, 'r', encoding='utf-8') as f:
+                all_params = json.load(f)
+            
+            speaker_key = f"{speaker_name}_{speaker_style}"
+            
+            if speaker_key in all_params:
+                params = all_params[speaker_key]
+                
+                # 更新滑块值
+                self.speed_var.set(params["speed"])
+                self.pitch_var.set(params["pitch"])
+                self.intonation_var.set(params["intonation"])
+                self.volume_var.set(params["volume"])
+                
+                # 更新标签显示
+                self.speed_label.config(text=f"{params['speed']:.2f}")
+                self.pitch_label.config(text=f"{params['pitch']:.3f}")
+                self.intonation_label.config(text=f"{params['intonation']:.2f}")
+                self.volume_label.config(text=f"{params['volume']:.2f}")
+                
+                # 应用参数到VOICEVOX
+                if self.voicevox_client:
+                    self.voicevox_client.set_voice_parameters(
+                        speed_scale=params["speed"],
+                        pitch_scale=params["pitch"],
+                        intonation_scale=params["intonation"],
+                        volume_scale=params["volume"]
+                    )
+                
+                # 设置预设为"自定义"
+                self.voice_preset_var.set("自定义")
+                
+                self.log(f"已加载{speaker_name}-{speaker_style}的语音参数")
+            
+        except Exception as e:
+            self.log(f"加载语音参数失败: {e}")
 
     def test_voicevox(self):
         """测试VOICEVOX语音合成"""
