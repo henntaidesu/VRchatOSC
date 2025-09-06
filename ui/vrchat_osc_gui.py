@@ -354,6 +354,8 @@ class VRChatOSCGUI:
         self.speech_text.tag_config(self.get_text("voice_recording"), foreground="#4CAF50")  # 绿色  
         self.speech_text.tag_config(self.get_text("voice_sending"), foreground="#FF9800")  # 橙色
         self.speech_text.tag_config("AI回复", foreground="#9C27B0")    # 紫色
+        self.speech_text.tag_config("实时识别", foreground="#FF5722")    # 红橙色 - 实时识别
+        self.speech_text.tag_config("持续监听", foreground="#2196F3")    # 蓝色 - 持续监听
         self.speech_text.tag_config(self.get_text("timestamp"), foreground="#666666")   # 灰色
         
         # 语音识别框按钮行
@@ -1367,22 +1369,28 @@ class VRChatOSCGUI:
                 self.log("语音识别模型未加载")
                 return
             
-            def voice_callback(text):
+            def voice_callback(text, is_realtime=False):
                 if text and text.strip():
-                    # 显示在专门的语音识别输出框
-                    self.add_speech_output(text, "持续监听")
-                    # 发送到VRChat
-                    self.client.send_text_message(f"[语音] {text}")
-                    # 记录到日志
-                    self.log(f"[持续语音] {text}")
-                    
-                    # 如果启用了LLM处理，发送到LLM
-                    if self.llm_enabled and self.llm_handler and self.llm_handler.is_client_ready():
-                        request_id = self.llm_handler.submit_voice_text(text)
-                        if request_id:
-                            self.log(f"[LLM] 已提交语音到AI处理: {text[:50]}...")
-                        else:
-                            self.log("[LLM] 提交语音到AI失败")
+                    if is_realtime:
+                        # 实时识别结果 - 显示为预览
+                        self.add_speech_output(f"[实时] {text}", "实时识别")
+                        # 记录到日志
+                        self.log(f"[实时语音] {text}")
+                    else:
+                        # 完整识别结果
+                        self.add_speech_output(text, "持续监听")
+                        # 发送到VRChat
+                        self.client.send_text_message(f"[语音] {text}")
+                        # 记录到日志
+                        self.log(f"[持续语音] {text}")
+                        
+                        # 如果启用了LLM处理，发送到LLM
+                        if self.llm_enabled and self.llm_handler and self.llm_handler.is_client_ready():
+                            request_id = self.llm_handler.submit_voice_text(text)
+                            if request_id:
+                                self.log(f"[LLM] 已提交语音到AI处理: {text[:50]}...")
+                            else:
+                                self.log("[LLM] 提交语音到AI失败")
                     
                     # 调用原有的语音结果处理
                     if hasattr(self, 'on_voice_result'):

@@ -79,9 +79,13 @@ class VRChatController:
     def _on_message_received(self, msg_type: str, content):
         """处理OSC消息"""
         if msg_type == "speech_recognized" and content:
-            # 处理语音识别结果
+            # 处理完整语音识别结果
             if self.voice_result_callback:
                 self.voice_result_callback(content)
+        elif msg_type == "speech_recognized_realtime" and content:
+            # 处理实时语音识别结果
+            if self.voice_result_callback:
+                self.voice_result_callback(content, is_realtime=True)
         
         if self.status_change_callback:
             self.status_change_callback("message", (msg_type, content))
