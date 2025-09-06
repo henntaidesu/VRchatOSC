@@ -80,7 +80,7 @@ class SingleAIVRCManager:
             print(f"创建AI角色失败: {e}")
             return False
     
-    def connect_to_vrc(self, host: str = "127.0.0.1", send_port: int = 9000, receive_port: int = 9001) -> bool:
+    def connect_to_vrc(self, host: str = "127.0.0.1", send_port: int = 9000, receive_port: int = 9002) -> bool:
         """连接到VRChat
         
         Args:
@@ -102,11 +102,9 @@ class SingleAIVRCManager:
                 receive_port=receive_port
             )
             
-            # 启动OSC服务器
-            success = self.vrc_controller.start_osc_server()
-            if not success:
-                print("启动OSC服务器失败")
-                return False
+            # VRC端不需要启动OSC服务器，只需要发送命令到AI端
+            # 跳过OSC服务器启动（AI端会启动自己的OSC服务器）
+            print(f"VRC端配置完成 - 仅发送模式（向 {host} 发送命令）")
             
             self.is_vrc_connected = True
             

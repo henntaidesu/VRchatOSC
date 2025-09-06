@@ -705,14 +705,13 @@ class VRChatOSCGUI:
         self.apply_scenario_btn = ttk.Button(scenario_row, text="应用场景", command=self.apply_scenario, width=10)
         self.apply_scenario_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # 运行模式选择
+        # 运行模式选择（已禁用）
         ttk.Label(scenario_row, text="模式:", width=5).pack(side=tk.LEFT)
-        self.runtime_mode_var = tk.StringVar(value=self.config.runtime_mode)
+        self.runtime_mode_var = tk.StringVar(value="user")  # 固定为用户模式
         self.runtime_mode_combo = ttk.Combobox(scenario_row, textvariable=self.runtime_mode_var,
-                                             values=["user", "ai_remote"],
-                                             width=10, state="readonly")
+                                             values=["user"],
+                                             width=10, state="disabled")  # 禁用状态
         self.runtime_mode_combo.pack(side=tk.LEFT, padx=(0, 5))
-        self.runtime_mode_combo.bind('<<ComboboxSelected>>', self.on_runtime_mode_change)
         
         # 场景描述标签
         self.scenario_desc_label = ttk.Label(scenario_frame, text="学習疲労・勉強に疲れた時のサポート", 
@@ -1289,13 +1288,9 @@ class VRChatOSCGUI:
         self.update_ui_state(True)
         self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
         
-        # 根据运行模式显示不同的消息
-        if self.config.runtime_mode == "ai_remote":
-            self.log("AI远端模式 - 语音识别已禁用")
-            self.log("支持功能: 语音输出、文本输出、角色控制")
-        else:
-            self.log("语音识别模型加载完成！")
-            self.log(self.get_text("voice_recognition_ready"))
+        # 语音识别始终启用
+        self.log("语音识别模型加载完成！")
+        self.log(self.get_text("voice_recognition_ready"))
     
     def _connection_failed(self, error_msg: str):
         """连接失败的UI更新"""
@@ -4390,30 +4385,7 @@ class VRChatOSCGUI:
             from tkinter import messagebox
             messagebox.showerror("错误", f"应用场景失败: {e}")
     
-    def on_runtime_mode_change(self, event=None):
-        """运行模式变化处理"""
-        try:
-            mode = self.runtime_mode_var.get()
-            
-            # 保存到配置
-            self.config.set_runtime_mode(mode)
-            
-            # 根据模式设置语音识别状态
-            if mode == "ai_remote":
-                self.config.set_disable_speech_recognition(True)
-                self.log("已切换至AI远端模式 - 禁用语音识别")
-            else:  # user mode
-                self.config.set_disable_speech_recognition(False) 
-                self.log("已切换至用户模式 - 启用语音识别")
-            
-            self.config.save_config()
-            
-            # 提示用户重启程序
-            from tkinter import messagebox
-            messagebox.showinfo("模式变更", f"已切换至{'AI远端' if mode == 'ai_remote' else '用户端'}模式\n\n请重新启动程序使设置生效")
-            
-        except Exception as e:
-            self.log(f"运行模式变更错误: {e}")
+    # 模式切换功能已禁用
     
     # === 人物移动控制方法 ===
     

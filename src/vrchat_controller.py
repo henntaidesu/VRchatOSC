@@ -36,14 +36,10 @@ class VRChatController:
         # 创建OSC客户端
         self.osc_client = OSCClient(host, send_port, receive_port)
         
-        # 根据运行模式决定是否创建语音引擎
-        self.speech_recognition_enabled = not self.config.disable_speech_recognition
-        if self.speech_recognition_enabled:
-            print(f"[用户模式] 初始化语音识别引擎...")
-            self.speech_engine = SpeechEngine(device=speech_device, config=self.config)
-        else:
-            print(f"[AI远端模式] 跳过语音识别引擎初始化")
-            self.speech_engine = None
+        # 语音识别始终启用
+        self.speech_recognition_enabled = True
+        print(f"[语音识别] 初始化语音识别引擎...")
+        self.speech_engine = SpeechEngine(device=speech_device, config=self.config)
         
         # 语音识别状态
         self.is_voice_listening = False

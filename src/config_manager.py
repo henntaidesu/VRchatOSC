@@ -86,8 +86,8 @@ class ConfigManager:
                 'last_speaker_style': ''
             },
             'Runtime': {
-                'mode': 'user',  # user: 用户端(支持语音识别), ai_remote: AI远端(仅支持语音输出)
-                'disable_speech_recognition': 'false'  # 是否禁用语音识别
+                'mode': 'user',  # 固定用户模式，始终支持语音识别
+                'disable_speech_recognition': 'false'  # 语音识别始终启用
             }
         }
         
