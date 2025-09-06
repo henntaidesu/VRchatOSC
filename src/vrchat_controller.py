@@ -58,6 +58,7 @@ class VRChatController:
         # 设置OSC回调
         self.osc_client.set_parameter_callback(self._on_parameter_change)
         self.osc_client.set_message_callback(self._on_message_received)
+        self.osc_client.set_speech_recognition_callback(self._on_speech_recognition)
         
         # 打印默认设置信息
         if self.disable_fallback_mode:
@@ -77,8 +78,28 @@ class VRChatController:
     
     def _on_message_received(self, msg_type: str, content):
         """处理OSC消息"""
+        if msg_type == "speech_recognized" and content:
+            # 处理语音识别结果
+            if self.voice_result_callback:
+                self.voice_result_callback(content)
+        
         if self.status_change_callback:
             self.status_change_callback("message", (msg_type, content))
+    
+    def _on_speech_recognition(self, audio_data: np.ndarray, sample_rate: int) -> Optional[str]:
+        """处理语音识别请求"""
+        try:
+            if not self.speech_engine or not self.speech_engine.is_model_loaded():
+                print("语音识别引擎未就绪")
+                return None
+            
+            # 使用语音识别引擎识别音频
+            recognized_text = self.speech_engine.recognize_audio(audio_data, sample_rate)
+            return recognized_text
+            
+        except Exception as e:
+            print(f"语音识别处理失败: {e}")
+            return None
     
     def start_osc_server(self) -> bool:
         """启动OSC服务器"""

@@ -267,6 +267,10 @@ class OSCClient:
         """设置消息回调函数"""
         self.message_callback = callback
     
+    def set_speech_recognition_callback(self, callback: Callable):
+        """设置语音识别回调函数"""
+        self.speech_recognition_callback = callback
+    
     def get_vrc_speaking_state(self) -> bool:
         """获取VRChat说话状态"""
         return self.vrc_is_speaking
@@ -391,11 +395,11 @@ class OSCClient:
             print(f"接收音频块 {chunk_index + 1}/{self.audio_total_chunks}")
     
     def _handle_audio_end(self, address: str, *args):
-        """处理音频传输结束并播放"""
+        """处理音频传输结束并进行语音识别"""
         if not self.audio_receiving:
             return
         
-        print("音频数据接收完成，开始重组并播放")
+        print("音频数据接收完成，开始重组并进行语音识别")
         
         try:
             # 重组音频数据
@@ -411,6 +415,8 @@ class OSCClient:
             import base64
             import tempfile
             import os
+            import numpy as np
+            import soundfile as sf
             
             audio_bytes = base64.b64decode(complete_audio_data)
             
@@ -421,29 +427,33 @@ class OSCClient:
             
             print(f"音频文件已保存到临时位置: {temp_audio_path}")
             
-            # 🎤 VRC内音频播放：播放到虚拟麦克风让VRC接收
-            print("🎤 VRC内音频播放：准备播放到虚拟麦克风")
-            success = self._play_audio_to_virtual_microphone_for_vrc(temp_audio_path, self.audio_duration)
+            # 进行语音识别
+            print("开始语音识别...")
+            try:
+                # 读取音频数据进行识别
+                audio_data, sample_rate = sf.read(temp_audio_path)
+                
+                # 调用语音识别回调（如果设置了）
+                if hasattr(self, 'speech_recognition_callback') and self.speech_recognition_callback:
+                    recognized_text = self.speech_recognition_callback(audio_data, sample_rate)
+                    if recognized_text:
+                        print(f"语音识别结果: {recognized_text}")
+                        # 通知上层处理识别结果
+                        if self.message_callback:
+                            self.message_callback("speech_recognized", recognized_text)
+                    else:
+                        print("语音识别失败或未识别出内容")
+                else:
+                    print("未设置语音识别回调函数")
+            except Exception as e:
+                print(f"语音识别过程中出错: {e}")
             
-            if success:
-                print(f"✅ VRC内音频播放成功，预计时长{self.audio_duration:.2f}秒")
-                print("🔊 其他VRC用户现在应该能听到AI的声音")
-            else:
-                print("❌ VRC内音频播放失败")
-                print("💡 请确保已安装VB-Audio Virtual Cable并在VRC中设置麦克风")
-            
-            # 播放完成后清理临时文件
-            def cleanup_temp_file():
-                import time
-                time.sleep(self.audio_duration + 1.0)  # 等待播放完成
-                try:
-                    os.unlink(temp_audio_path)
-                    print("临时音频文件已清理")
-                except:
-                    pass
-            
-            import threading
-            threading.Thread(target=cleanup_temp_file, daemon=True).start()
+            # 清理临时文件
+            try:
+                os.unlink(temp_audio_path)
+                print("临时音频文件已清理")
+            except:
+                pass
             
         except Exception as e:
             print(f"处理接收到的音频数据失败: {e}")
