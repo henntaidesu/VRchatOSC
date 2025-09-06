@@ -71,10 +71,16 @@ class OSCClient:
         
         # 实时语音识别缓冲区
         self.audio_buffer = []  # 累积的音频数据
-        self.buffer_size_limit = 3  # 缓冲区大小限制（秒）
-        self.recognition_interval = 1.0  # 识别间隔（秒）
+        self.buffer_size_limit = 4  # 缓冲区大小限制（秒）
+        self.recognition_interval = 0.8  # 识别间隔（秒）- 稍微缩短提高响应
         self.last_recognition_time = 0
         self.sample_rate = 16000  # 假设采样率
+        self.min_recognition_chunks = 8  # 最少需要0.8秒数据才识别
+        self.overlap_chunks = 6  # 重叠保留0.6秒数据，避免截断
+        
+        # 语音边界检测
+        self.silence_threshold = 0.001  # 静音阈值
+        self.speech_activity_history = []  # 语音活动历史
         
         print(f"OSC客户端初始化完成")
         print(f"发送地址: {host}:{send_port}")
@@ -411,7 +417,7 @@ class OSCClient:
             self._process_audio_chunk_realtime(chunk_index, chunk_data)
     
     def _process_audio_chunk_realtime(self, chunk_index: int, chunk_data: str):
-        """实时处理音频块"""
+        """实时处理音频块，智能边界检测"""
         try:
             import base64
             import time
@@ -426,14 +432,55 @@ class OSCClient:
             # 将音频块添加到缓冲区
             self.audio_buffer.append(chunk_bytes)
             
+            # 分析当前块的语音活动
+            try:
+                # 临时解码分析语音活动
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    temp_file.write(chunk_bytes)
+                    temp_path = temp_file.name
+                
+                audio_data, _ = sf.read(temp_path)
+                rms_energy = np.sqrt(np.mean(audio_data ** 2))
+                is_speech = rms_energy > self.silence_threshold
+                
+                # 更新语音活动历史
+                self.speech_activity_history.append(is_speech)
+                if len(self.speech_activity_history) > 10:  # 保留最近10个块的历史
+                    self.speech_activity_history.pop(0)
+                
+                os.unlink(temp_path)
+                
+            except Exception:
+                is_speech = True  # 出错时默认为语音
+            
             # 检查是否应该进行识别
             current_time = time.time()
-            should_recognize = (
-                (current_time - self.last_recognition_time) >= self.recognition_interval or
-                len(self.audio_buffer) >= int(self.buffer_size_limit * 10)  # 假设每个块约0.1秒
-            )
+            buffer_duration = len(self.audio_buffer) * 0.1  # 估算时长
             
-            if should_recognize and len(self.audio_buffer) >= 5:  # 至少有0.5秒数据
+            should_recognize = False
+            reason = ""
+            
+            # 条件1：时间间隔达到
+            if (current_time - self.last_recognition_time) >= self.recognition_interval:
+                should_recognize = True
+                reason = "时间间隔"
+            
+            # 条件2：缓冲区达到大小限制
+            elif len(self.audio_buffer) >= int(self.buffer_size_limit * 10):
+                should_recognize = True
+                reason = "缓冲区满"
+            
+            # 条件3：智能边界检测 - 检测到语音停顿
+            elif (len(self.audio_buffer) >= self.min_recognition_chunks and 
+                  len(self.speech_activity_history) >= 3):
+                # 检查最近是否有语音停顿（静音）
+                recent_activity = self.speech_activity_history[-3:]
+                if not any(recent_activity):  # 最近3个块都是静音
+                    should_recognize = True
+                    reason = "语音停顿"
+            
+            # 确保有足够的音频数据
+            if should_recognize and len(self.audio_buffer) >= self.min_recognition_chunks:
                 self.last_recognition_time = current_time
                 
                 # 合并缓冲区中的音频数据
@@ -444,25 +491,32 @@ class OSCClient:
                     temp_file.write(combined_audio)
                     temp_audio_path = temp_file.name
                 
-                print(f"实时识别：处理{len(self.audio_buffer)}个音频块")
+                print(f"实时识别触发: {reason}, 处理{len(self.audio_buffer)}个音频块 ({buffer_duration:.1f}秒)")
                 
                 # 异步进行语音识别，避免阻塞音频接收
                 import threading
                 recognition_thread = threading.Thread(
                     target=self._perform_realtime_recognition,
-                    args=(temp_audio_path,),
+                    args=(temp_audio_path, reason),
                     daemon=True
                 )
                 recognition_thread.start()
                 
-                # 保留部分音频数据避免截断（重叠处理）
-                overlap_size = min(3, len(self.audio_buffer) // 2)
-                self.audio_buffer = self.audio_buffer[-overlap_size:]
+                # 智能重叠保留：保留更多数据避免截断
+                if reason == "语音停顿":
+                    # 如果是因为停顿触发，保留较少数据
+                    self.audio_buffer = self.audio_buffer[-2:]
+                else:
+                    # 其他情况保留更多重叠数据
+                    self.audio_buffer = self.audio_buffer[-self.overlap_chunks:]
+                
+                # 清理语音活动历史
+                self.speech_activity_history = self.speech_activity_history[-3:]
                 
         except Exception as e:
             print(f"实时音频处理失败: {e}")
     
-    def _perform_realtime_recognition(self, temp_audio_path: str):
+    def _perform_realtime_recognition(self, temp_audio_path: str, trigger_reason: str = ""):
         """执行实时语音识别"""
         try:
             import soundfile as sf
@@ -475,10 +529,16 @@ class OSCClient:
             if hasattr(self, 'speech_recognition_callback') and self.speech_recognition_callback:
                 recognized_text = self.speech_recognition_callback(audio_data, sample_rate)
                 if recognized_text and recognized_text.strip():
-                    print(f"实时识别结果: {recognized_text}")
+                    print(f"实时识别结果 ({trigger_reason}): {recognized_text}")
                     # 通知上层处理识别结果
                     if self.message_callback:
-                        self.message_callback("speech_recognized_realtime", recognized_text)
+                        self.message_callback("speech_recognized_realtime", {
+                            'text': recognized_text,
+                            'trigger_reason': trigger_reason,
+                            'audio_duration': len(audio_data) / sample_rate
+                        })
+                else:
+                    print(f"实时识别无结果 ({trigger_reason})")
             
             # 清理临时文件
             try:

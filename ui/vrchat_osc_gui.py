@@ -1369,13 +1369,18 @@ class VRChatOSCGUI:
                 self.log("语音识别模型未加载")
                 return
             
-            def voice_callback(text, is_realtime=False):
+            def voice_callback(text, is_realtime=False, trigger_reason="", audio_duration=0):
                 if text and text.strip():
                     if is_realtime:
-                        # 实时识别结果 - 显示为预览
-                        self.add_speech_output(f"[实时] {text}", "实时识别")
-                        # 记录到日志
-                        self.log(f"[实时语音] {text}")
+                        # 实时识别结果 - 显示为预览，带触发原因
+                        reason_text = f" ({trigger_reason})" if trigger_reason else ""
+                        duration_text = f" {audio_duration:.1f}s" if audio_duration > 0 else ""
+                        
+                        display_text = f"[实时{reason_text}{duration_text}] {text}"
+                        self.add_speech_output(display_text, "实时识别")
+                        
+                        # 记录到日志，包含更多信息
+                        self.log(f"[实时语音{reason_text}] {text}")
                     else:
                         # 完整识别结果
                         self.add_speech_output(text, "持续监听")

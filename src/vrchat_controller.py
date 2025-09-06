@@ -85,7 +85,18 @@ class VRChatController:
         elif msg_type == "speech_recognized_realtime" and content:
             # 处理实时语音识别结果
             if self.voice_result_callback:
-                self.voice_result_callback(content, is_realtime=True)
+                if isinstance(content, dict):
+                    # 新格式：包含详细信息
+                    text = content.get('text', '')
+                    trigger_reason = content.get('trigger_reason', '')
+                    audio_duration = content.get('audio_duration', 0)
+                    
+                    self.voice_result_callback(text, is_realtime=True, 
+                                            trigger_reason=trigger_reason, 
+                                            audio_duration=audio_duration)
+                else:
+                    # 兼容旧格式
+                    self.voice_result_callback(content, is_realtime=True)
         
         if self.status_change_callback:
             self.status_change_callback("message", (msg_type, content))
