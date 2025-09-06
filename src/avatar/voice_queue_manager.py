@@ -448,8 +448,21 @@ class VoiceQueueManager:
             
             print(f"✅ 成功连接到远程音频服务 ({ai_host}:9003)")
             
-            # 播放音频文件
-            success = client.play_audio_file(file_path)
+            # 预处理音频文件 - 转换为44100Hz
+            processed_file = self._preprocess_audio_for_vrc(file_path)
+            if not processed_file:
+                print("❌ 音频预处理失败")
+                return False
+            
+            # 播放预处理后的音频文件
+            success = client.play_audio_file(processed_file)
+            
+            # 清理临时文件
+            if processed_file != file_path:
+                try:
+                    os.unlink(processed_file)
+                except:
+                    pass
             
             if success:
                 print("🎤 远程音频服务播放完成")
@@ -461,6 +474,93 @@ class VoiceQueueManager:
         except Exception as e:
             print(f"远程音频服务调用失败: {e}")
             return False
+    
+    def _preprocess_audio_for_vrc(self, file_path: str, target_sample_rate: int = 44100) -> str:
+        """预处理音频文件用于VRChat传输
+        
+        Args:
+            file_path: 原始音频文件路径
+            target_sample_rate: 目标采样率，默认44100Hz
+            
+        Returns:
+            str: 处理后的音频文件路径，失败返回None
+        """
+        try:
+            import soundfile as sf
+            import numpy as np
+            import tempfile
+            
+            print(f"🔄 预处理音频文件: {os.path.basename(file_path)}")
+            
+            # 读取原始音频
+            data, original_sample_rate = sf.read(file_path)
+            duration = len(data) / original_sample_rate
+            
+            print(f"   原始: {original_sample_rate} Hz, {duration:.1f}秒, {len(data)} samples")
+            
+            # 检查是否需要转换采样率
+            if original_sample_rate == target_sample_rate:
+                print(f"   ✅ 采样率已是 {target_sample_rate} Hz，无需转换")
+                return file_path
+            
+            # 进行采样率转换
+            print(f"   🔄 采样率转换: {original_sample_rate} → {target_sample_rate} Hz")
+            
+            try:
+                # 优先使用scipy的高质量重采样
+                from scipy.signal import resample
+                new_sample_count = int(len(data) * target_sample_rate / original_sample_rate)
+                resampled_data = resample(data, new_sample_count)
+                print(f"   ✅ scipy重采样完成: {len(resampled_data)} samples")
+                
+            except ImportError:
+                # 回退到线性插值
+                print("   ⚠️ scipy未安装，使用线性插值重采样")
+                ratio = target_sample_rate / original_sample_rate
+                new_length = int(len(data) * ratio)
+                
+                # 处理单声道和立体声
+                if data.ndim == 1:
+                    # 单声道
+                    resampled_data = np.interp(
+                        np.linspace(0, len(data) - 1, new_length),
+                        np.arange(len(data)),
+                        data
+                    )
+                else:
+                    # 立体声或多声道
+                    resampled_data = np.zeros((new_length, data.shape[1]))
+                    for channel in range(data.shape[1]):
+                        resampled_data[:, channel] = np.interp(
+                            np.linspace(0, len(data) - 1, new_length),
+                            np.arange(len(data)),
+                            data[:, channel]
+                        )
+                
+                print(f"   ✅ 线性插值重采样完成: {len(resampled_data)} samples")
+            
+            # 保存到临时文件
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            sf.write(temp_path, resampled_data, target_sample_rate)
+            
+            # 验证输出文件
+            verify_data, verify_sr = sf.read(temp_path)
+            new_duration = len(verify_data) / verify_sr
+            print(f"   ✅ 输出: {verify_sr} Hz, {new_duration:.1f}秒, {len(verify_data)} samples")
+            
+            return temp_path
+            
+        except ImportError as e:
+            print(f"   ❌ 缺少音频处理库: {e}")
+            print("   💡 请安装: pip install soundfile scipy numpy")
+            return None
+        except Exception as e:
+            print(f"   ❌ 音频预处理失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     def _get_ai_host_address(self) -> str:
         """获取AI端主机地址"""

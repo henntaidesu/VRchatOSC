@@ -413,27 +413,12 @@ class RemoteAudioService:
                 print(f"🎤 使用虚拟麦克风设备 {device_id}")
                 target_sample_rate = int(target_device_info['default_samplerate']) if target_device_info else 44100
             
-            # 采样率转换
+            # 检查采样率兼容性
             if sample_rate != target_sample_rate:
-                print(f"🔄 采样率转换: {sample_rate} Hz -> {target_sample_rate} Hz")
-                try:
-                    from scipy.signal import resample
-                    # 计算新的样本数
-                    new_sample_count = int(len(data) * target_sample_rate / sample_rate)
-                    data = resample(data, new_sample_count)
-                    sample_rate = target_sample_rate
-                    print(f"✅ 采样率转换成功, 新长度: {len(data)} samples")
-                except ImportError:
-                    print("⚠️  scipy未安装，尝试使用soundfile重采样")
-                    # 使用简单的线性插值重采样
-                    ratio = target_sample_rate / sample_rate
-                    new_length = int(len(data) * ratio)
-                    data = np.interp(np.linspace(0, len(data)-1, new_length), np.arange(len(data)), data)
-                    sample_rate = target_sample_rate
-                    print(f"✅ 线性插值重采样完成, 新长度: {len(data)} samples")
-                except Exception as e:
-                    print(f"❌ 采样率转换失败: {e}")
-                    print("🔄 尝试使用原始采样率播放...")
+                print(f"⚠️  接收到的音频采样率 {sample_rate} Hz 与目标设备 {target_sample_rate} Hz 不匹配")
+                print(f"💡 建议在发送端预处理音频为 {target_sample_rate} Hz")
+                # 继续使用原始采样率播放，让设备自己处理
+                print(f"🔄 尝试使用原始采样率 {sample_rate} Hz 播放...")
             
             # 播放音频并等待完成
             try:
