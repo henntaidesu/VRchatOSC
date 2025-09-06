@@ -675,50 +675,79 @@ class VRChatOSCGUI:
         
         # 应用场景按钮
         self.apply_scenario_btn = ttk.Button(scenario_row, text="应用场景", command=self.apply_scenario, width=10)
-        self.apply_scenario_btn.pack(side=tk.LEFT, padx=(0, 5))
+        self.apply_scenario_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 运行模式选择
+        ttk.Label(scenario_row, text="模式:", width=5).pack(side=tk.LEFT)
+        self.runtime_mode_var = tk.StringVar(value=self.config.runtime_mode)
+        self.runtime_mode_combo = ttk.Combobox(scenario_row, textvariable=self.runtime_mode_var,
+                                             values=["user", "ai_remote"],
+                                             width=10, state="readonly")
+        self.runtime_mode_combo.pack(side=tk.LEFT, padx=(0, 5))
+        self.runtime_mode_combo.bind('<<ComboboxSelected>>', self.on_runtime_mode_change)
         
         # 场景描述标签
         self.scenario_desc_label = ttk.Label(scenario_frame, text="学習疲労・勉強に疲れた時のサポート", 
                                            foreground="gray", font=("", 8))
         self.scenario_desc_label.pack(fill=tk.X, pady=(5, 0))
         
-        # 人物移动控制区域
-        movement_frame = ttk.LabelFrame(parent_frame, text="人物移动控制", padding="5")
+        # AI角色移动控制区域
+        movement_frame = ttk.LabelFrame(parent_frame, text="AI角色移动控制", padding="5")
         movement_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 移动按钮网格布局
-        movement_grid = ttk.Frame(movement_frame)
-        movement_grid.pack(pady=(5, 0))
+        # 移动和镜头控制布局
+        control_container = ttk.Frame(movement_frame)
+        control_container.pack(pady=(5, 0))
+        
+        # 左侧: 移动控制
+        movement_grid = ttk.Frame(control_container)
+        movement_grid.pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(movement_grid, text="移动控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
         
         # 前进按钮 (第1行中间)
         self.move_forward_btn = ttk.Button(movement_grid, text="↑ 前进", command=self.move_forward, width=8)
-        self.move_forward_btn.grid(row=0, column=1, padx=2, pady=2)
+        self.move_forward_btn.grid(row=1, column=1, padx=2, pady=2)
         
-        # 左转、后退、右转按钮 (第2行)
-        self.turn_left_btn = ttk.Button(movement_grid, text="← 左转", command=self.turn_left, width=8)
-        self.turn_left_btn.grid(row=1, column=0, padx=2, pady=2)
-        
-        self.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", command=self.move_backward, width=8)
-        self.move_backward_btn.grid(row=1, column=1, padx=2, pady=2)
-        
-        self.turn_right_btn = ttk.Button(movement_grid, text="→ 右转", command=self.turn_right, width=8)
-        self.turn_right_btn.grid(row=1, column=2, padx=2, pady=2)
-        
-        # 左移、跳跃、右移按钮 (第3行)
+        # 左移、后退、右移按钮 (第2行)
         self.strafe_left_btn = ttk.Button(movement_grid, text="⇐ 左移", command=self.strafe_left, width=8)
         self.strafe_left_btn.grid(row=2, column=0, padx=2, pady=2)
         
-        self.jump_btn = ttk.Button(movement_grid, text="↗ 跳跃", command=self.jump, width=8)
-        self.jump_btn.grid(row=2, column=1, padx=2, pady=2)
+        self.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", command=self.move_backward, width=8)
+        self.move_backward_btn.grid(row=2, column=1, padx=2, pady=2)
         
         self.strafe_right_btn = ttk.Button(movement_grid, text="⇒ 右移", command=self.strafe_right, width=8)
         self.strafe_right_btn.grid(row=2, column=2, padx=2, pady=2)
         
-        # 移动速度控制
+        # 跳跃按钮 (第3行中间)
+        self.jump_btn = ttk.Button(movement_grid, text="↗ 跳跃", command=self.jump, width=8)
+        self.jump_btn.grid(row=3, column=1, padx=2, pady=2)
+        
+        # 右侧: 镜头控制
+        camera_grid = ttk.Frame(control_container)
+        camera_grid.pack(side=tk.LEFT)
+        
+        ttk.Label(camera_grid, text="镜头控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
+        
+        # 上看按钮 (第1行中间)
+        self.look_up_btn = ttk.Button(camera_grid, text="↑ 上看", command=self.look_up, width=8)
+        self.look_up_btn.grid(row=1, column=1, padx=2, pady=2)
+        
+        # 左转、下看、右转按钮 (第2行)
+        self.turn_left_btn = ttk.Button(camera_grid, text="← 左转", command=self.turn_left, width=8)
+        self.turn_left_btn.grid(row=2, column=0, padx=2, pady=2)
+        
+        self.look_down_btn = ttk.Button(camera_grid, text="↓ 下看", command=self.look_down, width=8)
+        self.look_down_btn.grid(row=2, column=1, padx=2, pady=2)
+        
+        self.turn_right_btn = ttk.Button(camera_grid, text="→ 右转", command=self.turn_right, width=8)
+        self.turn_right_btn.grid(row=2, column=2, padx=2, pady=2)
+        
+        # 控制速度设置
         speed_frame = ttk.Frame(movement_frame)
         speed_frame.pack(fill=tk.X, pady=(10, 0))
         
-        ttk.Label(speed_frame, text="移动速度:", width=8).pack(side=tk.LEFT)
+        ttk.Label(speed_frame, text="控制速度:", width=8).pack(side=tk.LEFT)
         self.movement_speed_var = tk.DoubleVar(value=1.0)
         self.movement_speed_scale = ttk.Scale(speed_frame, from_=0.1, to=2.0, 
                                             orient=tk.HORIZONTAL, variable=self.movement_speed_var)
@@ -1217,8 +1246,14 @@ class VRChatOSCGUI:
         
         self.update_ui_state(True)
         self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
-        self.log("语音识别模型加载完成！")
-        self.log(self.get_text("voice_recognition_ready"))
+        
+        # 根据运行模式显示不同的消息
+        if self.config.runtime_mode == "ai_remote":
+            self.log("AI远端模式 - 语音识别已禁用")
+            self.log("支持功能: 语音输出、文本输出、角色控制")
+        else:
+            self.log("语音识别模型加载完成！")
+            self.log(self.get_text("voice_recognition_ready"))
     
     def _connection_failed(self, error_msg: str):
         """连接失败的UI更新"""
@@ -4030,6 +4065,31 @@ class VRChatOSCGUI:
             from tkinter import messagebox
             messagebox.showerror("错误", f"应用场景失败: {e}")
     
+    def on_runtime_mode_change(self, event=None):
+        """运行模式变化处理"""
+        try:
+            mode = self.runtime_mode_var.get()
+            
+            # 保存到配置
+            self.config.set_runtime_mode(mode)
+            
+            # 根据模式设置语音识别状态
+            if mode == "ai_remote":
+                self.config.set_disable_speech_recognition(True)
+                self.log("已切换至AI远端模式 - 禁用语音识别")
+            else:  # user mode
+                self.config.set_disable_speech_recognition(False) 
+                self.log("已切换至用户模式 - 启用语音识别")
+            
+            self.config.save_config()
+            
+            # 提示用户重启程序
+            from tkinter import messagebox
+            messagebox.showinfo("模式变更", f"已切换至{'AI远端' if mode == 'ai_remote' else '用户端'}模式\n\n请重新启动程序使设置生效")
+            
+        except Exception as e:
+            self.log(f"运行模式变更错误: {e}")
+    
     # === 人物移动控制方法 ===
     
     def init_movement_controls(self):
@@ -4050,123 +4110,203 @@ class VRChatOSCGUI:
             self.log(f"更新速度显示错误: {e}")
     
     def move_forward(self):
-        """人物前进"""
+        """控制AI角色前进"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            # 检查AI角色VRC连接状态
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
             speed = self.movement_speed_var.get()
-            # 发送前进指令到VRChat OSC
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/MoveForward", speed)
-                self.log(f"人物前进 (速度: {speed:.1f})")
+            # 通过AI角色的VRC连接发送移动指令
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveForward", speed)
+                self.log(f"AI角色前进 (速度: {speed:.1f})")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物前进错误: {e}")
+            self.log(f"AI角色前进错误: {e}")
     
     def move_backward(self):
-        """人物后退"""
+        """控制AI角色后退"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
             speed = self.movement_speed_var.get()
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/MoveBackward", speed)
-                self.log(f"人物后退 (速度: {speed:.1f})")
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveBackward", speed)
+                self.log(f"AI角色后退 (速度: {speed:.1f})")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物后退错误: {e}")
+            self.log(f"AI角色后退错误: {e}")
     
     def strafe_left(self):
-        """人物左移"""
+        """控制AI角色左移"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
             speed = self.movement_speed_var.get()
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/MoveLeft", speed)
-                self.log(f"人物左移 (速度: {speed:.1f})")
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveLeft", speed)
+                self.log(f"AI角色左移 (速度: {speed:.1f})")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物左移错误: {e}")
+            self.log(f"AI角色左移错误: {e}")
     
     def strafe_right(self):
-        """人物右移"""
+        """控制AI角色右移"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
             speed = self.movement_speed_var.get()
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/MoveRight", speed)
-                self.log(f"人物右移 (速度: {speed:.1f})")
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveRight", speed)
+                self.log(f"AI角色右移 (速度: {speed:.1f})")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物右移错误: {e}")
+            self.log(f"AI角色右移错误: {e}")
     
     def turn_left(self):
-        """人物左转"""
+        """控制AI角色左转"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
             speed = self.movement_speed_var.get()
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/LookHorizontal", -speed)
-                self.log(f"人物左转 (速度: {speed:.1f})")
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/LookHorizontal", -speed)
+                self.log(f"AI角色左转 (速度: {speed:.1f})")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物左转错误: {e}")
+            self.log(f"AI角色左转错误: {e}")
     
     def turn_right(self):
-        """人物右转"""
+        """控制AI角色右转"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
             speed = self.movement_speed_var.get()
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/LookHorizontal", speed)
-                self.log(f"人物右转 (速度: {speed:.1f})")
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/LookHorizontal", speed)
+                self.log(f"AI角色右转 (速度: {speed:.1f})")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物右转错误: {e}")
+            self.log(f"AI角色右转错误: {e}")
     
     def jump(self):
-        """人物跳跃"""
+        """控制AI角色跳跃"""
         try:
-            if not self.is_connected:
-                self.log("请先连接VRChat")
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
                 return
             
-            if hasattr(self.client, 'osc_client'):
-                self.client.osc_client.send_message("/input/Jump", 1.0)
-                self.log("人物跳跃")
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/Jump", 1.0)
+                self.log("AI角色跳跃")
             else:
-                self.log("无法发送移动指令: OSC客户端未初始化")
+                self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
         except Exception as e:
-            self.log(f"人物跳跃错误: {e}")
+            self.log(f"AI角色跳跃错误: {e}")
+    
+    def look_up(self):
+        """控制AI角色上看"""
+        try:
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/LookVertical", speed)
+                self.log(f"AI角色上看 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送AI镜头指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"AI角色上看错误: {e}")
+    
+    def look_down(self):
+        """控制AI角色下看"""
+        try:
+            if not self.single_ai_manager:
+                self.log("请先初始化AI角色管理器")
+                return
+                
+            ai_status = self.single_ai_manager.get_status()
+            if not ai_status.get("vrc_connected", False):
+                self.log("请先连接AI角色到VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
+                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/LookVertical", -speed)
+                self.log(f"AI角色下看 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送AI镜头指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"AI角色下看错误: {e}")
     
     def run(self):
         """运行GUI"""

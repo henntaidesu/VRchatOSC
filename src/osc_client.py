@@ -204,6 +204,50 @@ class OSCClient:
             print(f"发送参数失败: {e}")
             return False
     
+    def send_message(self, address: str, value: Any):
+        """发送通用OSC消息"""
+        try:
+            self.client.send_message(address, value)
+            return True
+        except Exception as e:
+            print(f"发送OSC消息失败 {address}: {e}")
+            return False
+    
+    def send_input_command(self, command: str, value: float):
+        """发送输入控制指令到VRChat"""
+        address = f"/input/{command}"
+        return self.send_message(address, value)
+    
+    def send_movement_command(self, direction: str, speed: float):
+        """发送移动控制指令"""
+        movement_commands = {
+            "forward": "MoveForward",
+            "backward": "MoveBackward", 
+            "left": "MoveLeft",
+            "right": "MoveRight",
+            "turn_left": "LookHorizontal",
+            "turn_right": "LookHorizontal",
+            "look_up": "LookVertical",
+            "look_down": "LookVertical",
+            "jump": "Jump"
+        }
+        
+        if direction in movement_commands:
+            command = movement_commands[direction]
+            # 对于左转，使用负值
+            if direction == "turn_left":
+                speed = -speed
+            # 对于下看，使用负值
+            elif direction == "look_down":
+                speed = -speed
+            # 跳跃使用固定值
+            elif direction == "jump":
+                speed = 1.0
+            return self.send_input_command(command, speed)
+        else:
+            print(f"未知的移动方向: {direction}")
+            return False
+    
     def set_parameter_callback(self, callback: Callable):
         """设置参数变化回调函数"""
         self.parameter_callback = callback

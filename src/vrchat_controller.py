@@ -36,8 +36,14 @@ class VRChatController:
         # 创建OSC客户端
         self.osc_client = OSCClient(host, send_port, receive_port)
         
-        # 创建语音引擎，使用配置的参数
-        self.speech_engine = SpeechEngine(device=speech_device, config=self.config)
+        # 根据运行模式决定是否创建语音引擎
+        self.speech_recognition_enabled = not self.config.disable_speech_recognition
+        if self.speech_recognition_enabled:
+            print(f"[用户模式] 初始化语音识别引擎...")
+            self.speech_engine = SpeechEngine(device=speech_device, config=self.config)
+        else:
+            print(f"[AI远端模式] 跳过语音识别引擎初始化")
+            self.speech_engine = None
         
         # 语音识别状态
         self.is_voice_listening = False
@@ -105,6 +111,10 @@ class VRChatController:
         Returns:
             识别结果文本
         """
+        if not self.speech_recognition_enabled or not self.speech_engine:
+            print("语音识别功能未启用 (AI远端模式)")
+            return None
+            
         if not self.speech_engine.is_model_loaded():
             return None
         
@@ -119,6 +129,10 @@ class VRChatController:
     def start_voice_listening(self, language: str = "ja-JP"):
         """开始基于VRChat状态的语音监听"""
         if self.is_voice_listening:
+            return False
+            
+        if not self.speech_recognition_enabled or not self.speech_engine:
+            print("语音识别功能未启用 (AI远端模式)")
             return False
         
         if not self.speech_engine.is_model_loaded():
@@ -144,7 +158,7 @@ class VRChatController:
         """语音监听循环"""
         print("开始语音监听循环...")
         print(f"使用语言: {language}")
-        print(f"语音引擎就绪: {self.speech_engine.is_model_loaded()}")
+        print(f"语音引擎就绪: {self.speech_engine.is_model_loaded() if self.speech_engine else False}")
         
         consecutive_failures = 0
         max_failures = 5
@@ -206,6 +220,9 @@ class VRChatController:
                 print(f"开始录制 ({record_reason})...")
                 
                 # 使用动态语音检测录制音频
+                if not self.speech_engine:
+                    print("语音引擎不可用，停止监听")
+                    break
                 audio_data = self.speech_engine.record_audio_dynamic()
                 
                 if audio_data is None:
@@ -222,13 +239,15 @@ class VRChatController:
                     nonlocal consecutive_failures
                     try:
                         # 检测语音活动
-                        if not self.speech_engine.detect_voice_activity(audio_data):
+                        if not self.speech_engine or not self.speech_engine.detect_voice_activity(audio_data):
                             print("录制的音频中未检测到语音活动")
                             return
                         
                         print(f"开始语音识别 ({record_reason})...")
                         
                         # 识别语音
+                        if not self.speech_engine:
+                            return
                         text = self.speech_engine.recognize_audio(audio_data, 16000, language)
                         
                         if text and text.strip():
@@ -272,15 +291,18 @@ class VRChatController:
     
     def set_voice_threshold(self, threshold: float):
         """设置语音激活阈值"""
-        self.speech_engine.set_voice_threshold(threshold)
+        if self.speech_engine:
+            self.speech_engine.set_voice_threshold(threshold)
     
     def set_sentence_pause_threshold(self, threshold: float):
         """设置句子间停顿阈值"""
-        self.speech_engine.set_sentence_pause_threshold(threshold)
+        if self.speech_engine:
+            self.speech_engine.set_sentence_pause_threshold(threshold)
     
     def stop_current_recording(self):
         """停止当前录制"""
-        self.speech_engine.stop_recording()
+        if self.speech_engine:
+            self.speech_engine.stop_recording()
     
     def get_status(self) -> dict:
         """获取当前状态"""
@@ -289,7 +311,8 @@ class VRChatController:
             "vrc_speaking": self.osc_client.get_vrc_speaking_state(),
             "vrc_voice_level": self.osc_client.get_vrc_voice_level(),
             "voice_listening": self.is_voice_listening,
-            "speech_engine_ready": self.speech_engine.is_model_loaded(),
+            "speech_engine_ready": self.speech_engine.is_model_loaded() if self.speech_engine else False,
+            "speech_recognition_enabled": self.speech_recognition_enabled,
             "fallback_mode_active": self.fallback_mode_active,
             "use_fallback_mode": self.use_fallback_mode,
             "received_voice_parameters": list(self.osc_client.get_received_voice_parameters())
@@ -321,20 +344,31 @@ class VRChatController:
     def get_debug_info(self) -> dict:
         """获取详细的调试信息"""
         osc_debug = self.osc_client.get_debug_info()
-        return {
+        debug_info = {
             "osc": osc_debug,
-            "speech_engine": {
-                "model_loaded": self.speech_engine.is_model_loaded(),
-                "voice_threshold": self.speech_engine.voice_threshold,
-                "device": self.speech_engine.device
-            },
             "controller": {
                 "is_voice_listening": self.is_voice_listening,
+                "speech_recognition_enabled": self.speech_recognition_enabled,
                 "fallback_mode_active": self.fallback_mode_active,
                 "use_fallback_mode": self.use_fallback_mode,
                 "vrc_detection_timeout": self.vrc_detection_timeout
             }
         }
+        
+        if self.speech_engine:
+            debug_info["speech_engine"] = {
+                "model_loaded": self.speech_engine.is_model_loaded(),
+                "voice_threshold": self.speech_engine.voice_threshold,
+                "device": self.speech_engine.device
+            }
+        else:
+            debug_info["speech_engine"] = {
+                "model_loaded": False,
+                "voice_threshold": "N/A",
+                "device": "N/A (AI远端模式)"
+            }
+            
+        return debug_info
     
     def cleanup(self):
         """清理资源"""

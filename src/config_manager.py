@@ -77,6 +77,10 @@ class ConfigManager:
                 'connection_timeout': '10',
                 'last_character_name': '',
                 'last_character_personality': 'friendly'
+            },
+            'Runtime': {
+                'mode': 'user',  # user: 用户端(支持语音识别), ai_remote: AI远端(仅支持语音输出)
+                'disable_speech_recognition': 'false'  # 是否禁用语音识别
             }
         }
         
@@ -343,6 +347,25 @@ class ConfigManager:
     def set_ai_character_auto_connect(self, auto_connect: bool):
         """设置是否自动连接"""
         self.set('AI_CHARACTER_VRC', 'auto_connect', auto_connect)
+    
+    # 便捷方法：运行时配置
+    @property
+    def runtime_mode(self) -> str:
+        """运行模式: user=用户端, ai_remote=AI远端"""
+        return self.get('Runtime', 'mode', 'user')
+    
+    @property 
+    def disable_speech_recognition(self) -> bool:
+        """是否禁用语音识别"""
+        return self.get('Runtime', 'disable_speech_recognition', False)
+    
+    def set_runtime_mode(self, mode: str):
+        """设置运行模式"""
+        self.set('Runtime', 'mode', mode)
+    
+    def set_disable_speech_recognition(self, disable: bool):
+        """设置是否禁用语音识别"""
+        self.set('Runtime', 'disable_speech_recognition', disable)
 
 
 # 全局配置管理器实例
