@@ -25,6 +25,7 @@ from .languages.language_dict import get_text, get_language_display_names, DISPL
 from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
+from src.avatar.multi_instance_ai_manager import MultiInstanceAIManager
 
 
 class VRChatOSCGUI:
@@ -71,6 +72,9 @@ class VRChatOSCGUI:
         
         # Avatar控制器 - 统一管理虚拟人物控制
         self.avatar_controller = AvatarController(character_data_file="data/vrc_characters.json")
+        
+        # 多实例AI管理器 - 支持独立的VRChat实例
+        self.multi_ai_manager = None  # 延迟初始化，等待VOICEVOX连接
         
         # 为了兼容性保留的变量（逐步迁移到avatar_controller）
         self.character_window = None  # 角色管理窗口引用
@@ -634,26 +638,119 @@ class VRChatOSCGUI:
 
     def setup_character_management_area(self, parent_frame):
         """设置角色管理区域"""
-        # 角色管理框架
-        character_mgmt_frame = ttk.LabelFrame(parent_frame, text=self.get_text("character_management"), padding="5")
-        character_mgmt_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
-        character_mgmt_frame.columnconfigure(1, weight=1)
+        # 使用Notebook创建选项卡
+        character_notebook = ttk.Notebook(parent_frame)
+        character_notebook.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
         
+        # AI角色管理选项卡
+        ai_frame = ttk.Frame(character_notebook)
+        character_notebook.add(ai_frame, text="AI角色")
+        
+        # 位置标记选项卡
+        position_frame = ttk.Frame(character_notebook)
+        character_notebook.add(position_frame, text="位置标记")
+        
+        # 设置AI角色管理界面
+        self.setup_ai_character_interface(ai_frame)
+        
+        # 设置位置标记界面（原来的功能）
+        self.setup_position_marker_interface(position_frame)
+    
+    def setup_ai_character_interface(self, parent_frame):
+        """设置AI角色管理界面"""
+        # 当前激活的AI角色显示
+        status_frame = ttk.LabelFrame(parent_frame, text="AI角色状态", padding="5")
+        status_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.active_ai_label = ttk.Label(status_frame, text="当前激活: 无", foreground="blue")
+        self.active_ai_label.pack(side=tk.LEFT)
+        
+        # AI角色列表和控制
+        control_frame = ttk.LabelFrame(parent_frame, text="AI角色控制", padding="5")
+        control_frame.pack(fill=tk.X, pady=(5, 5))
+        control_frame.columnconfigure(1, weight=1)
+        
+        # AI角色选择
+        ttk.Label(control_frame, text="角色:", width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.ai_character_var = tk.StringVar()
+        self.ai_character_combo = ttk.Combobox(control_frame, textvariable=self.ai_character_var, 
+                                              width=15, state="readonly")
+        self.ai_character_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
+        self.ai_character_combo.bind("<<ComboboxSelected>>", lambda e: self.update_multi_ai_character_status())
+        
+        # 激活/停用按钮
+        self.activate_ai_btn = ttk.Button(control_frame, text="激活", command=self.toggle_multi_ai_character, width=8)
+        self.activate_ai_btn.grid(row=0, column=2, padx=(0, 5))
+        
+        # 删除按钮
+        self.delete_ai_btn = ttk.Button(control_frame, text="删除", command=self.delete_multi_ai_character, width=8)
+        self.delete_ai_btn.grid(row=0, column=3)
+        
+        # 创建新AI角色区域
+        create_frame = ttk.LabelFrame(parent_frame, text="创建AI角色", padding="5")
+        create_frame.pack(fill=tk.X, pady=(5, 5))
+        create_frame.columnconfigure(1, weight=1)
+        
+        # AI角色名称输入
+        ttk.Label(create_frame, text="名称:", width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.new_ai_name_entry = ttk.Entry(create_frame, width=12)
+        self.new_ai_name_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
+        
+        # 人格选择
+        ttk.Label(create_frame, text="人格:", width=6).grid(row=0, column=2, sticky=tk.W, padx=(5, 5))
+        self.ai_personality_var = tk.StringVar(value="friendly")
+        self.ai_personality_combo = ttk.Combobox(create_frame, textvariable=self.ai_personality_var,
+                                               values=["friendly", "shy", "energetic", "calm", "playful"],
+                                               width=10, state="readonly")
+        self.ai_personality_combo.grid(row=0, column=3, padx=(0, 5))
+        
+        # 创建按钮
+        self.create_ai_btn = ttk.Button(create_frame, text="创建", command=self.create_multi_ai_character, width=8)
+        self.create_ai_btn.grid(row=0, column=4)
+        
+        # AI行为控制区域
+        behavior_frame = ttk.LabelFrame(parent_frame, text="行为控制", padding="5")
+        behavior_frame.pack(fill=tk.X, pady=(5, 5))
+        
+        # 控制按钮行
+        button_row = ttk.Frame(behavior_frame)
+        button_row.pack(fill=tk.X)
+        
+        self.ai_greet_btn = ttk.Button(button_row, text="打招呼", command=self.multi_ai_greet, width=8)
+        self.ai_greet_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.ai_speak_btn = ttk.Button(button_row, text="说话", command=self.multi_ai_speak_custom, width=8)
+        self.ai_speak_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 自定义说话文本输入
+        speak_frame = ttk.Frame(behavior_frame)
+        speak_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Label(speak_frame, text="说话内容:", width=8).pack(side=tk.LEFT)
+        self.ai_speak_entry = ttk.Entry(speak_frame)
+        self.ai_speak_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.ai_speak_entry.bind("<Return>", lambda e: self.multi_ai_speak_custom())
+        
+        # 初始化AI角色列表
+        self.refresh_multi_ai_character_list()
+    
+    def setup_position_marker_interface(self, parent_frame):
+        """设置位置标记界面（原角色管理功能）"""
         # 当前位置显示行
-        pos_frame = ttk.Frame(character_mgmt_frame)
+        pos_frame = ttk.Frame(parent_frame)
         pos_frame.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Label(pos_frame, text=self.get_text("character_position") + ":", width=8).pack(side=tk.LEFT)
         self.current_pos_label = ttk.Label(pos_frame, text="(0.00, 0.00, 0.00)", foreground="blue")
         self.current_pos_label.pack(side=tk.LEFT, padx=(5, 0))
         
-        # 角色添加区域
-        add_frame = ttk.LabelFrame(character_mgmt_frame, text=self.get_text("add_character"), padding="3")
+        # 位置标记添加区域
+        add_frame = ttk.LabelFrame(parent_frame, text="添加位置标记", padding="3")
         add_frame.pack(fill=tk.X, pady=(5, 5))
         add_frame.columnconfigure(1, weight=1)
         
-        # 角色名称输入
-        ttk.Label(add_frame, text=self.get_text("character_name") + ":", width=8).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        # 标记名称输入
+        ttk.Label(add_frame, text="标记名称:", width=8).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.character_name_entry = ttk.Entry(add_frame, width=12)
         self.character_name_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
         
@@ -663,11 +760,11 @@ class VRChatOSCGUI:
         self.use_current_pos_btn.grid(row=0, column=2, padx=(0, 5))
         
         # 添加按钮
-        self.add_character_btn = ttk.Button(add_frame, text=self.get_text("add_character"), 
+        self.add_character_btn = ttk.Button(add_frame, text="添加标记", 
                                           command=self.add_character, width=8)
         self.add_character_btn.grid(row=0, column=3)
         
-        # 坐标输入行（可折叠，默认隐藏）
+        # 坐标输入行
         coord_frame = ttk.Frame(add_frame)
         coord_frame.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(5, 0))
         coord_frame.columnconfigure(1, weight=1)
@@ -686,13 +783,13 @@ class VRChatOSCGUI:
         self.character_z_entry = ttk.Entry(coord_frame, width=6)
         self.character_z_entry.grid(row=0, column=5, sticky=(tk.W, tk.E))
         
-        # 角色列表区域
-        list_frame = ttk.LabelFrame(character_mgmt_frame, text=self.get_text("distance_tracking"), padding="3")
+        # 位置标记列表区域
+        list_frame = ttk.LabelFrame(parent_frame, text="位置标记列表", padding="3")
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
         
-        # 角色距离显示列表
+        # 位置标记距离显示列表
         self.character_distance_text = tk.Text(list_frame, height=6, width=35, state='disabled', wrap=tk.WORD)
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.character_distance_text.yview)
         self.character_distance_text.configure(yscrollcommand=scrollbar.set)
@@ -700,15 +797,15 @@ class VRChatOSCGUI:
         self.character_distance_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         
-        # 删除角色按钮行
+        # 删除标记按钮行
         delete_frame = ttk.Frame(list_frame)
         delete_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
         
-        self.remove_character_btn = ttk.Button(delete_frame, text=self.get_text("remove_character"), 
+        self.remove_character_btn = ttk.Button(delete_frame, text="删除标记", 
                                              command=self.remove_character, width=12)
         self.remove_character_btn.pack(side=tk.LEFT)
         
-        ttk.Label(delete_frame, text="(" + self.get_text("character_name") + ")", foreground="gray").pack(side=tk.LEFT, padx=(10, 0))
+        ttk.Label(delete_frame, text="(输入标记名称)", foreground="gray").pack(side=tk.LEFT, padx=(10, 0))
 
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
@@ -1032,7 +1129,7 @@ class VRChatOSCGUI:
         
         # 设置Avatar控制器
         if self.client:
-            # 设置Avatar控制器的OSC客户端
+            # 设置Avatar控制器的OSC客户端（VRChatController）
             self.avatar_controller.set_osc_client(self.client)
             
             # 通过VRChatController设置位置回调
@@ -1337,6 +1434,12 @@ class VRChatOSCGUI:
                 self.stop_voice_listening()
             if self.is_connected:
                 self.disconnect_from_vrchat()
+            
+            # 清理多实例AI管理器
+            if self.multi_ai_manager:
+                print("正在清理所有VRChat实例...")
+                self.multi_ai_manager.cleanup_all()
+                
             self.root.destroy()
         except Exception as e:
             print(f"关闭程序时出错: {e}")
@@ -2251,7 +2354,13 @@ class VRChatOSCGUI:
         """更新VOICEVOX UI状态"""
         try:
             if connected:
-                # 连接成功时，初始化期数选择为1期，并加载对应角色
+                # 连接成功时，更新Avatar控制器的VOICEVOX客户端
+                self.avatar_controller.set_voicevox_client(self.voicevox_client)
+                
+                # 初始化多实例AI管理器
+                self.init_multi_ai_manager()
+                
+                # 初始化期数选择为1期，并加载对应角色
                 current_period = self.voicevox_period_var.get()
                 period_speakers = self.voicevox_client.get_speakers_by_period(current_period)
                 
@@ -2833,6 +2942,501 @@ class VRChatOSCGUI:
         except Exception as e:
             if hasattr(self, 'log'):
                 self.log(f"保存角色数据失败: {e}")
+    
+    # === AI角色控制方法 ===
+    
+    def create_ai_character(self):
+        """创建AI角色"""
+        name = self.new_ai_name_entry.get().strip()
+        personality = self.ai_personality_var.get()
+        
+        if not name:
+            messagebox.showwarning("警告", "请输入AI角色名称")
+            return
+        
+        if not self.avatar_controller:
+            messagebox.showerror("错误", "Avatar控制器未初始化")
+            return
+        
+        try:
+            success = self.avatar_controller.create_ai_character(name, personality)
+            if success:
+                messagebox.showinfo("成功", f"AI角色 '{name}' 创建成功")
+                self.new_ai_name_entry.delete(0, tk.END)
+                self.refresh_ai_character_list()
+                self.log(f"创建AI角色: {name} (人格: {personality})")
+            else:
+                messagebox.showerror("错误", f"创建AI角色失败 - 角色名称可能已存在")
+        except Exception as e:
+            messagebox.showerror("错误", f"创建AI角色时出错: {e}")
+            self.log(f"创建AI角色错误: {e}")
+    
+    def toggle_ai_character(self):
+        """激活/停用AI角色"""
+        selected_name = self.ai_character_var.get().strip()
+        
+        if not selected_name:
+            messagebox.showwarning("警告", "请选择一个AI角色")
+            return
+        
+        if not self.avatar_controller:
+            messagebox.showerror("错误", "Avatar控制器未初始化")
+            return
+        
+        try:
+            # 检查当前是否有激活的AI角色
+            current_active = self.avatar_controller.get_active_ai_character()
+            
+            if current_active == selected_name:
+                # 停用当前角色
+                success = self.avatar_controller.deactivate_ai_character()
+                if success:
+                    messagebox.showinfo("成功", f"已停用AI角色 '{selected_name}'")
+                    self.log(f"停用AI角色: {selected_name}")
+                else:
+                    messagebox.showerror("错误", "停用AI角色失败")
+            else:
+                # 激活选中的角色
+                success = self.avatar_controller.activate_ai_character(selected_name)
+                if success:
+                    messagebox.showinfo("成功", f"已激活AI角色 '{selected_name}'")
+                    self.log(f"激活AI角色: {selected_name}")
+                else:
+                    messagebox.showerror("错误", "激活AI角色失败")
+            
+            # 更新状态显示
+            self.update_ai_character_status()
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"切换AI角色状态时出错: {e}")
+            self.log(f"切换AI角色状态错误: {e}")
+    
+    def delete_ai_character(self):
+        """删除AI角色"""
+        selected_name = self.ai_character_var.get().strip()
+        
+        if not selected_name:
+            messagebox.showwarning("警告", "请选择要删除的AI角色")
+            return
+        
+        # 确认删除
+        result = messagebox.askyesno("确认删除", f"确定要删除AI角色 '{selected_name}' 吗？")
+        if not result:
+            return
+        
+        if not self.avatar_controller:
+            messagebox.showerror("错误", "Avatar控制器未初始化")
+            return
+        
+        try:
+            success = self.avatar_controller.remove_ai_character(selected_name)
+            if success:
+                messagebox.showinfo("成功", f"已删除AI角色 '{selected_name}'")
+                self.refresh_ai_character_list()
+                self.update_ai_character_status()
+                self.log(f"删除AI角色: {selected_name}")
+            else:
+                messagebox.showerror("错误", "删除AI角色失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"删除AI角色时出错: {e}")
+            self.log(f"删除AI角色错误: {e}")
+    
+    def ai_greet(self):
+        """让AI角色打招呼"""
+        if not self.avatar_controller:
+            messagebox.showerror("错误", "Avatar控制器未初始化")
+            return
+        
+        if not self.avatar_controller.has_active_ai_character():
+            messagebox.showwarning("警告", "没有激活的AI角色")
+            return
+        
+        try:
+            success = self.avatar_controller.make_ai_character_greet()
+            if success:
+                active_name = self.avatar_controller.get_active_ai_character()
+                self.log(f"AI角色 '{active_name}' 执行打招呼")
+            else:
+                messagebox.showerror("错误", "AI角色打招呼失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"AI角色打招呼时出错: {e}")
+            self.log(f"AI角色打招呼错误: {e}")
+    
+    def ai_speak_custom(self):
+        """让AI角色说自定义内容"""
+        text = self.ai_speak_entry.get().strip()
+        
+        if not text:
+            messagebox.showwarning("警告", "请输入要说的内容")
+            return
+        
+        if not self.avatar_controller:
+            messagebox.showerror("错误", "Avatar控制器未初始化")
+            return
+        
+        if not self.avatar_controller.has_active_ai_character():
+            messagebox.showwarning("警告", "没有激活的AI角色")
+            return
+        
+        try:
+            success = self.avatar_controller.make_ai_character_speak(text)
+            if success:
+                active_name = self.avatar_controller.get_active_ai_character()
+                self.log(f"AI角色 '{active_name}' 说话: {text}")
+                self.ai_speak_entry.delete(0, tk.END)  # 清空输入框
+            else:
+                messagebox.showerror("错误", "AI角色说话失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"AI角色说话时出错: {e}")
+            self.log(f"AI角色说话错误: {e}")
+    
+    def refresh_ai_character_list(self):
+        """刷新AI角色列表"""
+        if not self.avatar_controller:
+            return
+        
+        try:
+            # 获取所有AI角色名称
+            ai_characters = self.avatar_controller.get_ai_characters()
+            
+            # 更新下拉框选项
+            self.ai_character_combo['values'] = ai_characters
+            
+            # 如果当前选中的角色不在列表中，清空选择
+            current_selection = self.ai_character_var.get()
+            if current_selection not in ai_characters:
+                self.ai_character_var.set("")
+            
+            # 更新状态显示
+            self.update_ai_character_status()
+            
+        except Exception as e:
+            self.log(f"刷新AI角色列表错误: {e}")
+    
+    def update_ai_character_status(self):
+        """更新AI角色状态显示"""
+        if not hasattr(self, 'active_ai_label') or not self.avatar_controller:
+            return
+        
+        try:
+            active_name = self.avatar_controller.get_active_ai_character()
+            
+            if active_name:
+                status_text = f"当前激活: {active_name}"
+                self.active_ai_label.config(text=status_text, foreground="green")
+                
+                # 更新按钮文本
+                if hasattr(self, 'activate_ai_btn'):
+                    self.activate_ai_btn.config(text="停用")
+                    
+                # 启用行为控制按钮
+                if hasattr(self, 'ai_greet_btn'):
+                    self.ai_greet_btn.config(state="normal")
+                if hasattr(self, 'ai_speak_btn'):
+                    self.ai_speak_btn.config(state="normal")
+                if hasattr(self, 'ai_speak_entry'):
+                    self.ai_speak_entry.config(state="normal")
+            else:
+                status_text = "当前激活: 无"
+                self.active_ai_label.config(text=status_text, foreground="red")
+                
+                # 更新按钮文本
+                if hasattr(self, 'activate_ai_btn'):
+                    self.activate_ai_btn.config(text="激活")
+                    
+                # 禁用行为控制按钮
+                if hasattr(self, 'ai_greet_btn'):
+                    self.ai_greet_btn.config(state="disabled")
+                if hasattr(self, 'ai_speak_btn'):
+                    self.ai_speak_btn.config(state="disabled")
+                if hasattr(self, 'ai_speak_entry'):
+                    self.ai_speak_entry.config(state="disabled")
+                    
+        except Exception as e:
+            self.log(f"更新AI角色状态显示错误: {e}")
+    
+    def init_multi_ai_manager(self):
+        """初始化多实例AI管理器"""
+        try:
+            if not self.multi_ai_manager:
+                self.multi_ai_manager = MultiInstanceAIManager(voicevox_client=self.voicevox_client)
+                self.log("多实例AI管理器初始化成功")
+                
+                # 刷新AI角色界面
+                self.refresh_multi_ai_character_list()
+            else:
+                # 更新现有管理器的VOICEVOX客户端
+                self.multi_ai_manager.update_voicevox_client(self.voicevox_client)
+                
+        except Exception as e:
+            self.log(f"初始化多实例AI管理器失败: {e}")
+    
+    # === 多实例AI角色控制方法 ===
+    
+    def create_multi_ai_character(self):
+        """创建多实例AI角色"""
+        name = self.new_ai_name_entry.get().strip()
+        personality = self.ai_personality_var.get()
+        
+        if not name:
+            messagebox.showwarning("警告", "请输入AI角色名称")
+            return
+        
+        if not self.multi_ai_manager:
+            messagebox.showerror("错误", "多实例AI管理器未初始化，请先连接VOICEVOX")
+            return
+        
+        try:
+            # 询问是否自动启动VRC实例
+            auto_start = messagebox.askyesno(
+                "创建AI角色", 
+                f"是否为AI角色 '{name}' 自动启动VRChat实例？\n\n"
+                "选择'是'：将立即启动一个独立的VRChat客户端\n"
+                "选择'否'：稍后手动启动VRC实例"
+            )
+            
+            success = self.multi_ai_manager.create_ai_character_with_instance(
+                name=name,
+                personality=personality,
+                auto_start_vrc=auto_start
+            )
+            
+            if success:
+                messagebox.showinfo("成功", 
+                    f"AI角色 '{name}' 创建成功！\n\n"
+                    f"人格类型: {personality}\n"
+                    f"VRC实例: {'已启动' if auto_start else '待启动'}\n\n"
+                    "提示：每个AI角色都有独立的VRChat实例和OSC端口"
+                )
+                self.new_ai_name_entry.delete(0, tk.END)
+                self.refresh_multi_ai_character_list()
+                self.log(f"创建多实例AI角色: {name} (人格: {personality}, 自动启动: {auto_start})")
+                
+                if auto_start:
+                    self.log(f"正在为AI角色 '{name}' 启动VRChat实例，请稍等...")
+            else:
+                messagebox.showerror("错误", f"创建AI角色失败 - 可能是角色名称重复或VRC实例创建失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"创建AI角色时出错: {e}")
+            self.log(f"创建多实例AI角色错误: {e}")
+    
+    def toggle_multi_ai_character(self):
+        """激活/停用多实例AI角色"""
+        selected_name = self.ai_character_var.get().strip()
+        
+        if not selected_name:
+            messagebox.showwarning("警告", "请选择一个AI角色")
+            return
+        
+        if not self.multi_ai_manager:
+            messagebox.showerror("错误", "多实例AI管理器未初始化")
+            return
+        
+        try:
+            # 获取角色状态
+            status = self.multi_ai_manager.get_character_status(selected_name)
+            is_active = status.get("ai_active", False)
+            
+            if is_active:
+                # 停用角色
+                success = self.multi_ai_manager.deactivate_ai_character(selected_name)
+                if success:
+                    messagebox.showinfo("成功", f"已停用AI角色 '{selected_name}'")
+                    self.log(f"停用多实例AI角色: {selected_name}")
+                else:
+                    messagebox.showerror("错误", "停用AI角色失败")
+            else:
+                # 激活角色（会自动启动VRC实例如果需要的话）
+                success = self.multi_ai_manager.activate_ai_character(selected_name)
+                if success:
+                    messagebox.showinfo("成功", 
+                        f"已激活AI角色 '{selected_name}'\n\n"
+                        "AI角色现在可以自动说话和做表情了！\n"
+                        "如果VRChat实例还没启动，系统会自动启动它。"
+                    )
+                    self.log(f"激活多实例AI角色: {selected_name}")
+                else:
+                    messagebox.showerror("错误", "激活AI角色失败，请检查VRChat实例状态")
+            
+            # 更新状态显示
+            self.update_multi_ai_character_status()
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"切换AI角色状态时出错: {e}")
+            self.log(f"切换多实例AI角色状态错误: {e}")
+    
+    def delete_multi_ai_character(self):
+        """删除多实例AI角色"""
+        selected_name = self.ai_character_var.get().strip()
+        
+        if not selected_name:
+            messagebox.showwarning("警告", "请选择要删除的AI角色")
+            return
+        
+        # 确认删除
+        result = messagebox.askyesno(
+            "确认删除", 
+            f"确定要删除AI角色 '{selected_name}' 吗？\n\n"
+            "这将同时删除：\n"
+            "• AI角色和其行为逻辑\n"
+            "• 对应的VRChat实例配置\n"
+            "• 正在运行的VRChat客户端进程\n\n"
+            "此操作无法撤销！"
+        )
+        if not result:
+            return
+        
+        if not self.multi_ai_manager:
+            messagebox.showerror("错误", "多实例AI管理器未初始化")
+            return
+        
+        try:
+            success = self.multi_ai_manager.remove_ai_character(selected_name)
+            if success:
+                messagebox.showinfo("成功", f"已完全删除AI角色 '{selected_name}' 及其VRChat实例")
+                self.refresh_multi_ai_character_list()
+                self.update_multi_ai_character_status()
+                self.log(f"删除多实例AI角色: {selected_name}")
+            else:
+                messagebox.showerror("错误", "删除AI角色失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"删除AI角色时出错: {e}")
+            self.log(f"删除多实例AI角色错误: {e}")
+    
+    def multi_ai_greet(self):
+        """让多实例AI角色打招呼"""
+        selected_name = self.ai_character_var.get().strip()
+        
+        if not selected_name:
+            messagebox.showwarning("警告", "请选择一个AI角色")
+            return
+        
+        if not self.multi_ai_manager:
+            messagebox.showerror("错误", "多实例AI管理器未初始化")
+            return
+        
+        try:
+            success = self.multi_ai_manager.make_character_greet(selected_name)
+            if success:
+                self.log(f"多实例AI角色 '{selected_name}' 执行打招呼")
+            else:
+                messagebox.showwarning("警告", f"AI角色 '{selected_name}' 未激活或执行失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"AI角色打招呼时出错: {e}")
+            self.log(f"多实例AI角色打招呼错误: {e}")
+    
+    def multi_ai_speak_custom(self):
+        """让多实例AI角色说自定义内容"""
+        selected_name = self.ai_character_var.get().strip()
+        text = self.ai_speak_entry.get().strip()
+        
+        if not selected_name:
+            messagebox.showwarning("警告", "请选择一个AI角色")
+            return
+        
+        if not text:
+            messagebox.showwarning("警告", "请输入要说的内容")
+            return
+        
+        if not self.multi_ai_manager:
+            messagebox.showerror("错误", "多实例AI管理器未初始化")
+            return
+        
+        try:
+            success = self.multi_ai_manager.make_character_speak(selected_name, text)
+            if success:
+                self.log(f"多实例AI角色 '{selected_name}' 说话: {text}")
+                self.ai_speak_entry.delete(0, tk.END)  # 清空输入框
+            else:
+                messagebox.showwarning("警告", f"AI角色 '{selected_name}' 未激活或执行失败")
+        except Exception as e:
+            messagebox.showerror("错误", f"AI角色说话时出错: {e}")
+            self.log(f"多实例AI角色说话错误: {e}")
+    
+    def refresh_multi_ai_character_list(self):
+        """刷新多实例AI角色列表"""
+        if not self.multi_ai_manager:
+            return
+        
+        try:
+            # 获取所有AI角色名称
+            ai_characters = self.multi_ai_manager.get_ai_character_names()
+            
+            # 更新下拉框选项
+            self.ai_character_combo['values'] = ai_characters
+            
+            # 如果当前选中的角色不在列表中，清空选择
+            current_selection = self.ai_character_var.get()
+            if current_selection not in ai_characters:
+                self.ai_character_var.set("")
+            
+            # 更新状态显示
+            self.update_multi_ai_character_status()
+            
+        except Exception as e:
+            self.log(f"刷新多实例AI角色列表错误: {e}")
+    
+    def update_multi_ai_character_status(self):
+        """更新多实例AI角色状态显示"""
+        if not hasattr(self, 'active_ai_label') or not self.multi_ai_manager:
+            return
+        
+        try:
+            selected_name = self.ai_character_var.get().strip()
+            
+            if selected_name:
+                status = self.multi_ai_manager.get_character_status(selected_name)
+                is_active = status.get("ai_active", False)
+                vrc_status = status.get("vrc_instance", {}).get("status", "unknown")
+                
+                if is_active:
+                    status_text = f"当前选择: {selected_name} (已激活, VRC: {vrc_status})"
+                    self.active_ai_label.config(text=status_text, foreground="green")
+                    
+                    # 更新按钮文本
+                    if hasattr(self, 'activate_ai_btn'):
+                        self.activate_ai_btn.config(text="停用")
+                        
+                    # 启用行为控制按钮
+                    if hasattr(self, 'ai_greet_btn'):
+                        self.ai_greet_btn.config(state="normal")
+                    if hasattr(self, 'ai_speak_btn'):
+                        self.ai_speak_btn.config(state="normal")
+                    if hasattr(self, 'ai_speak_entry'):
+                        self.ai_speak_entry.config(state="normal")
+                else:
+                    status_text = f"当前选择: {selected_name} (未激活, VRC: {vrc_status})"
+                    self.active_ai_label.config(text=status_text, foreground="orange")
+                    
+                    # 更新按钮文本
+                    if hasattr(self, 'activate_ai_btn'):
+                        self.activate_ai_btn.config(text="激活")
+                        
+                    # 禁用行为控制按钮
+                    if hasattr(self, 'ai_greet_btn'):
+                        self.ai_greet_btn.config(state="disabled")
+                    if hasattr(self, 'ai_speak_btn'):
+                        self.ai_speak_btn.config(state="disabled")
+                    if hasattr(self, 'ai_speak_entry'):
+                        self.ai_speak_entry.config(state="disabled")
+            else:
+                status_text = "当前激活: 无"
+                self.active_ai_label.config(text=status_text, foreground="red")
+                
+                # 更新按钮文本
+                if hasattr(self, 'activate_ai_btn'):
+                    self.activate_ai_btn.config(text="激活")
+                    
+                # 禁用行为控制按钮
+                if hasattr(self, 'ai_greet_btn'):
+                    self.ai_greet_btn.config(state="disabled")
+                if hasattr(self, 'ai_speak_btn'):
+                    self.ai_speak_btn.config(state="disabled")
+                if hasattr(self, 'ai_speak_entry'):
+                    self.ai_speak_entry.config(state="disabled")
+                    
+        except Exception as e:
+            self.log(f"更新多实例AI角色状态显示错误: {e}")
     
     def run(self):
         """运行GUI"""

@@ -1,0 +1,35 @@
+{
+  "active_character": null,
+  "characters": {
+    "小助手": {
+      "personality": "friendly",
+      "auto_behavior_enabled": true,
+      "speech_cooldown": 5
+    },
+    "元气少女": {
+      "personality": "energetic",
+      "auto_behavior_enabled": true,
+      "speech_cooldown": 5
+    },
+    "安静同学": {
+      "personality": "shy",
+      "auto_behavior_enabled": true,
+      "speech_cooldown": 5
+    },
+    "冷静分析师": {
+      "personality": "calm",
+      "auto_behavior_enabled": true,
+      "speech_cooldown": 5
+    },
+    "mmm": {
+      "personality": "friendly",
+      "auto_behavior_enabled": true,
+      "speech_cooldown": 5
+    },
+    "dsa": {
+      "personality": "friendly",
+      "auto_behavior_enabled": true,
+      "speech_cooldown": 5
+    }
+  }
+}

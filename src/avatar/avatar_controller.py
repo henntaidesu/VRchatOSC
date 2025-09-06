@@ -8,23 +8,28 @@ from typing import Optional, Callable
 from .expression_mapper import ExpressionMapper
 from .character_manager import CharacterManager
 from .avatar_parameters import AvatarParameters
+from .ai_character_manager import AICharacterManager
 
 
 class AvatarController:
     """Avatar控制器主类"""
     
-    def __init__(self, osc_client=None, character_data_file: str = "data/vrc_characters.json"):
+    def __init__(self, osc_client=None, character_data_file: str = "data/vrc_characters.json", 
+                 voicevox_client=None):
         """初始化Avatar控制器
         
         Args:
             osc_client: OSC客户端实例
             character_data_file: 角色数据文件路径
+            voicevox_client: VOICEVOX客户端实例
         """
         self.osc_client = osc_client
+        self.voicevox_client = voicevox_client
         
         # 初始化子模块
         self.expression_mapper = ExpressionMapper(osc_client)
         self.character_manager = CharacterManager(character_data_file)
+        self.ai_character_manager = AICharacterManager(self, voicevox_client)
         
         # 状态跟踪
         self.is_connected = False
@@ -36,6 +41,16 @@ class AvatarController:
         self.osc_client = osc_client
         self.expression_mapper.osc_client = osc_client
         self.is_connected = osc_client is not None
+        
+        # 更新AI角色管理器的控制器引用
+        self.ai_character_manager.update_controllers(avatar_controller=self)
+    
+    def set_voicevox_client(self, voicevox_client):
+        """设置VOICEVOX客户端"""
+        self.voicevox_client = voicevox_client
+        
+        # 更新AI角色管理器的VOICEVOX客户端引用
+        self.ai_character_manager.update_controllers(voicevox_client=voicevox_client)
     
     # === 表情控制接口 ===
     
@@ -231,3 +246,68 @@ class AvatarController:
         """
         emotion = self.analyze_text_emotion(text)
         return self.start_speaking(text, emotion, voice_level)
+    
+    # === AI角色控制接口 ===
+    
+    def create_ai_character(self, name: str, personality_type: str = "friendly") -> bool:
+        """创建AI角色
+        
+        Args:
+            name: AI角色名称
+            personality_type: 人格类型 ('friendly', 'shy', 'energetic', 'calm', 'playful')
+            
+        Returns:
+            bool: 是否成功创建
+        """
+        from .ai_character import AIPersonality
+        try:
+            personality = AIPersonality(personality_type)
+            return self.ai_character_manager.create_ai_character(name, personality)
+        except ValueError:
+            print(f"无效的人格类型: {personality_type}")
+            return False
+    
+    def activate_ai_character(self, name: str) -> bool:
+        """激活AI角色"""
+        return self.ai_character_manager.activate_character(name)
+    
+    def deactivate_ai_character(self) -> bool:
+        """停用当前AI角色"""
+        return self.ai_character_manager.deactivate_current_character()
+    
+    def remove_ai_character(self, name: str) -> bool:
+        """删除AI角色"""
+        return self.ai_character_manager.remove_ai_character(name)
+    
+    def get_ai_characters(self) -> list:
+        """获取所有AI角色名称"""
+        return self.ai_character_manager.list_character_names()
+    
+    def get_active_ai_character(self) -> str:
+        """获取当前激活的AI角色名称"""
+        return self.ai_character_manager.active_character or ""
+    
+    def make_ai_character_speak(self, text: str, emotion: str = "neutral") -> bool:
+        """让AI角色说话"""
+        return self.ai_character_manager.make_active_character_speak(text, emotion)
+    
+    def make_ai_character_greet(self, target_name: str = "") -> bool:
+        """让AI角色打招呼"""
+        return self.ai_character_manager.make_active_character_greet(target_name)
+    
+    def set_ai_character_personality(self, personality_type: str) -> bool:
+        """设置AI角色人格"""
+        from .ai_character import AIPersonality
+        try:
+            personality = AIPersonality(personality_type)
+            return self.ai_character_manager.set_active_character_personality(personality)
+        except ValueError:
+            return False
+    
+    def get_ai_character_status(self) -> dict:
+        """获取所有AI角色状态"""
+        return self.ai_character_manager.get_all_character_status()
+    
+    def has_active_ai_character(self) -> bool:
+        """检查是否有激活的AI角色"""
+        return self.ai_character_manager.has_active_character()
