@@ -189,6 +189,7 @@ class VRChatController:
         # VRChat检测监控
         vrc_detection_start_time = time.time()
         last_vrc_activity_time = time.time()
+        waiting_message_shown = False  # 用于控制等待消息只显示一次
         
         while self.is_voice_listening:
             try:
@@ -226,8 +227,9 @@ class VRChatController:
                         record_reason = "VRChat语音状态"
                     elif self.disable_fallback_mode and not received_params:
                         # 禁用备用模式且无VRChat参数时，显示等待信息
-                        if speech_chunks == 0:  # 只在开始时显示一次
+                        if not waiting_message_shown:  # 只在开始时显示一次
                             print("等待VRChat语音参数... (备用模式已禁用)")
+                            waiting_message_shown = True
                 
                 if not should_record:
                     time.sleep(0.1)
