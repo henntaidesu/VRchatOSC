@@ -657,58 +657,120 @@ class VRChatOSCGUI:
         self.setup_position_marker_interface(position_frame)
     
     def setup_ai_character_interface(self, parent_frame):
-        """设置AI角色管理界面"""
-        # 当前激活的AI角色显示
-        status_frame = ttk.LabelFrame(parent_frame, text="AI角色状态", padding="5")
-        status_frame.pack(fill=tk.X, pady=(0, 5))
+        """设置VRC连接和人物控制界面"""
+        # AI场景选择区域
+        scenario_frame = ttk.LabelFrame(parent_frame, text="AI场景选择", padding="5")
+        scenario_frame.pack(fill=tk.X, pady=(0, 5))
         
-        self.active_ai_label = ttk.Label(status_frame, text="当前激活: 无", foreground="blue")
-        self.active_ai_label.pack(side=tk.LEFT)
+        scenario_row = ttk.Frame(scenario_frame)
+        scenario_row.pack(fill=tk.X)
         
-        # AI角色控制
-        control_frame = ttk.LabelFrame(parent_frame, text="AI角色控制", padding="5")
-        control_frame.pack(fill=tk.X, pady=(5, 5))
+        ttk.Label(scenario_row, text="当前场景:", width=8).pack(side=tk.LEFT)
+        self.scenario_var = tk.StringVar(value="学習疲労")
+        self.scenario_combo = ttk.Combobox(scenario_row, textvariable=self.scenario_var,
+                                         values=["学習疲労", "研究ストレス", "就職活動不安"],
+                                         width=15, state="readonly")
+        self.scenario_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.scenario_combo.bind('<<ComboboxSelected>>', self.on_scenario_change)
         
-        # 激活/停用按钮
-        self.activate_ai_btn = ttk.Button(control_frame, text="激活", command=self.toggle_ai_character, width=8)
-        self.activate_ai_btn.pack(side=tk.LEFT, padx=(0, 5))
+        # 应用场景按钮
+        self.apply_scenario_btn = ttk.Button(scenario_row, text="应用场景", command=self.apply_scenario, width=10)
+        self.apply_scenario_btn.pack(side=tk.LEFT, padx=(0, 5))
         
-        # 创建新AI角色区域
-        create_frame = ttk.LabelFrame(parent_frame, text="创建AI角色", padding="5")
-        create_frame.pack(fill=tk.X, pady=(5, 5))
-        create_frame.columnconfigure(1, weight=1)
+        # 场景描述标签
+        self.scenario_desc_label = ttk.Label(scenario_frame, text="学習疲労・勉強に疲れた時のサポート", 
+                                           foreground="gray", font=("", 8))
+        self.scenario_desc_label.pack(fill=tk.X, pady=(5, 0))
         
-        # AI角色名称输入
-        ttk.Label(create_frame, text="名称:", width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.new_ai_name_entry = ttk.Entry(create_frame, width=12)
-        self.new_ai_name_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
+        # 人物移动控制区域
+        movement_frame = ttk.LabelFrame(parent_frame, text="人物移动控制", padding="5")
+        movement_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 人格选择
-        ttk.Label(create_frame, text="人格:", width=6).grid(row=0, column=2, sticky=tk.W, padx=(5, 5))
-        self.ai_personality_var = tk.StringVar(value="friendly")
-        self.ai_personality_combo = ttk.Combobox(create_frame, textvariable=self.ai_personality_var,
-                                               values=["friendly", "shy", "energetic", "calm", "playful"],
-                                               width=10, state="readonly")
-        self.ai_personality_combo.grid(row=0, column=3, padx=(0, 5))
+        # 移动按钮网格布局
+        movement_grid = ttk.Frame(movement_frame)
+        movement_grid.pack(pady=(5, 0))
         
-        # 创建按钮
-        self.create_ai_btn = ttk.Button(create_frame, text="创建", command=self.create_ai_character, width=8)
-        self.create_ai_btn.grid(row=0, column=4)
+        # 前进按钮 (第1行中间)
+        self.move_forward_btn = ttk.Button(movement_grid, text="↑ 前进", command=self.move_forward, width=8)
+        self.move_forward_btn.grid(row=0, column=1, padx=2, pady=2)
         
-        # VRC OSC连接控制区域
-        vrc_control_frame = ttk.LabelFrame(parent_frame, text="VRC OSC连接", padding="5")
+        # 左转、后退、右转按钮 (第2行)
+        self.turn_left_btn = ttk.Button(movement_grid, text="← 左转", command=self.turn_left, width=8)
+        self.turn_left_btn.grid(row=1, column=0, padx=2, pady=2)
+        
+        self.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", command=self.move_backward, width=8)
+        self.move_backward_btn.grid(row=1, column=1, padx=2, pady=2)
+        
+        self.turn_right_btn = ttk.Button(movement_grid, text="→ 右转", command=self.turn_right, width=8)
+        self.turn_right_btn.grid(row=1, column=2, padx=2, pady=2)
+        
+        # 左移、跳跃、右移按钮 (第3行)
+        self.strafe_left_btn = ttk.Button(movement_grid, text="⇐ 左移", command=self.strafe_left, width=8)
+        self.strafe_left_btn.grid(row=2, column=0, padx=2, pady=2)
+        
+        self.jump_btn = ttk.Button(movement_grid, text="↗ 跳跃", command=self.jump, width=8)
+        self.jump_btn.grid(row=2, column=1, padx=2, pady=2)
+        
+        self.strafe_right_btn = ttk.Button(movement_grid, text="⇒ 右移", command=self.strafe_right, width=8)
+        self.strafe_right_btn.grid(row=2, column=2, padx=2, pady=2)
+        
+        # 移动速度控制
+        speed_frame = ttk.Frame(movement_frame)
+        speed_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Label(speed_frame, text="移动速度:", width=8).pack(side=tk.LEFT)
+        self.movement_speed_var = tk.DoubleVar(value=1.0)
+        self.movement_speed_scale = ttk.Scale(speed_frame, from_=0.1, to=2.0, 
+                                            orient=tk.HORIZONTAL, variable=self.movement_speed_var)
+        self.movement_speed_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        
+        self.speed_label = ttk.Label(speed_frame, text="1.0")
+        self.speed_label.pack(side=tk.LEFT)
+        
+        # 更新速度显示
+        self.movement_speed_var.trace('w', self.update_speed_label)
+        
+        # VRC OSC连接控制区域 (优化排版)
+        vrc_control_frame = ttk.LabelFrame(parent_frame, text="VRC连接配置", padding="5")
         vrc_control_frame.pack(fill=tk.X, pady=(5, 5))
         
+        # 使用grid布局优化空间利用
+        config_grid = ttk.Frame(vrc_control_frame)
+        config_grid.pack(fill=tk.X, pady=(0, 5))
+        config_grid.columnconfigure(1, weight=1)
+        config_grid.columnconfigure(3, weight=1)
+        
+        # 第1行: 主机地址和端口
+        ttk.Label(config_grid, text="主机:", width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 2))
+        self.ai_host_entry = ttk.Entry(config_grid, width=12)
+        self.ai_host_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
+        
+        ttk.Label(config_grid, text="发送:", width=6).grid(row=0, column=2, sticky=tk.W)
+        self.ai_send_port_entry = ttk.Entry(config_grid, width=6)
+        self.ai_send_port_entry.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=(0, 5))
+        
+        ttk.Label(config_grid, text="接收:", width=6).grid(row=0, column=4, sticky=tk.W)
+        self.ai_receive_port_entry = ttk.Entry(config_grid, width=6)
+        self.ai_receive_port_entry.grid(row=0, column=5, sticky=(tk.W, tk.E))
+        
+        # 第2行: 配置控制按钮
+        button_frame = ttk.Frame(vrc_control_frame)
+        button_frame.pack(fill=tk.X, pady=(5, 5))
+        
+        # 保存配置按钮
+        self.save_ai_config_btn = ttk.Button(button_frame, text="保存配置", command=self.save_ai_vrc_config, width=8)
+        self.save_ai_config_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
         # OSC连接状态和控制
-        osc_status_row = ttk.Frame(vrc_control_frame)
-        osc_status_row.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(button_frame, text="连接状态:", width=8).pack(side=tk.LEFT, padx=(0, 2))
+        self.ai_osc_status_label = ttk.Label(button_frame, text="未连接", foreground="red", width=6)
+        self.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 5))
         
-        ttk.Label(osc_status_row, text="OSC状态:", width=8).pack(side=tk.LEFT)
-        self.ai_osc_status_label = ttk.Label(osc_status_row, text="未连接", foreground="red")
-        self.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 10))
+        self.ai_osc_connect_btn = ttk.Button(button_frame, text="连接VRC", command=self.toggle_ai_osc_connection, width=8)
+        self.ai_osc_connect_btn.pack(side=tk.LEFT)
         
-        self.ai_osc_connect_btn = ttk.Button(osc_status_row, text="连接VRC", command=self.toggle_ai_osc_connection, width=8)
-        self.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 5))
+        # 从配置文件加载设置
+        self.load_ai_vrc_config_from_file()
         
         # VRC消息发送区域
         vrc_message_frame = ttk.LabelFrame(parent_frame, text="VRC消息控制", padding="5")
@@ -748,42 +810,9 @@ class VRChatOSCGUI:
         self.ai_voicevox_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         self.ai_voicevox_text_entry.bind("<Return>", lambda e: self.ai_generate_and_send_voice())
         
-        # AI行为控制区域
-        behavior_frame = ttk.LabelFrame(parent_frame, text="AI行为控制", padding="5")
-        behavior_frame.pack(fill=tk.X, pady=(5, 5))
-        
-        # 控制按钮行
-        button_row = ttk.Frame(behavior_frame)
-        button_row.pack(fill=tk.X)
-        
-        self.ai_greet_btn = ttk.Button(button_row, text="AI打招呼", command=self.ai_greet, width=10)
-        self.ai_greet_btn.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.ai_speak_btn = ttk.Button(button_row, text="AI说话", command=self.ai_speak_custom, width=10)
-        self.ai_speak_btn.pack(side=tk.LEFT, padx=(0, 5))
-        
-        # 自定义说话文本输入
-        speak_frame = ttk.Frame(behavior_frame)
-        speak_frame.pack(fill=tk.X, pady=(5, 0))
-        
-        ttk.Label(speak_frame, text="AI说话内容:", width=10).pack(side=tk.LEFT)
-        self.ai_speak_entry = ttk.Entry(speak_frame)
-        self.ai_speak_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.ai_speak_entry.bind("<Return>", lambda e: self.ai_speak_custom())
-        
-        # 语音队列状态显示
-        queue_frame = ttk.LabelFrame(parent_frame, text="语音队列状态", padding="5")
-        queue_frame.pack(fill=tk.X, pady=(5, 0))
-        
-        self.ai_voice_queue_text = tk.Text(queue_frame, height=4, width=40, state='disabled', wrap=tk.WORD)
-        queue_scrollbar = ttk.Scrollbar(queue_frame, orient="vertical", command=self.ai_voice_queue_text.yview)
-        self.ai_voice_queue_text.configure(yscrollcommand=queue_scrollbar.set)
-        
-        self.ai_voice_queue_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        queue_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # 初始化AI角色界面状态
-        self.update_ai_character_status()
+        # 初始化状态
+        self.init_movement_controls()
+        self.init_scenario_system()
     
     def setup_position_marker_interface(self, parent_frame):
         """设置位置标记界面（原角色管理功能）"""
@@ -3528,17 +3557,52 @@ class VRChatOSCGUI:
             if status["vrc_connected"]:
                 # 断开连接
                 self.single_ai_manager.disconnect_from_vrc()
-                messagebox.showinfo("成功", "已断开VRChat连接")
+                messagebox.showinfo("成功", "已断开AI角色VRChat连接")
             else:
-                # 连接VRChat
-                success = self.single_ai_manager.connect_to_vrc()
+                # 从界面获取连接参数
+                host = self.ai_host_entry.get().strip()
+                try:
+                    send_port = int(self.ai_send_port_entry.get().strip())
+                    receive_port = int(self.ai_receive_port_entry.get().strip())
+                except ValueError:
+                    messagebox.showerror("错误", "请输入有效的端口号")
+                    return
+                
+                # 参数验证
+                if not host:
+                    messagebox.showwarning("警告", "请输入AI主机地址")
+                    return
+                
+                if send_port == receive_port:
+                    messagebox.showwarning("警告", "发送端口和接收端口不能相同")
+                    return
+                
+                # 使用配置的参数连接VRChat
+                success = self.single_ai_manager.connect_to_vrc(
+                    host=host,
+                    send_port=send_port,
+                    receive_port=receive_port
+                )
+                
                 if success:
-                    messagebox.showinfo("成功", "VRChat连接成功！\n\n现在可以发送文本和语音消息了")
+                    messagebox.showinfo("成功", 
+                        f"AI角色VRChat连接成功！\n\n"
+                        f"连接地址: {host}:{send_port}/{receive_port}\n"
+                        f"现在可以发送文本和语音消息了"
+                    )
+                    self.log(f"AI角色VRC连接成功: {host}:{send_port}/{receive_port}")
                 else:
-                    messagebox.showerror("错误", "VRChat连接失败，请检查VRChat是否开启OSC")
+                    messagebox.showerror("错误", 
+                        f"AI角色VRChat连接失败\n\n"
+                        f"请检查：\n"
+                        f"1. AI主机地址 {host} 是否正确\n"
+                        f"2. AI主机上的VRChat是否开启OSC\n"
+                        f"3. 端口 {send_port}/{receive_port} 是否被占用\n"
+                        f"4. 网络连接是否正常"
+                    )
                     
         except Exception as e:
-            messagebox.showerror("错误", f"切换OSC连接时出错: {e}")
+            messagebox.showerror("错误", f"切换AI角色OSC连接时出错: {e}")
             self.log(f"切换AI角色OSC连接错误: {e}")
     
     def toggle_ai_character(self):
@@ -3810,6 +3874,299 @@ class VRChatOSCGUI:
     def refresh_ai_character_list(self):
         """刷新AI角色列表（兼容方法）"""
         self.update_ai_character_status()
+    
+    # === AI角色VRC配置方法 ===
+    
+    def load_ai_vrc_config_from_file(self):
+        """从配置文件加载AI VRC连接设置"""
+        try:
+            # 从配置管理器获取设置
+            host = config_manager.ai_character_host
+            send_port = config_manager.ai_character_send_port
+            receive_port = config_manager.ai_character_receive_port
+            
+            # 更新界面
+            self.ai_host_entry.delete(0, tk.END)
+            self.ai_host_entry.insert(0, str(host))
+            
+            self.ai_send_port_entry.delete(0, tk.END)
+            self.ai_send_port_entry.insert(0, str(send_port))
+            
+            self.ai_receive_port_entry.delete(0, tk.END)
+            self.ai_receive_port_entry.insert(0, str(receive_port))
+            
+            self.log(f"AI VRC配置已加载: {host}:{send_port}/{receive_port}")
+            
+        except Exception as e:
+            self.log(f"加载AI VRC配置失败: {e}")
+    
+    def save_ai_vrc_config(self):
+        """保存AI VRC连接配置到文件"""
+        try:
+            host = self.ai_host_entry.get().strip()
+            send_port = int(self.ai_send_port_entry.get().strip())
+            receive_port = int(self.ai_receive_port_entry.get().strip())
+            
+            # 基本验证
+            if not host:
+                messagebox.showwarning("警告", "请输入有效的主机地址")
+                return
+            
+            if not (1024 <= send_port <= 65535) or not (1024 <= receive_port <= 65535):
+                messagebox.showwarning("警告", "端口号必须在1024-65535范围内")
+                return
+            
+            if send_port == receive_port:
+                messagebox.showwarning("警告", "发送端口和接收端口不能相同")
+                return
+            
+            # 保存到配置文件
+            config_manager.set_ai_character_host(host)
+            config_manager.set_ai_character_ports(send_port, receive_port)
+            config_manager.save_config()
+            
+            messagebox.showinfo("成功", "AI VRC连接配置已保存到conf.ini文件")
+            self.log(f"AI VRC配置已保存: {host}:{send_port}/{receive_port}")
+            
+        except ValueError:
+            messagebox.showerror("错误", "端口必须是有效的数字")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存配置时出错: {e}")
+            self.log(f"保存AI VRC配置错误: {e}")
+    
+    
+    # === AI场景系统方法 ===
+    
+    def init_scenario_system(self):
+        """初始化AI场景系统"""
+        try:
+            self.scenario_data = {}
+            self.current_scenario = "学習疲労"
+            self.load_scenario_data()
+            self.update_scenario_description()
+            self.log("AI场景系统初始化完成")
+        except Exception as e:
+            self.log(f"初始化AI场景系统错误: {e}")
+    
+    def load_scenario_data(self):
+        """加载场景数据"""
+        try:
+            scenario_file = os.path.join("config", "scenario_prompts.json")
+            if os.path.exists(scenario_file):
+                with open(scenario_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.scenario_data = data.get("scenarios", {})
+                    self.log(f"已加载 {len(self.scenario_data)} 个场景")
+            else:
+                self.log(f"场景配置文件不存在: {scenario_file}")
+                # 创建默认场景数据
+                self.create_default_scenario_data()
+        except Exception as e:
+            self.log(f"加载场景数据错误: {e}")
+            self.create_default_scenario_data()
+    
+    def create_default_scenario_data(self):
+        """创建默认场景数据"""
+        self.scenario_data = {
+            "学習疲労": {
+                "name": "学習疲労",
+                "description": "学習疲労・勉強に疲れた時のサポート",
+                "system_prompt": "あなたは優しく共感的なAIカウンセラーです。勉強疲れや学習ストレスを感じているユーザーに、温かい励ましと実用的なアドバイスを提供してください。"
+            },
+            "研究ストレス": {
+                "name": "研究ストレス",
+                "description": "研究活動のプレッシャーやストレス軽減",
+                "system_prompt": "あなたは経験豊富な研究メンターとして、研究活動に伴うストレスや不安を抱えるユーザーをサポートしてください。"
+            },
+            "就職活動不安": {
+                "name": "就職活動不安",
+                "description": "就職活動の不安や心配事への対応",
+                "system_prompt": "あなたは就職活動をサポートする優秀なキャリアカウンセラーです。就活の不安や悩みを抱えるユーザーに実践的なアドバイスと心理的サポートを提供してください。"
+            }
+        }
+    
+    def on_scenario_change(self, event=None):
+        """场景选择发生变化时的处理"""
+        try:
+            selected_scenario = self.scenario_var.get()
+            self.current_scenario = selected_scenario
+            self.update_scenario_description()
+            self.log(f"已选择场景: {selected_scenario}")
+        except Exception as e:
+            self.log(f"场景变更错误: {e}")
+    
+    def update_scenario_description(self):
+        """更新场景描述文本"""
+        try:
+            if hasattr(self, 'scenario_desc_label') and self.current_scenario in self.scenario_data:
+                description = self.scenario_data[self.current_scenario].get("description", "")
+                self.scenario_desc_label.config(text=description)
+        except Exception as e:
+            self.log(f"更新场景描述错误: {e}")
+    
+    def apply_scenario(self):
+        """应用选中的场景设置"""
+        try:
+            if self.current_scenario not in self.scenario_data:
+                self.log(f"未找到场景: {self.current_scenario}")
+                return
+            
+            scenario_info = self.scenario_data[self.current_scenario]
+            system_prompt = scenario_info.get("system_prompt", "")
+            
+            # 更新配置管理器中的系统提示词
+            from src.config_manager import config_manager
+            config_manager.set('LLM', 'system_prompt', system_prompt)
+            config_manager.save_config()
+            
+            self.log(f"已应用场景: {self.current_scenario}")
+            
+            # 显示成功消息
+            from tkinter import messagebox
+            messagebox.showinfo("成功", f"已成功应用场景: {self.current_scenario}\n\n系统提示词已更新并保存到配置文件")
+            
+        except Exception as e:
+            self.log(f"应用场景错误: {e}")
+            from tkinter import messagebox
+            messagebox.showerror("错误", f"应用场景失败: {e}")
+    
+    # === 人物移动控制方法 ===
+    
+    def init_movement_controls(self):
+        """初始化人物移动控制"""
+        try:
+            # 初始化移动状态
+            self.movement_active = False
+            self.log("人物移动控制初始化完成")
+        except Exception as e:
+            self.log(f"初始化人物移动控制错误: {e}")
+    
+    def update_speed_label(self, *args):
+        """更新速度显示标签"""
+        try:
+            speed = self.movement_speed_var.get()
+            self.speed_label.config(text=f"{speed:.1f}")
+        except Exception as e:
+            self.log(f"更新速度显示错误: {e}")
+    
+    def move_forward(self):
+        """人物前进"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            # 发送前进指令到VRChat OSC
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/MoveForward", speed)
+                self.log(f"人物前进 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物前进错误: {e}")
+    
+    def move_backward(self):
+        """人物后退"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/MoveBackward", speed)
+                self.log(f"人物后退 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物后退错误: {e}")
+    
+    def strafe_left(self):
+        """人物左移"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/MoveLeft", speed)
+                self.log(f"人物左移 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物左移错误: {e}")
+    
+    def strafe_right(self):
+        """人物右移"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/MoveRight", speed)
+                self.log(f"人物右移 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物右移错误: {e}")
+    
+    def turn_left(self):
+        """人物左转"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/LookHorizontal", -speed)
+                self.log(f"人物左转 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物左转错误: {e}")
+    
+    def turn_right(self):
+        """人物右转"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            speed = self.movement_speed_var.get()
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/LookHorizontal", speed)
+                self.log(f"人物右转 (速度: {speed:.1f})")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物右转错误: {e}")
+    
+    def jump(self):
+        """人物跳跃"""
+        try:
+            if not self.is_connected:
+                self.log("请先连接VRChat")
+                return
+            
+            if hasattr(self.client, 'osc_client'):
+                self.client.osc_client.send_message("/input/Jump", 1.0)
+                self.log("人物跳跃")
+            else:
+                self.log("无法发送移动指令: OSC客户端未初始化")
+                
+        except Exception as e:
+            self.log(f"人物跳跃错误: {e}")
     
     def run(self):
         """运行GUI"""

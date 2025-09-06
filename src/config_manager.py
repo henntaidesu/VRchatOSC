@@ -51,7 +51,7 @@ class ConfigManager:
             'Interface': {
                 'ui_language': 'zh',
                 'window_width': '800',
-                'window_height': '900'
+                'window_height': '1000'
             },
             'Advanced': {
                 'energy_drop_ratio': '0.3',
@@ -68,6 +68,15 @@ class ConfigManager:
                 'max_output_tokens': '2048',
                 'conversation_history_length': '10',
                 'system_prompt': '你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。'
+            },
+            'AI_CHARACTER_VRC': {
+                'ai_host': '127.0.0.1',
+                'ai_send_port': '9002',
+                'ai_receive_port': '9003',
+                'auto_connect': 'false',
+                'connection_timeout': '10',
+                'last_character_name': '',
+                'last_character_personality': 'friendly'
             }
         }
         
@@ -287,6 +296,53 @@ class ConfigManager:
     @property
     def llm_system_prompt(self) -> str:
         return self.get('LLM', 'system_prompt', '你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。')
+    
+    # 便捷方法：AI角色VRC配置
+    @property
+    def ai_character_host(self) -> str:
+        return self.get('AI_CHARACTER_VRC', 'ai_host')
+    
+    @property
+    def ai_character_send_port(self) -> int:
+        return self.get('AI_CHARACTER_VRC', 'ai_send_port')
+    
+    @property
+    def ai_character_receive_port(self) -> int:
+        return self.get('AI_CHARACTER_VRC', 'ai_receive_port')
+    
+    @property
+    def ai_character_auto_connect(self) -> bool:
+        return self.get('AI_CHARACTER_VRC', 'auto_connect')
+    
+    @property
+    def ai_character_connection_timeout(self) -> int:
+        return self.get('AI_CHARACTER_VRC', 'connection_timeout')
+    
+    @property
+    def ai_character_last_name(self) -> str:
+        return self.get('AI_CHARACTER_VRC', 'last_character_name')
+    
+    @property
+    def ai_character_last_personality(self) -> str:
+        return self.get('AI_CHARACTER_VRC', 'last_character_personality')
+    
+    def set_ai_character_host(self, host: str):
+        """设置AI角色主机地址"""
+        self.set('AI_CHARACTER_VRC', 'ai_host', host)
+    
+    def set_ai_character_ports(self, send_port: int, receive_port: int):
+        """设置AI角色OSC端口"""
+        self.set('AI_CHARACTER_VRC', 'ai_send_port', send_port)
+        self.set('AI_CHARACTER_VRC', 'ai_receive_port', receive_port)
+    
+    def set_ai_character_last_info(self, name: str, personality: str):
+        """保存最后使用的AI角色信息"""
+        self.set('AI_CHARACTER_VRC', 'last_character_name', name)
+        self.set('AI_CHARACTER_VRC', 'last_character_personality', personality)
+    
+    def set_ai_character_auto_connect(self, auto_connect: bool):
+        """设置是否自动连接"""
+        self.set('AI_CHARACTER_VRC', 'auto_connect', auto_connect)
 
 
 # 全局配置管理器实例
