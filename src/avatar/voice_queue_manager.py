@@ -216,11 +216,14 @@ class VoiceQueueManager:
             # 生成临时文件路径
             temp_file = os.path.join(self.temp_dir, f"{item.item_id}.wav")
             
+            # 设置说话人ID
+            if item.speaker_id > 0:
+                self.voicevox_client.set_speaker(item.speaker_id)
+            
             # 使用VOICEVOX合成语音并保存到文件
-            success = self.voicevox_client.synthesize_and_save(
+            success = self.voicevox_client.save_audio(
                 text=item.text,
-                output_path=temp_file,
-                speaker_id=item.speaker_id
+                output_path=temp_file
             )
             
             if not success or not os.path.exists(temp_file):
@@ -288,14 +291,56 @@ class VoiceQueueManager:
             return False
     
     def _upload_voice_to_vrc(self, osc_client, file_path: str) -> bool:
-        """上传语音文件到VRChat（占位实现）"""
-        # 这里需要实现具体的VRC语音上传逻辑
-        # 目前VRChat OSC不直接支持语音文件上传
-        # 可能需要通过其他方式，比如模拟麦克风输入等
-        
-        print(f"模拟上传语音文件到VRC: {file_path}")
-        # 这里可以添加实际的语音播放逻辑
-        return True
+        """模拟麦克风发声（通过OSC控制麦克风状态 + 音频播放）"""
+        try:
+            import pygame
+            import os
+            
+            if not os.path.exists(file_path):
+                print(f"语音文件不存在: {file_path}")
+                return False
+            
+            # 1. 通过OSC取消静音（模拟按下麦克风）
+            osc_client.send_message("/input/Voice", 1)
+            print("OSC: 取消麦克风静音")
+            
+            # 等待前一个语音播放完成（顺序播放）
+            if not pygame.mixer.get_init():
+                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+            
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.1)
+            
+            # 2. 播放音频文件（通过默认音频设备，VRC可以通过虚拟音频线接收）
+            pygame.mixer.music.load(file_path)
+            pygame.mixer.music.play()
+            
+            print(f"开始播放语音文件并模拟麦克风发声: {file_path}")
+            
+            # 3. 等待播放完成
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.1)
+            
+            # 4. 通过OSC静音麦克风（模拟松开麦克风）
+            osc_client.send_message("/input/Voice", 0)
+            print("OSC: 麦克风静音")
+            
+            # 5. 重置OSC状态（解决已知的OSC Voice bug）
+            time.sleep(0.1)
+            osc_client.send_message("/input/Voice", 0)
+            
+            print("语音播放完成，麦克风状态已重置")
+            return True
+            
+        except Exception as e:
+            print(f"模拟麦克风发声失败: {e}")
+            # 确保在错误情况下也重置麦克风状态
+            try:
+                osc_client.send_message("/input/Voice", 0)
+                osc_client.send_message("/input/Voice", 0)  # 重置状态
+            except:
+                pass
+            return False
     
     def _estimate_audio_duration(self, file_path: str) -> float:
         """估算音频文件时长"""

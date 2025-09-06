@@ -293,10 +293,13 @@ class SingleAIVRCManager:
             print("语音队列管理器未初始化")
             return False
         
+        # 如果没有AI角色名，使用默认名称
+        character_name = self.ai_character_name if self.ai_character_name else "DefaultAI"
+        
         try:
             item_id = self.voice_queue_manager.add_voicevox_item(
                 text=text,
-                character_name=self.ai_character_name,
+                character_name=character_name,
                 speaker_id=speaker_id,
                 emotion="neutral"
             )
@@ -359,13 +362,15 @@ class SingleAIVRCManager:
     @property
     def osc_clients(self):
         """返回OSC客户端字典（兼容接口）"""
-        if self.vrc_controller and self.ai_character_name:
-            return {self.ai_character_name: self.vrc_controller.osc_client}
+        character_name = self.ai_character_name if self.ai_character_name else "DefaultAI"
+        if self.vrc_controller:
+            return {character_name: self.vrc_controller.osc_client}
         return {}
     
     @property 
     def avatar_controllers(self):
         """返回Avatar控制器字典（兼容接口）"""
-        if self.ai_character and self.ai_character.avatar_controller and self.ai_character_name:
-            return {self.ai_character_name: self.ai_character.avatar_controller}
+        character_name = self.ai_character_name if self.ai_character_name else "DefaultAI"
+        if self.ai_character and self.ai_character.avatar_controller:
+            return {character_name: self.ai_character.avatar_controller}
         return {}

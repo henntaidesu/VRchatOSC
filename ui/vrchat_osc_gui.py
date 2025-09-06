@@ -4144,7 +4144,7 @@ class VRChatOSCGUI:
             self.log(f"更新速度显示错误: {e}")
     
     def move_forward(self):
-        """控制AI角色前进"""
+        """控制AI角色前进一小步"""
         try:
             # 检查AI角色VRC连接状态
             if not self.single_ai_manager:
@@ -4159,8 +4159,12 @@ class VRChatOSCGUI:
             speed = self.movement_speed_var.get()
             # 通过AI角色的VRC连接发送移动指令
             if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
-                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveForward", speed)
-                self.log(f"AI角色前进 (速度: {speed:.1f})")
+                osc_client = self.single_ai_manager.vrc_controller.osc_client
+                # 发送开始移动
+                osc_client.send_message("/input/MoveForward", speed)
+                # 短暂延迟后停止移动
+                self.root.after(200, lambda: osc_client.send_message("/input/MoveForward", 0.0))
+                self.log(f"AI角色前进一步 (速度: {speed:.1f})")
             else:
                 self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
@@ -4168,7 +4172,7 @@ class VRChatOSCGUI:
             self.log(f"AI角色前进错误: {e}")
     
     def move_backward(self):
-        """控制AI角色后退"""
+        """控制AI角色后退一小步"""
         try:
             if not self.single_ai_manager:
                 self.log("请先初始化AI角色管理器")
@@ -4181,8 +4185,12 @@ class VRChatOSCGUI:
             
             speed = self.movement_speed_var.get()
             if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
-                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveBackward", speed)
-                self.log(f"AI角色后退 (速度: {speed:.1f})")
+                osc_client = self.single_ai_manager.vrc_controller.osc_client
+                # 发送开始移动
+                osc_client.send_message("/input/MoveBackward", speed)
+                # 短暂延迟后停止移动
+                self.root.after(200, lambda: osc_client.send_message("/input/MoveBackward", 0.0))
+                self.log(f"AI角色后退一步 (速度: {speed:.1f})")
             else:
                 self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
@@ -4190,7 +4198,7 @@ class VRChatOSCGUI:
             self.log(f"AI角色后退错误: {e}")
     
     def strafe_left(self):
-        """控制AI角色左移"""
+        """控制AI角色左移一小步"""
         try:
             if not self.single_ai_manager:
                 self.log("请先初始化AI角色管理器")
@@ -4203,8 +4211,12 @@ class VRChatOSCGUI:
             
             speed = self.movement_speed_var.get()
             if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
-                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveLeft", speed)
-                self.log(f"AI角色左移 (速度: {speed:.1f})")
+                osc_client = self.single_ai_manager.vrc_controller.osc_client
+                # 发送开始移动
+                osc_client.send_message("/input/MoveLeft", speed)
+                # 短暂延迟后停止移动
+                self.root.after(200, lambda: osc_client.send_message("/input/MoveLeft", 0.0))
+                self.log(f"AI角色左移一步 (速度: {speed:.1f})")
             else:
                 self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
@@ -4212,7 +4224,7 @@ class VRChatOSCGUI:
             self.log(f"AI角色左移错误: {e}")
     
     def strafe_right(self):
-        """控制AI角色右移"""
+        """控制AI角色右移一小步"""
         try:
             if not self.single_ai_manager:
                 self.log("请先初始化AI角色管理器")
@@ -4225,8 +4237,12 @@ class VRChatOSCGUI:
             
             speed = self.movement_speed_var.get()
             if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
-                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/MoveRight", speed)
-                self.log(f"AI角色右移 (速度: {speed:.1f})")
+                osc_client = self.single_ai_manager.vrc_controller.osc_client
+                # 发送开始移动
+                osc_client.send_message("/input/MoveRight", speed)
+                # 短暂延迟后停止移动
+                self.root.after(200, lambda: osc_client.send_message("/input/MoveRight", 0.0))
+                self.log(f"AI角色右移一步 (速度: {speed:.1f})")
             else:
                 self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
@@ -4234,7 +4250,7 @@ class VRChatOSCGUI:
             self.log(f"AI角色右移错误: {e}")
     
     def turn_left(self):
-        """控制AI角色左转"""
+        """控制AI角色左转一点"""
         try:
             if not self.single_ai_manager:
                 self.log("请先初始化AI角色管理器")
@@ -4247,8 +4263,12 @@ class VRChatOSCGUI:
             
             speed = self.movement_speed_var.get()
             if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
-                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/LookHorizontal", -speed)
-                self.log(f"AI角色左转 (速度: {speed:.1f})")
+                osc_client = self.single_ai_manager.vrc_controller.osc_client
+                # 发送开始转向
+                osc_client.send_message("/input/LookHorizontal", -speed)
+                # 短暂延迟后停止转向
+                self.root.after(150, lambda: osc_client.send_message("/input/LookHorizontal", 0.0))
+                self.log(f"AI角色左转一点 (速度: {speed:.1f})")
             else:
                 self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
@@ -4256,7 +4276,7 @@ class VRChatOSCGUI:
             self.log(f"AI角色左转错误: {e}")
     
     def turn_right(self):
-        """控制AI角色右转"""
+        """控制AI角色右转一点"""
         try:
             if not self.single_ai_manager:
                 self.log("请先初始化AI角色管理器")
@@ -4269,8 +4289,12 @@ class VRChatOSCGUI:
             
             speed = self.movement_speed_var.get()
             if self.single_ai_manager.vrc_controller and self.single_ai_manager.vrc_controller.osc_client:
-                self.single_ai_manager.vrc_controller.osc_client.send_message("/input/LookHorizontal", speed)
-                self.log(f"AI角色右转 (速度: {speed:.1f})")
+                osc_client = self.single_ai_manager.vrc_controller.osc_client
+                # 发送开始转向
+                osc_client.send_message("/input/LookHorizontal", speed)
+                # 短暂延迟后停止转向
+                self.root.after(150, lambda: osc_client.send_message("/input/LookHorizontal", 0.0))
+                self.log(f"AI角色右转一点 (速度: {speed:.1f})")
             else:
                 self.log("无法发送AI移动指令: OSC客户端未初始化")
                 
