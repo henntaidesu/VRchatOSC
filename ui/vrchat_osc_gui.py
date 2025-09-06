@@ -533,7 +533,7 @@ class VRChatOSCGUI:
     def setup_voicevox_area(self, parent_frame):
         """设置VOICEVOX控制区域"""
         # VOICEVOX控制面板 - 占用整个左侧区域
-        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text=self.get_text("character"), padding="5")
+        self.voicevox_control_frame = ttk.LabelFrame(parent_frame, text="VOICEVOX", padding="5")
         self.voicevox_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
         self.voicevox_control_frame.columnconfigure(0, weight=1)
         self.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
@@ -544,7 +544,7 @@ class VRChatOSCGUI:
         
         # VOICEVOX期数选择
         ttk.Label(character_frame, text="期数:", width=6).pack(side=tk.LEFT, padx=(0, 5))
-        self.voicevox_period_var = tk.StringVar(value="1期")
+        self.voicevox_period_var = tk.StringVar(value=self.config.voicevox_last_period)
         self.voicevox_period_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_period_var,
                                                 values=["1期", "2期", "3期"],
                                                 width=8, state="readonly")
@@ -552,8 +552,7 @@ class VRChatOSCGUI:
         self.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
         
         # VOICEVOX角色选择
-        ttk.Label(character_frame, text="角色:", width=6).pack(side=tk.LEFT, padx=(0, 5))
-        self.voicevox_character_var = tk.StringVar(value="ずんだもん - ノーマル")
+        self.voicevox_character_var = tk.StringVar(value=self.config.voicevox_last_character)
         self.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_character_var,
                                                    width=20, state="readonly")
         self.voicevox_character_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
@@ -1848,7 +1847,7 @@ class VRChatOSCGUI:
         if hasattr(self, 'save_expression_btn'):
             self.save_expression_btn.config(text=self.get_text("save_expression"))
         if hasattr(self, 'voicevox_control_frame'):
-            self.voicevox_control_frame.config(text=self.get_text("character"))
+            self.voicevox_control_frame.config(text="VOICEVOX")
         if hasattr(self, 'voicevox_test_btn'):
             self.voicevox_test_btn.config(text=self.get_text("voice_test"))
         
@@ -2475,18 +2474,35 @@ class VRChatOSCGUI:
                 # 初始化单AI角色管理器
                 self.init_single_ai_manager()
                 
-                # 初始化期数选择为1期，并加载对应角色
+                # 初始化期数和角色选择，恢复上次保存的配置
                 current_period = self.voicevox_period_var.get()
                 period_speakers = self.voicevox_client.get_speakers_by_period(current_period)
                 
                 if period_speakers:
                     speaker_values = [speaker['display'] for speaker in period_speakers]
                     self.voicevox_character_combo['values'] = speaker_values
-                    # 设置默认角色
-                    if "ずんだもん - ノーマル" in speaker_values:
-                        self.voicevox_character_combo.set("ずんだもん - ノーマル")
+                    # 恢复上次选择的角色
+                    last_character = self.config.voicevox_last_character
+                    if last_character in speaker_values:
+                        self.voicevox_character_combo.set(last_character)
+                        # 设置对应的说话人
+                        for speaker in period_speakers:
+                            if speaker['display'] == last_character:
+                                self.voicevox_client.set_speaker(
+                                    speaker['speaker_id'],
+                                    speaker['name'],
+                                    speaker['style']
+                                )
+                                break
                     else:
+                        # 如果上次的角色不在当前期数中，选择第一个
                         self.voicevox_character_combo.set(speaker_values[0])
+                        first_speaker = period_speakers[0]
+                        self.voicevox_client.set_speaker(
+                            first_speaker['speaker_id'],
+                            first_speaker['name'],
+                            first_speaker['style']
+                        )
                 else:
                     self.voicevox_character_combo['values'] = []
                     
@@ -2516,6 +2532,15 @@ class VRChatOSCGUI:
                         speaker['name'], 
                         speaker['style']
                     )
+                    # 保存配置
+                    self.config.set_voicevox_last_selection(
+                        period=self.voicevox_period_var.get(),
+                        character=selected_display,
+                        speaker_id=str(speaker['speaker_id']),
+                        speaker_name=speaker['name'],
+                        speaker_style=speaker['style']
+                    )
+                    self.config.save_config()
                     self.log(f"切换VOICEVOX角色: {selected_display}")
                     break
         except Exception as e:
@@ -2545,6 +2570,15 @@ class VRChatOSCGUI:
                     first_speaker['name'],
                     first_speaker['style']
                 )
+                # 保存配置
+                self.config.set_voicevox_last_selection(
+                    period=selected_period,
+                    character=speaker_values[0],
+                    speaker_id=str(first_speaker['speaker_id']),
+                    speaker_name=first_speaker['name'],
+                    speaker_style=first_speaker['style']
+                )
+                self.config.save_config()
                 self.log(f"切换到{selected_period}，角色: {speaker_values[0]}")
             else:
                 self.voicevox_character_combo['values'] = []

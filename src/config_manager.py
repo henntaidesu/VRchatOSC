@@ -78,6 +78,13 @@ class ConfigManager:
                 'last_character_name': '',
                 'last_character_personality': 'friendly'
             },
+            'VOICEVOX': {
+                'last_period': '1期',
+                'last_character': 'ずんだもん - ノーマル',
+                'last_speaker_id': '',
+                'last_speaker_name': '',
+                'last_speaker_style': ''
+            },
             'Runtime': {
                 'mode': 'user',  # user: 用户端(支持语音识别), ai_remote: AI远端(仅支持语音输出)
                 'disable_speech_recognition': 'false'  # 是否禁用语音识别
@@ -366,6 +373,41 @@ class ConfigManager:
     def set_disable_speech_recognition(self, disable: bool):
         """设置是否禁用语音识别"""
         self.set('Runtime', 'disable_speech_recognition', disable)
+    
+    # 便捷方法：VOICEVOX配置
+    @property
+    def voicevox_last_period(self) -> str:
+        """获取上次选择的期数"""
+        return self.get('VOICEVOX', 'last_period', '1期')
+    
+    @property
+    def voicevox_last_character(self) -> str:
+        """获取上次选择的角色"""
+        return self.get('VOICEVOX', 'last_character', 'ずんだもん - ノーマル')
+    
+    @property
+    def voicevox_last_speaker_id(self) -> str:
+        """获取上次选择的说话人ID"""
+        return self.get('VOICEVOX', 'last_speaker_id', '')
+    
+    @property
+    def voicevox_last_speaker_name(self) -> str:
+        """获取上次选择的说话人名称"""
+        return self.get('VOICEVOX', 'last_speaker_name', '')
+    
+    @property
+    def voicevox_last_speaker_style(self) -> str:
+        """获取上次选择的说话人风格"""
+        return self.get('VOICEVOX', 'last_speaker_style', '')
+    
+    def set_voicevox_last_selection(self, period: str, character: str, speaker_id: str = '', 
+                                  speaker_name: str = '', speaker_style: str = ''):
+        """保存VOICEVOX最后的选择"""
+        self.set('VOICEVOX', 'last_period', period)
+        self.set('VOICEVOX', 'last_character', character)
+        self.set('VOICEVOX', 'last_speaker_id', speaker_id)
+        self.set('VOICEVOX', 'last_speaker_name', speaker_name)
+        self.set('VOICEVOX', 'last_speaker_style', speaker_style)
 
 
 # 全局配置管理器实例
