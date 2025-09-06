@@ -810,21 +810,35 @@ class VRChatOSCGUI:
         self.ai_receive_port_entry = ttk.Entry(config_grid, width=6)
         self.ai_receive_port_entry.grid(row=0, column=5, sticky=(tk.W, tk.E))
         
-        # 第2行: 配置控制按钮
-        button_frame = ttk.Frame(vrc_control_frame)
-        button_frame.pack(fill=tk.X, pady=(5, 5))
+        # 第2行: 状态显示行
+        status_frame = ttk.Frame(vrc_control_frame)
+        status_frame.pack(fill=tk.X, pady=(5, 2))
         
-        # 保存配置按钮
-        self.save_ai_config_btn = ttk.Button(button_frame, text="保存配置", command=self.save_ai_vrc_config, width=8)
-        self.save_ai_config_btn.pack(side=tk.LEFT, padx=(0, 10))
+        # 音频服务状态
+        ttk.Label(status_frame, text="音频服务:", width=10).pack(side=tk.LEFT, padx=(0, 2))
+        self.ai_audio_status_label = ttk.Label(status_frame, text="未检查", foreground="gray", width=10)
+        self.ai_audio_status_label.pack(side=tk.LEFT, padx=(0, 15))
         
-        # OSC连接状态和控制
-        ttk.Label(button_frame, text="连接状态:", width=8).pack(side=tk.LEFT, padx=(0, 2))
-        self.ai_osc_status_label = ttk.Label(button_frame, text="未连接", foreground="red", width=6)
+        # VRC连接状态  
+        ttk.Label(status_frame, text="VRC连接:", width=10).pack(side=tk.LEFT, padx=(0, 2))
+        self.ai_osc_status_label = ttk.Label(status_frame, text="未连接", foreground="red", width=20)
         self.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 5))
         
-        self.ai_osc_connect_btn = ttk.Button(button_frame, text="连接VRC", command=self.toggle_ai_osc_connection, width=8)
-        self.ai_osc_connect_btn.pack(side=tk.LEFT)
+        # 第3行: 按钮控制行
+        button_frame = ttk.Frame(vrc_control_frame)
+        button_frame.pack(fill=tk.X, pady=(2, 5))
+        
+        # 保存配置按钮
+        self.save_ai_config_btn = ttk.Button(button_frame, text="保存配置", command=self.save_ai_vrc_config, width=10)
+        self.save_ai_config_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 连接VRC按钮
+        self.ai_osc_connect_btn = ttk.Button(button_frame, text="连接VRC", command=self.toggle_ai_osc_connection, width=10)
+        self.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 刷新音频服务状态按钮
+        self.refresh_audio_btn = ttk.Button(button_frame, text="刷新音频", command=self.refresh_audio_service_status, width=10)
+        self.refresh_audio_btn.pack(side=tk.LEFT)
         
         # 从配置文件加载设置
         self.load_ai_vrc_config_from_file()
@@ -4116,7 +4130,8 @@ class VRChatOSCGUI:
             # 更新OSC连接状态显示
             if hasattr(self, 'ai_osc_status_label'):
                 if status["vrc_connected"]:
-                    self.ai_osc_status_label.config(text="已连接", foreground="green")
+                    ai_host = status.get("ai_host", "未知")
+                    self.ai_osc_status_label.config(text=f"已连接 ({ai_host})", foreground="green")
                     if hasattr(self, 'ai_osc_connect_btn'):
                         self.ai_osc_connect_btn.config(text="断开连接")
                 else:
@@ -4124,8 +4139,52 @@ class VRChatOSCGUI:
                     if hasattr(self, 'ai_osc_connect_btn'):
                         self.ai_osc_connect_btn.config(text="连接VRC")
             
+            # 更新音频服务状态显示
+            if hasattr(self, 'ai_audio_status_label'):
+                audio_connected = status.get("audio_service_connected", False)
+                if status["vrc_connected"]:  # 只有VRC连接时才检查音频服务
+                    if audio_connected:
+                        self.ai_audio_status_label.config(text="已连接", foreground="green")
+                    else:
+                        self.ai_audio_status_label.config(text="未连接", foreground="red")
+                else:
+                    self.ai_audio_status_label.config(text="未检查", foreground="gray")
+            
         except Exception as e:
             self.log(f"更新AI角色状态显示错误: {e}")
+    
+    def refresh_audio_service_status(self):
+        """手动刷新音频服务状态"""
+        if not self.single_ai_manager:
+            messagebox.showwarning("警告", "AI管理器未初始化")
+            return
+        
+        status = self.single_ai_manager.get_status()
+        if not status["vrc_connected"]:
+            messagebox.showinfo("信息", "请先连接VRC")
+            return
+        
+        try:
+            ai_host = status.get("ai_host", "127.0.0.1")
+            print(f"🔍 检查远程音频服务状态: {ai_host}:9003")
+            
+            # 重新检查音频服务连接
+            audio_connected = self.single_ai_manager.check_remote_audio_service(ai_host)
+            
+            if audio_connected:
+                self.ai_audio_status_label.config(text="已连接", foreground="green")
+                messagebox.showinfo("音频服务状态", f"远程音频服务连接正常\n地址: {ai_host}:9003")
+                self.log(f"远程音频服务连接正常: {ai_host}:9003")
+            else:
+                self.ai_audio_status_label.config(text="未连接", foreground="red")
+                messagebox.showwarning("音频服务状态", 
+                    f"无法连接到远程音频服务\n地址: {ai_host}:9003\n\n"
+                    "请在AI端机器上运行: python remote_audio.py")
+                self.log(f"远程音频服务连接失败: {ai_host}:9003")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"检查音频服务状态时出错: {e}")
+            self.log(f"检查音频服务状态错误: {e}")
     
     def _set_ai_controls_state(self, state):
         """设置AI控制按钮状态"""
