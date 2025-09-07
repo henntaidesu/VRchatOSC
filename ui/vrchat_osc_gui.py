@@ -396,7 +396,7 @@ class VRChatOSCGUI:
         self.progress_bar.grid_remove()  # 初始隐藏
         
         # 初始状态设置
-        self.update_ui_state(False)
+        self.vrchat_connection.update_ui_state(False)
         
         # 初始化VOICEVOX
         self.voicevox_area.init_voicevox()
@@ -773,20 +773,6 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror(self.get_text("save_error"), f"{self.get_text('cannot_load_audio_file')}: {e}")
             self.log(f"保存语音记录失败: {e}")
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     def open_settings(self):
         """打开高级设置窗口"""
