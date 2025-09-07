@@ -32,7 +32,7 @@ class AIVRChatManager:
         scenario_row = ttk.Frame(scenario_frame)
         scenario_row.pack(fill=tk.X)
 
-        ttk.Label(scenario_row, text="当前场景:", width=8).pack(side=tk.LEFT)
+        ttk.Label(scenario_row, text="当前场景:", width=6).pack(side=tk.LEFT)
         self.main_app.scenario_var = tk.StringVar(value="学習疲労")
         self.main_app.scenario_combo = ttk.Combobox(scenario_row, textvariable=self.main_app.scenario_var,
                                          values=["学習疲労", "研究ストレス", "就職活動不安"],
@@ -72,56 +72,56 @@ class AIVRChatManager:
         ttk.Label(movement_grid, text="移动控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
         # 斜着走按钮 - 左上、右上
-        self.main_app.move_forward_left_btn = ttk.Button(movement_grid, text="↖ 左前", width=8)
+        self.main_app.move_forward_left_btn = ttk.Button(movement_grid, text="↖ 左前", width=6)
         self.main_app.move_forward_left_btn.grid(row=1, column=0, padx=2, pady=2)
         self.main_app.move_forward_left_btn.bind("<ButtonPress-1>", lambda e: self.move_forward_left())
         self.main_app.move_forward_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
         # 前进按钮
-        self.main_app.move_forward_btn = ttk.Button(movement_grid, text="↑ 前进", width=8)
+        self.main_app.move_forward_btn = ttk.Button(movement_grid, text="↑ 前进", width=6)
         self.main_app.move_forward_btn.grid(row=1, column=1, padx=2, pady=2)
         self.main_app.move_forward_btn.bind("<ButtonPress-1>", lambda e: self.move_forward())
         self.main_app.move_forward_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        self.main_app.move_forward_right_btn = ttk.Button(movement_grid, text="↗ 右前", width=8)
+        self.main_app.move_forward_right_btn = ttk.Button(movement_grid, text="↗ 右前", width=6)
         self.main_app.move_forward_right_btn.grid(row=1, column=2, padx=2, pady=2)
         self.main_app.move_forward_right_btn.bind("<ButtonPress-1>", lambda e: self.move_forward_right())
         self.main_app.move_forward_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
         # 左移、蹲下、右移按钮
-        self.main_app.strafe_left_btn = ttk.Button(movement_grid, text="⇐ 左移", width=8)
+        self.main_app.strafe_left_btn = ttk.Button(movement_grid, text="⇐ 左移", width=6)
         self.main_app.strafe_left_btn.grid(row=2, column=0, padx=2, pady=2)
         self.main_app.strafe_left_btn.bind("<ButtonPress-1>", lambda e: self.strafe_left())
         self.main_app.strafe_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        self.main_app.crouch_btn = ttk.Button(movement_grid, text="蹲下", width=8)
+        self.main_app.crouch_btn = ttk.Button(movement_grid, text="蹲下", width=6)
         self.main_app.crouch_btn.grid(row=2, column=1, padx=2, pady=2)
         self.main_app.crouch_btn.bind("<ButtonPress-1>", lambda e: self.crouch())
         self.main_app.crouch_btn.bind("<ButtonRelease-1>", lambda e: self.stop_crouch())
 
-        self.main_app.strafe_right_btn = ttk.Button(movement_grid, text="⇒ 右移", width=8)
+        self.main_app.strafe_right_btn = ttk.Button(movement_grid, text="⇒ 右移", width=6)
         self.main_app.strafe_right_btn.grid(row=2, column=2, padx=2, pady=2)
         self.main_app.strafe_right_btn.bind("<ButtonPress-1>", lambda e: self.strafe_right())
         self.main_app.strafe_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
         # 斜着走按钮 - 左下、后退、右下
-        self.main_app.move_backward_left_btn = ttk.Button(movement_grid, text="↙ 左后", width=8)
+        self.main_app.move_backward_left_btn = ttk.Button(movement_grid, text="↙ 左后", width=6)
         self.main_app.move_backward_left_btn.grid(row=3, column=0, padx=2, pady=2)
         self.main_app.move_backward_left_btn.bind("<ButtonPress-1>", lambda e: self.move_backward_left())
         self.main_app.move_backward_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        self.main_app.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", width=8)
+        self.main_app.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", width=6)
         self.main_app.move_backward_btn.grid(row=3, column=1, padx=2, pady=2)
         self.main_app.move_backward_btn.bind("<ButtonPress-1>", lambda e: self.move_backward())
         self.main_app.move_backward_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        self.main_app.move_backward_right_btn = ttk.Button(movement_grid, text="↘ 右后", width=8)
+        self.main_app.move_backward_right_btn = ttk.Button(movement_grid, text="↘ 右后", width=6)
         self.main_app.move_backward_right_btn.grid(row=3, column=2, padx=2, pady=2)
         self.main_app.move_backward_right_btn.bind("<ButtonPress-1>", lambda e: self.move_backward_right())
         self.main_app.move_backward_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
         # 跳跃按钮
-        self.main_app.jump_btn = ttk.Button(movement_grid, text="跳跃", command=self.jump, width=8)
+        self.main_app.jump_btn = ttk.Button(movement_grid, text="跳跃", command=self.jump, width=6)
         self.main_app.jump_btn.grid(row=4, column=1, padx=2, pady=2)
 
         # 右侧: 镜头控制
@@ -131,48 +131,48 @@ class AIVRChatManager:
         ttk.Label(camera_grid, text="镜头控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
         # 斜着看按钮 - 左上、上看、右上
-        self.main_app.look_up_left_btn = ttk.Button(camera_grid, text="↖ 左上", width=8)
+        self.main_app.look_up_left_btn = ttk.Button(camera_grid, text="↖ 左上", width=6)
         self.main_app.look_up_left_btn.grid(row=1, column=0, padx=2, pady=2)
         self.main_app.look_up_left_btn.bind("<ButtonPress-1>", lambda e: self.look_up_left())
         self.main_app.look_up_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        self.main_app.look_up_btn = ttk.Button(camera_grid, text="↑ 上看", width=8)
+        self.main_app.look_up_btn = ttk.Button(camera_grid, text="↑ 上看", width=6)
         self.main_app.look_up_btn.grid(row=1, column=1, padx=2, pady=2)
         self.main_app.look_up_btn.bind("<ButtonPress-1>", lambda e: self.look_up())
         self.main_app.look_up_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        self.main_app.look_up_right_btn = ttk.Button(camera_grid, text="↗ 右上", width=8)
+        self.main_app.look_up_right_btn = ttk.Button(camera_grid, text="↗ 右上", width=6)
         self.main_app.look_up_right_btn.grid(row=1, column=2, padx=2, pady=2)
         self.main_app.look_up_right_btn.bind("<ButtonPress-1>", lambda e: self.look_up_right())
         self.main_app.look_up_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
         # 左转、停止、右转按钮
-        self.main_app.turn_left_btn = ttk.Button(camera_grid, text="← 左转", width=8)
+        self.main_app.turn_left_btn = ttk.Button(camera_grid, text="← 左转", width=6)
         self.main_app.turn_left_btn.grid(row=2, column=0, padx=2, pady=2)
         self.main_app.turn_left_btn.bind("<ButtonPress-1>", lambda e: self.turn_left())
         self.main_app.turn_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        self.main_app.stop_look_btn = ttk.Button(camera_grid, text="停止", width=8)
+        self.main_app.stop_look_btn = ttk.Button(camera_grid, text="停止", width=6)
         self.main_app.stop_look_btn.grid(row=2, column=1, padx=2, pady=2)
         self.main_app.stop_look_btn.bind("<Button-1>", lambda e: self.stop_look())
 
-        self.main_app.turn_right_btn = ttk.Button(camera_grid, text="→ 右转", width=8)
+        self.main_app.turn_right_btn = ttk.Button(camera_grid, text="→ 右转", width=6)
         self.main_app.turn_right_btn.grid(row=2, column=2, padx=2, pady=2)
         self.main_app.turn_right_btn.bind("<ButtonPress-1>", lambda e: self.turn_right())
         self.main_app.turn_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
         # 斜着看按钮 - 左下、下看、右下
-        self.main_app.look_down_left_btn = ttk.Button(camera_grid, text="↙ 左下", width=8)
+        self.main_app.look_down_left_btn = ttk.Button(camera_grid, text="↙ 左下", width=6)
         self.main_app.look_down_left_btn.grid(row=3, column=0, padx=2, pady=2)
         self.main_app.look_down_left_btn.bind("<ButtonPress-1>", lambda e: self.look_down_left())
         self.main_app.look_down_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        self.main_app.look_down_btn = ttk.Button(camera_grid, text="↓ 下看", width=8)
+        self.main_app.look_down_btn = ttk.Button(camera_grid, text="↓ 下看", width=6)
         self.main_app.look_down_btn.grid(row=3, column=1, padx=2, pady=2)
         self.main_app.look_down_btn.bind("<ButtonPress-1>", lambda e: self.look_down())
         self.main_app.look_down_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        self.main_app.look_down_right_btn = ttk.Button(camera_grid, text="↘ 右下", width=8)
+        self.main_app.look_down_right_btn = ttk.Button(camera_grid, text="↘ 右下", width=6)
         self.main_app.look_down_right_btn.grid(row=3, column=2, padx=2, pady=2)
         self.main_app.look_down_right_btn.bind("<ButtonPress-1>", lambda e: self.look_down_right())
         self.main_app.look_down_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
@@ -181,7 +181,7 @@ class AIVRChatManager:
         speed_frame = ttk.Frame(movement_frame)
         speed_frame.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Label(speed_frame, text="控制速度:", width=8).pack(side=tk.LEFT)
+        ttk.Label(speed_frame, text="控制速度:", width=6).pack(side=tk.LEFT)
         self.main_app.movement_speed_var = tk.DoubleVar(value=1.0)
         self.main_app.movement_speed_scale = ttk.Scale(speed_frame, from_=0.1, to=2.0, 
                                             orient=tk.HORIZONTAL, variable=self.main_app.movement_speed_var)
@@ -250,7 +250,7 @@ class AIVRChatManager:
         text_message_row = ttk.Frame(vrc_message_frame)
         text_message_row.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Label(text_message_row, text="发送文本:", width=8).pack(side=tk.LEFT)
+        ttk.Label(text_message_row, text="发送文本:", width=6).pack(side=tk.LEFT)
         self.main_app.ai_text_entry = ttk.Entry(text_message_row)
         self.main_app.ai_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         self.main_app.ai_text_entry.bind("<Return>", lambda e: self.ai_send_text_message())
