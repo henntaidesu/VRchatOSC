@@ -22,6 +22,7 @@ from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
 from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
 from ui.mainUI.right_area.camera_control import CameraControl
+from ui.mainUI.central_area.user_vrc import VRChatConnection
 from ui.mainUI.left_area.voicevox_area import VoicevoxArea
 
 
@@ -91,6 +92,9 @@ class VRChatOSCGUI:
         
         # 初始化VOICEVOX控制（必须在setup_ui之前）
         self.voicevox_area = VoicevoxArea(self)
+        
+        # 初始化VRChat连接控制
+        self.vrchat_connection = VRChatConnection(self)
         
         self.setup_ui()
         
@@ -175,7 +179,7 @@ class VRChatOSCGUI:
         self.ui_language_combo.bind("<<ComboboxSelected>>", self.on_language_changed)
         
         # 连接按钮
-        self.connect_btn = ttk.Button(self.connection_frame, text=self.get_text("connect"), command=self.toggle_connection)
+        self.connect_btn = ttk.Button(self.connection_frame, text=self.get_text("connect"), command=self.vrchat_connection.toggle_connection)
         self.connect_btn.grid(row=0, column=8, padx=(10, 0))
         
         # 第二行：高级设置按钮
@@ -201,7 +205,7 @@ class VRChatOSCGUI:
         self.message_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
         self.message_entry.bind("<Return>", lambda e: self.send_text_message())
         
-        self.send_text_btn = ttk.Button(text_frame, text=self.get_text("send_text"), command=self.send_text_message)
+        self.send_text_btn = ttk.Button(text_frame, text=self.get_text("send_text"), command=self.vrchat_connection.send_text_message)
         self.send_text_btn.grid(row=0, column=1)
         
         # 语音设置框架
@@ -224,7 +228,7 @@ class VRChatOSCGUI:
         self.device_combo.grid(row=0, column=3, padx=(0, 10))
         
         # 开始监听按钮
-        self.listen_btn = ttk.Button(voice_frame, text=self.get_text("start_listening"), command=self.toggle_voice_listening)
+        self.listen_btn = ttk.Button(voice_frame, text=self.get_text("start_listening"), command=self.vrchat_connection.toggle_voice_listening)
         self.listen_btn.grid(row=0, column=4, padx=(10, 5))
         
         # 语音文件上传按钮
@@ -287,7 +291,7 @@ class VRChatOSCGUI:
         self.pause_var = tk.DoubleVar(value=self.config.sentence_pause_threshold)
         self.pause_scale = ttk.Scale(threshold_frame, from_=0.2, to=1.0, 
                                variable=self.pause_var, orient='horizontal',
-                               command=self.update_pause_threshold)
+                               command=self.vrchat_connection.update_pause_threshold)
         self.pause_scale.grid(row=0, column=4, sticky=(tk.W, tk.E), padx=(0, 10))
         
         self.pause_label = ttk.Label(threshold_frame, text=f"{self.config.sentence_pause_threshold:.1f}s")
@@ -317,7 +321,7 @@ class VRChatOSCGUI:
         self.param_value_entry.bind("<Return>", lambda e: self.send_parameter())
         
         # 发送参数按钮
-        self.send_param_btn = ttk.Button(self.param_frame, text=self.get_text("send_param"), command=self.send_parameter)
+        self.send_param_btn = ttk.Button(self.param_frame, text=self.get_text("send_param"), command=self.vrchat_connection.send_parameter)
         self.send_param_btn.grid(row=0, column=4)
         
         # 日志显示框架 - 放在中间区域
@@ -770,327 +774,19 @@ class VRChatOSCGUI:
             messagebox.showerror(self.get_text("save_error"), f"{self.get_text('cannot_load_audio_file')}: {e}")
             self.log(f"保存语音记录失败: {e}")
     
-    def update_ui_state(self, connected: bool):
-        """更新UI状态"""
-        self.is_connected = connected
-        
-        if connected:
-            self.connect_btn.config(text=self.get_text("disconnect"))
-            self.status_label.config(text=self.get_text("connected"), foreground="green")
-            # 启用功能按钮
-            self.listen_btn.config(state="normal")
-            self.upload_voice_btn.config(state="normal")
-        else:
-            self.connect_btn.config(text=self.get_text("connect"))
-            self.status_label.config(text=self.get_text("disconnected"), foreground="red")
-            # 禁用功能按钮
-            self.listen_btn.config(state="disabled")
-            self.upload_voice_btn.config(state="disabled")
-            
-            # 停止语音监听
-            if self.is_listening:
-                self.is_listening = False
-                self.listen_btn.config(text=self.get_text("start_listening"))
     
-    def toggle_connection(self):
-        """切换连接状态"""
-        if not self.is_connected:
-            self.connect_to_vrchat()
-        else:
-            self.disconnect_from_vrchat()
     
-    def connect_to_vrchat(self):
-        """连接到VRChat"""
-        try:
-            host = self.host_var.get().strip()
-            send_port = int(self.send_port_var.get())
-            receive_port = int(self.receive_port_var.get())
-            device = self.device_var.get()
-            
-            # 禁用连接按钮并显示加载状态
-            self.connect_btn.config(text="连接中...", state="disabled")
-            self.progress_bar.grid()  # 显示进度条
-            self.progress_bar.start()  # 开始进度条动画
-            self.log("开始连接VRChat...")
-            self.log(f"正在加载语音识别模型 ({device})...")
-            self.log("提示：首次加载可能需要较长时间，请耐心等待...")
-            
-            # 在后台线程中连接，避免界面卡顿
-            def connect_thread():
-                try:
-                    # 创建OSC客户端，传递参数（如果与配置不同）
-                    use_config_host = host == self.config.osc_host
-                    use_config_ports = (send_port == self.config.osc_send_port and 
-                                       receive_port == self.config.osc_receive_port)
-                    use_config_device = device == self.config.voice_device
-                    
-                    # 只传递与配置不同的参数
-                    self.client = VRChatController(
-                        host=None if use_config_host else host,
-                        send_port=None if use_config_ports else send_port,
-                        receive_port=None if use_config_ports else receive_port,
-                        speech_device=None if use_config_device else device
-                    )
-                    
-                    # 设置回调函数
-                    self.client.set_status_change_callback(self.on_status_change)
-                    self.client.set_voice_result_callback(self.on_voice_result)
-                    
-                    # 应用默认设置
-                    if hasattr(self.client, 'set_disable_fallback_mode'):
-                        self.client.set_disable_fallback_mode(self.disable_fallback_var.get())
-                    
-                    # 启动服务器
-                    success = self.client.start_osc_server()
-                    
-                    if success:
-                        # 在主线程中更新UI
-                        self.root.after(0, lambda: self._connection_success(host, send_port))
-                    else:
-                        self.root.after(0, lambda: self._connection_failed("OSC服务器启动失败"))
-                        
-                except Exception as e:
-                    self.root.after(0, lambda: self._connection_failed(str(e)))
-            
-            # 启动连接线程
-            threading.Thread(target=connect_thread, daemon=True).start()
-            
-        except ValueError:
-            self.connect_btn.config(text="连接", state="normal")
-            self.progress_bar.stop()
-            self.progress_bar.grid_remove()
-            messagebox.showerror(self.get_text("error"), self.get_text("port_must_be_number"))
-        except Exception as e:
-            self.connect_btn.config(text="连接", state="normal")
-            self.progress_bar.stop()
-            self.progress_bar.grid_remove()
-            messagebox.showerror(self.get_text("connection_error"), f"{self.get_text('cannot_connect_vrchat')}: {e}")
-            self.log(f"连接失败: {e}")
     
-    def _connection_success(self, host: str, send_port: int):
-        """连接成功的UI更新"""
-        # 隐藏进度条
-        self.progress_bar.stop()
-        self.progress_bar.grid_remove()
-        
-        # 设置Avatar控制器
-        if self.client:
-            # 设置Avatar控制器的OSC客户端（VRChatController）
-            self.avatar_controller.set_osc_client(self.client)
-            
-            # 通过VRChatController设置位置回调
-            self.client.set_position_callback(self.update_player_position)
-        
-        self.update_ui_state(True)
-        self.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
-        
-        # 语音识别始终启用
-        self.log("语音识别模型加载完成！")
-        self.log(self.get_text("voice_recognition_ready"))
     
-    def _connection_failed(self, error_msg: str):
-        """连接失败的UI更新"""
-        # 隐藏进度条
-        self.progress_bar.stop()
-        self.progress_bar.grid_remove()
-        
-        self.connect_btn.config(text="连接", state="normal")
-        messagebox.showerror(self.get_text("connection_error"), f"{self.get_text('cannot_connect_vrchat')}: {error_msg}")
-        self.log(f"连接失败: {error_msg}")
     
-    def disconnect_from_vrchat(self):
-        """断开VRChat连接"""
-        try:
-            if self.client:
-                # 停止语音监听
-                if self.is_listening:
-                    self.client.stop_voice_listening()
-                    self.is_listening = False
-                    self.listen_btn.config(text="开始监听")
-                    self.log("已停止语音监听")
-                
-                # 停止OSC服务器
-                self.client.stop_osc_server()
-                self.log("OSC服务器已停止")
-                
-                # 清理资源
-                self.client.cleanup()
-                self.client = None
-            
-            self.update_ui_state(False)
-            self.log("[成功] 已断开VRChat连接")
-            
-        except Exception as e:
-            self.log(f"[错误] 断开连接时出错: {e}")
-            # 即使出错也要更新UI状态
-            self.update_ui_state(False)
     
-    def send_text_message(self):
-        """发送文字消息"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            return
-        
-        message = self.message_entry.get().strip()
-        if not message:
-            return
-        
-        try:
-            self.client.send_text_message(message)
-            self.log(f"[发送文字] {message}")
-            self.message_entry.delete(0, tk.END)
-        except Exception as e:
-            messagebox.showerror(self.get_text("send_error"), f"{self.get_text('send_message_failed')}: {e}")
-            self.log(f"发送消息失败: {e}")
     
-    def toggle_voice_listening(self):
-        """切换语音监听状态"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            return
-        
-        if not self.is_listening:
-            self.start_voice_listening()
-        else:
-            self.stop_voice_listening()
     
-    def start_voice_listening(self):
-        """开始语音监听"""
-        try:
-            # 检查语音引擎是否就绪
-            if not self.client.speech_engine.is_model_loaded():
-                messagebox.showerror(self.get_text("voice_recognition_error"), self.get_text("voice_model_not_loaded"))
-                self.log("语音识别模型未加载")
-                return
-            
-            def voice_callback(text, is_realtime=False, trigger_reason="", audio_duration=0):
-                if text and text.strip():
-                    if is_realtime:
-                        # 实时识别结果 - 显示为预览，带触发原因
-                        reason_text = f" ({trigger_reason})" if trigger_reason else ""
-                        duration_text = f" {audio_duration:.1f}s" if audio_duration > 0 else ""
-                        
-                        display_text = f"[实时{reason_text}{duration_text}] {text}"
-                        self.add_speech_output(display_text, "实时识别")
-                        
-                        # 记录到日志，包含更多信息
-                        self.log(f"[实时语音{reason_text}] {text}")
-                    else:
-                        # 完整识别结果
-                        self.add_speech_output(text, "持续监听")
-                        # 发送到VRChat
-                        self.client.send_text_message(f"[语音] {text}")
-                        # 记录到日志
-                        self.log(f"[持续语音] {text}")
-                        
-                        # 如果启用了LLM处理，发送到LLM
-                        if self.llm_enabled and self.llm_handler and self.llm_handler.is_client_ready():
-                            request_id = self.llm_handler.submit_voice_text(text)
-                            if request_id:
-                                self.log(f"[LLM] 已提交语音到AI处理: {text[:50]}...")
-                            else:
-                                self.log("[LLM] 提交语音到AI失败")
-                    
-                    # 调用原有的语音结果处理
-                    if hasattr(self, 'on_voice_result'):
-                        self.on_voice_result(text)
-            
-            # 设置语音结果回调
-            self.client.set_voice_result_callback(voice_callback)
-            
-            # 启动语音监听
-            success = self.client.start_voice_listening(self.language_var.get())
-            
-            if success:
-                self.is_listening = True
-                self.listen_btn.config(text="停止监听", style="Accent.TButton")
-                self.log("开始VRChat语音状态监听...")
-                self.log("提示：只有当VRChat检测到你说话时才会进行语音识别")
-            else:
-                self.log("启动语音监听失败")
-                messagebox.showerror(self.get_text("voice_recognition_error"), self.get_text("voice_listening_failed"))
-            
-        except Exception as e:
-            messagebox.showerror(self.get_text("voice_recognition_error"), f"{self.get_text('voice_listening_failed')}: {e}")
-            self.log(f"启动语音监听失败: {e}")
     
-    def stop_voice_listening(self):
-        """停止语音监听"""
-        try:
-            self.is_listening = False
-            if self.client:
-                self.client.stop_voice_listening()
-            self.listen_btn.config(text="开始监听", style="TButton")
-            self.log("停止持续语音识别")
-            
-        except Exception as e:
-            self.log(f"停止语音监听时出错: {e}")
     
-    def send_parameter(self):
-        """发送Avatar参数"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            return
-        
-        param_name = self.param_name_entry.get().strip()
-        param_value_str = self.param_value_entry.get().strip()
-        
-        if not param_name or not param_value_str:
-            messagebox.showwarning("警告", "参数名和值不能为空")
-            return
-        
-        try:
-            # 尝试转换参数值类型
-            param_value = param_value_str
-            if param_value_str.lower() in ['true', 'false']:
-                param_value = param_value_str.lower() == 'true'
-            elif '.' in param_value_str:
-                try:
-                    param_value = float(param_value_str)
-                except ValueError:
-                    pass
-            else:
-                try:
-                    param_value = int(param_value_str)
-                except ValueError:
-                    pass
-            
-            self.client.send_parameter(param_name, param_value)
-            self.log(f"[发送参数] {param_name} = {param_value}")
-            
-            # 清空输入框
-            self.param_name_entry.delete(0, tk.END)
-            self.param_value_entry.delete(0, tk.END)
-            
-        except Exception as e:
-            messagebox.showerror("发送错误", f"发送参数失败: {e}")
-            self.log(f"发送参数失败: {e}")
     
-    def on_status_change(self, status_type: str, data):
-        """处理状态变化"""
-        if status_type == "parameter":
-            param_name, value = data
-            self.log(f"[收到参数] {param_name} = {value}")
-        elif status_type == "message":
-            msg_type, content = data
-            self.log(f"[收到消息] {msg_type}: {content}")
-        elif status_type == "vrc_speaking":
-            self.log(f"[VRC语音状态] {'说话中' if data else '静音'}")
     
-    def on_voice_result(self, text: str):
-        """处理语音识别结果"""
-        # 这个方法现在主要用于兼容性，实际显示已经在各个回调中处理
-        pass
     
-    def update_pause_threshold(self, value):
-        """更新断句间隔阈值"""
-        threshold = float(value)
-        if self.client and hasattr(self.client, 'set_sentence_pause_threshold'):
-            self.client.set_sentence_pause_threshold(threshold)
-        # 同时更新配置
-        self.config.set('Recording', 'sentence_pause_threshold', threshold)
-        self.pause_label.config(text=f"{threshold:.1f}s")
-        self.log(f"断句间隔已设置为: {threshold:.1f}秒")
     
     def open_settings(self):
         """打开高级设置窗口"""
@@ -1954,27 +1650,6 @@ class VRChatOSCGUI:
             except Exception:
                 break
     
-    def update_player_position(self, x, y, z):
-        """更新玩家位置（从OSC调用）"""
-        # 更新Avatar控制器的位置（这会自动处理角色距离计算）
-        self.avatar_controller.update_player_position(x, y, z)
-        
-        # 为了兼容性，也保持旧的变量
-        self.player_position = {"x": x, "y": y, "z": z}
-        
-        # 更新主界面中的位置显示
-        if hasattr(self, 'current_pos_label'):
-            pos_text = f"({x:.2f}, {y:.2f}, {z:.2f})"
-            self.root.after(0, lambda: self.current_pos_label.config(text=pos_text))
-        
-        # 更新主界面中的距离显示
-        self.root.after(0, self.update_character_distance_display)
-        
-        # 更新角色管理窗口中的位置显示
-        if hasattr(self, 'position_label'):
-            self.root.after(0, lambda: self.position_label.config(
-                text=f"当前位置: ({x:.1f}, {y:.1f}, {z:.1f})"
-            ))
     
     def use_current_position(self):
         """使用当前位置填充坐标输入框"""
