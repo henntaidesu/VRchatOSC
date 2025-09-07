@@ -24,6 +24,7 @@ from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
 from ui.mainUI.right_area.camera_control import CameraControl
 from ui.mainUI.central_area.user_vrc import VRChatConnection
 from ui.mainUI.left_area.voicevox_area import VoicevoxArea
+from ui.mainUI.left_area.ai_vrchat import AIVRChatManager
 
 
 class VRChatOSCGUI:
@@ -95,6 +96,9 @@ class VRChatOSCGUI:
         
         # 初始化VRChat连接控制
         self.vrchat_connection = VRChatConnection(self)
+        
+        # 初始化AI VRChat管理器
+        self.ai_vrchat_manager = AIVRChatManager(self)
         
         self.setup_ui()
         
@@ -422,13 +426,11 @@ class VRChatOSCGUI:
         character_notebook.add(position_frame, text="位置标记")
         
         # 设置AI角色管理界面
-        self.setup_ai_character_interface(ai_frame)
+        self.ai_vrchat_manager.setup_ai_character_interface(ai_frame)
         
         # 设置位置标记界面（原来的功能）
         self.setup_position_marker_interface(position_frame)
     
-    def setup_ai_character_interface(self, parent_frame):
-        """设置VRC连接和人物控制界面"""
         # AI场景选择区域
         scenario_frame = ttk.LabelFrame(parent_frame, text="AI场景选择", padding="5")
         scenario_frame.pack(fill=tk.X, pady=(0, 5))
@@ -1743,66 +1745,6 @@ class VRChatOSCGUI:
     
     # === 新的单AI角色控制方法 ===
     
-    def toggle_ai_osc_connection(self):
-        """切换AI角色OSC连接状态"""
-        if not self.single_ai_manager:
-            messagebox.showerror("错误", "AI角色管理器未初始化")
-            return
-        
-        try:
-            status = self.single_ai_manager.get_status()
-            
-            if status["vrc_connected"]:
-                # 断开连接
-                self.single_ai_manager.disconnect_from_vrc()
-                messagebox.showinfo("成功", "已断开AI角色VRChat连接")
-            else:
-                # 从界面获取连接参数
-                host = self.ai_host_entry.get().strip()
-                try:
-                    send_port = int(self.ai_send_port_entry.get().strip())
-                    receive_port = int(self.ai_receive_port_entry.get().strip())
-                except ValueError:
-                    messagebox.showerror("错误", "请输入有效的端口号")
-                    return
-                
-                # 参数验证
-                if not host:
-                    messagebox.showwarning("警告", "请输入AI主机地址")
-                    return
-                
-                if send_port == receive_port:
-                    messagebox.showwarning("警告", "发送端口和接收端口不能相同")
-                    return
-                
-                # 使用配置的参数连接VRChat
-                success = self.single_ai_manager.connect_to_vrc(
-                    host=host,
-                    send_port=send_port,
-                    receive_port=receive_port
-                )
-                
-                if success:
-                    messagebox.showinfo("成功", 
-                        f"AI角色VRChat连接成功！\n\n"
-                        f"连接地址: {host}:{send_port}/{receive_port}\n"
-                        f"现在可以发送文本和语音消息了"
-                    )
-                    self.log(f"AI角色VRC连接成功: {host}:{send_port}/{receive_port}")
-                else:
-                    messagebox.showerror("错误", 
-                        f"AI角色VRChat连接失败\n\n"
-                        f"请检查：\n"
-                        f"1. AI主机地址 {host} 是否正确\n"
-                        f"2. AI主机上的VRChat是否开启OSC\n"
-                        f"3. 端口 {send_port}/{receive_port} 是否被占用\n"
-                        f"4. 网络连接是否正常"
-                    )
-                    
-        except Exception as e:
-            messagebox.showerror("错误", f"切换AI角色OSC连接时出错: {e}")
-            self.log(f"切换AI角色OSC连接错误: {e}")
-    
     def toggle_ai_character(self):
         """激活/停用AI角色"""
         if not self.single_ai_manager:
@@ -1838,64 +1780,6 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror("错误", f"切换AI角色状态时出错: {e}")
             self.log(f"切换AI角色状态错误: {e}")
-    
-    def ai_send_text_message(self):
-        """发送文本消息到VRChat"""
-        text = self.ai_text_entry.get().strip()
-        
-        if not text:
-            messagebox.showwarning("警告", "请输入要发送的文本")
-            return
-        
-        if not self.single_ai_manager:
-            messagebox.showerror("错误", "AI角色管理器未初始化")
-            return
-        
-        try:
-            success = self.single_ai_manager.send_text_message(text)
-            if success:
-                self.log(f"文本消息已发送: {text}")
-                self.ai_text_entry.delete(0, tk.END)
-            else:
-                messagebox.showerror("错误", "发送文本消息失败，请检查VRChat连接")
-                
-        except Exception as e:
-            messagebox.showerror("错误", f"发送文本消息时出错: {e}")
-            self.log(f"发送文本消息错误: {e}")
-    
-    def ai_upload_voice_file(self):
-        """上传语音文件"""
-        if not self.single_ai_manager:
-            messagebox.showerror("错误", "AI角色管理器未初始化")
-            return
-        
-        # 选择语音文件
-        file_path = filedialog.askopenfilename(
-            title="选择语音文件",
-            filetypes=[
-                ("音频文件", "*.wav *.mp3 *.flac *.ogg *.m4a"),
-                ("WAV文件", "*.wav"),
-                ("MP3文件", "*.mp3"),
-                ("所有文件", "*.*")
-            ]
-        )
-        
-        if not file_path:
-            return
-        
-        try:
-            success = self.single_ai_manager.upload_voice_file(file_path)
-            if success:
-                filename = os.path.basename(file_path)
-                self.ai_voice_file_label.config(text=f"已添加: {filename}", foreground="green")
-                self.log(f"语音文件已添加到队列: {filename}")
-                messagebox.showinfo("成功", f"语音文件已添加到播放队列：\n{filename}")
-            else:
-                messagebox.showerror("错误", "添加语音文件失败")
-                
-        except Exception as e:
-            messagebox.showerror("错误", f"上传语音文件时出错: {e}")
-            self.log(f"上传语音文件错误: {e}")
     
     def ai_greet(self):
         """让AI角色打招呼"""
@@ -1940,121 +1824,6 @@ class VRChatOSCGUI:
             messagebox.showerror("错误", f"AI角色说话时出错: {e}")
             self.log(f"AI角色说话错误: {e}")
     
-    def update_ai_character_status(self):
-        """更新AI角色状态显示"""
-        if not self.single_ai_manager:
-            return
-        
-        try:
-            status = self.single_ai_manager.get_status()
-            
-            # 更新激活状态显示
-            if hasattr(self, 'active_ai_label'):
-                if status["ai_character_exists"]:
-                    if status["ai_active"]:
-                        status_text = f"当前角色: {status['ai_character_name']} (已激活)"
-                        self.active_ai_label.config(text=status_text, foreground="green")
-                        
-                        # 更新按钮状态
-                        if hasattr(self, 'activate_ai_btn'):
-                            self.activate_ai_btn.config(text="停用")
-                        
-                        # 启用控制按钮
-                        self._set_ai_controls_state("normal")
-                        
-                    else:
-                        status_text = f"当前角色: {status['ai_character_name']} (未激活)"
-                        self.active_ai_label.config(text=status_text, foreground="orange")
-                        
-                        if hasattr(self, 'activate_ai_btn'):
-                            self.activate_ai_btn.config(text="激活")
-                        
-                        # 部分启用控制按钮（VRC连接相关的可用）
-                        self._set_ai_controls_state("disabled")
-                        
-                else:
-                    status_text = "当前角色: 无"
-                    self.active_ai_label.config(text=status_text, foreground="red")
-                    
-                    if hasattr(self, 'activate_ai_btn'):
-                        self.activate_ai_btn.config(text="激活")
-                    
-                    # 禁用所有控制按钮
-                    self._set_ai_controls_state("disabled")
-            
-            # 更新OSC连接状态显示
-            if hasattr(self, 'ai_osc_status_label'):
-                if status["vrc_connected"]:
-                    ai_host = status.get("ai_host", "未知")
-                    self.ai_osc_status_label.config(text=f"已连接 ({ai_host})", foreground="green")
-                    if hasattr(self, 'ai_osc_connect_btn'):
-                        self.ai_osc_connect_btn.config(text="断开连接")
-                else:
-                    self.ai_osc_status_label.config(text="未连接", foreground="red")
-                    if hasattr(self, 'ai_osc_connect_btn'):
-                        self.ai_osc_connect_btn.config(text="连接VRC")
-            
-            # 更新音频服务状态显示
-            if hasattr(self, 'ai_audio_status_label'):
-                audio_connected = status.get("audio_service_connected", False)
-                if status["vrc_connected"]:  # 只有VRC连接时才检查音频服务
-                    if audio_connected:
-                        self.ai_audio_status_label.config(text="已连接", foreground="green")
-                    else:
-                        self.ai_audio_status_label.config(text="未连接", foreground="red")
-                else:
-                    self.ai_audio_status_label.config(text="未检查", foreground="gray")
-            
-        except Exception as e:
-            self.log(f"更新AI角色状态显示错误: {e}")
-    
-    def refresh_audio_service_status(self):
-        """手动刷新音频服务状态"""
-        if not self.single_ai_manager:
-            messagebox.showwarning("警告", "AI管理器未初始化")
-            return
-        
-        status = self.single_ai_manager.get_status()
-        if not status["vrc_connected"]:
-            messagebox.showinfo("信息", "请先连接VRC")
-            return
-        
-        try:
-            ai_host = status.get("ai_host", "127.0.0.1")
-            print(f"🔍 检查远程音频服务状态: {ai_host}:9003")
-            
-            # 重新检查音频服务连接
-            audio_connected = self.single_ai_manager.check_remote_audio_service(ai_host)
-            
-            if audio_connected:
-                self.ai_audio_status_label.config(text="已连接", foreground="green")
-                messagebox.showinfo("音频服务状态", f"远程音频服务连接正常\n地址: {ai_host}:9003")
-                self.log(f"远程音频服务连接正常: {ai_host}:9003")
-            else:
-                self.ai_audio_status_label.config(text="未连接", foreground="red")
-                messagebox.showwarning("音频服务状态", 
-                    f"无法连接到远程音频服务\n地址: {ai_host}:9003\n\n"
-                    "请在AI端机器上运行: python remote_audio.py")
-                self.log(f"远程音频服务连接失败: {ai_host}:9003")
-                
-        except Exception as e:
-            messagebox.showerror("错误", f"检查音频服务状态时出错: {e}")
-            self.log(f"检查音频服务状态错误: {e}")
-    
-    def _set_ai_controls_state(self, state):
-        """设置AI控制按钮状态"""
-        controls = [
-            'ai_greet_btn', 'ai_speak_btn', 'ai_speak_entry',
-            'ai_send_text_btn', 'ai_text_entry',
-            'ai_upload_voice_btn', 'ai_voicevox_generate_btn', 'ai_voicevox_text_entry'
-        ]
-        
-        for control_name in controls:
-            if hasattr(self, control_name):
-                control = getattr(self, control_name)
-                if hasattr(control, 'config'):
-                    control.config(state=state)
-    
     def update_voice_queue_display(self):
         """更新语音队列显示"""
         if not hasattr(self, 'ai_voice_queue_text') or not self.single_ai_manager:
@@ -2090,162 +1859,6 @@ class VRChatOSCGUI:
         """刷新AI角色列表（兼容方法）"""
         self.update_ai_character_status()
     
-    # === AI角色VRC配置方法 ===
-    
-    def load_ai_vrc_config_from_file(self):
-        """从配置文件加载AI VRC连接设置"""
-        try:
-            # 从配置管理器获取设置
-            host = config_manager.ai_character_host
-            send_port = config_manager.ai_character_send_port
-            receive_port = config_manager.ai_character_receive_port
-            
-            # 更新界面
-            self.ai_host_entry.delete(0, tk.END)
-            self.ai_host_entry.insert(0, str(host))
-            
-            self.ai_send_port_entry.delete(0, tk.END)
-            self.ai_send_port_entry.insert(0, str(send_port))
-            
-            self.ai_receive_port_entry.delete(0, tk.END)
-            self.ai_receive_port_entry.insert(0, str(receive_port))
-            
-            self.log(f"AI VRC配置已加载: {host}:{send_port}/{receive_port}")
-            
-        except Exception as e:
-            self.log(f"加载AI VRC配置失败: {e}")
-    
-    def save_ai_vrc_config(self):
-        """保存AI VRC连接配置到文件"""
-        try:
-            host = self.ai_host_entry.get().strip()
-            send_port = int(self.ai_send_port_entry.get().strip())
-            receive_port = int(self.ai_receive_port_entry.get().strip())
-            
-            # 基本验证
-            if not host:
-                messagebox.showwarning("警告", "请输入有效的主机地址")
-                return
-            
-            if not (1024 <= send_port <= 65535) or not (1024 <= receive_port <= 65535):
-                messagebox.showwarning("警告", "端口号必须在1024-65535范围内")
-                return
-            
-            if send_port == receive_port:
-                messagebox.showwarning("警告", "发送端口和接收端口不能相同")
-                return
-            
-            # 保存到配置文件
-            config_manager.set_ai_character_host(host)
-            config_manager.set_ai_character_ports(send_port, receive_port)
-            config_manager.save_config()
-            
-            messagebox.showinfo("成功", "AI VRC连接配置已保存到conf.ini文件")
-            self.log(f"AI VRC配置已保存: {host}:{send_port}/{receive_port}")
-            
-        except ValueError:
-            messagebox.showerror("错误", "端口必须是有效的数字")
-        except Exception as e:
-            messagebox.showerror("错误", f"保存配置时出错: {e}")
-            self.log(f"保存AI VRC配置错误: {e}")
-    
-    
-    # === AI场景系统方法 ===
-    
-    def init_scenario_system(self):
-        """初始化AI场景系统"""
-        try:
-            self.scenario_data = {}
-            self.current_scenario = "学習疲労"
-            self.load_scenario_data()
-            self.update_scenario_description()
-            self.log("AI场景系统初始化完成")
-        except Exception as e:
-            self.log(f"初始化AI场景系统错误: {e}")
-    
-    def load_scenario_data(self):
-        """加载场景数据"""
-        try:
-            scenario_file = os.path.join("config", "scenario_prompts.json")
-            if os.path.exists(scenario_file):
-                with open(scenario_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.scenario_data = data.get("scenarios", {})
-                    self.log(f"已加载 {len(self.scenario_data)} 个场景")
-            else:
-                self.log(f"场景配置文件不存在: {scenario_file}")
-                # 创建默认场景数据
-                self.create_default_scenario_data()
-        except Exception as e:
-            self.log(f"加载场景数据错误: {e}")
-            self.create_default_scenario_data()
-    
-    def create_default_scenario_data(self):
-        """创建默认场景数据"""
-        self.scenario_data = {
-            "学習疲労": {
-                "name": "学習疲労",
-                "description": "学習疲労・勉強に疲れた時のサポート",
-                "system_prompt": "あなたは優しく共感的なAIカウンセラーです。勉強疲れや学習ストレスを感じているユーザーに、温かい励ましと実用的なアドバイスを提供してください。"
-            },
-            "研究ストレス": {
-                "name": "研究ストレス",
-                "description": "研究活動のプレッシャーやストレス軽減",
-                "system_prompt": "あなたは経験豊富な研究メンターとして、研究活動に伴うストレスや不安を抱えるユーザーをサポートしてください。"
-            },
-            "就職活動不安": {
-                "name": "就職活動不安",
-                "description": "就職活動の不安や心配事への対応",
-                "system_prompt": "あなたは就職活動をサポートする優秀なキャリアカウンセラーです。就活の不安や悩みを抱えるユーザーに実践的なアドバイスと心理的サポートを提供してください。"
-            }
-        }
-    
-    def on_scenario_change(self, event=None):
-        """场景选择发生变化时的处理"""
-        try:
-            selected_scenario = self.scenario_var.get()
-            self.current_scenario = selected_scenario
-            self.update_scenario_description()
-            self.log(f"已选择场景: {selected_scenario}")
-        except Exception as e:
-            self.log(f"场景变更错误: {e}")
-    
-    def update_scenario_description(self):
-        """更新场景描述文本"""
-        try:
-            if hasattr(self, 'scenario_desc_label') and self.current_scenario in self.scenario_data:
-                description = self.scenario_data[self.current_scenario].get("description", "")
-                self.scenario_desc_label.config(text=description)
-        except Exception as e:
-            self.log(f"更新场景描述错误: {e}")
-    
-    def apply_scenario(self):
-        """应用选中的场景设置"""
-        try:
-            if self.current_scenario not in self.scenario_data:
-                self.log(f"未找到场景: {self.current_scenario}")
-                return
-            
-            scenario_info = self.scenario_data[self.current_scenario]
-            system_prompt = scenario_info.get("system_prompt", "")
-            
-            # 更新配置管理器中的系统提示词
-            from src.config_manager import config_manager
-            config_manager.set('LLM', 'system_prompt', system_prompt)
-            config_manager.save_config()
-            
-            self.log(f"已应用场景: {self.current_scenario}")
-            
-            # 显示成功消息
-            from tkinter import messagebox
-            messagebox.showinfo("成功", f"已成功应用场景: {self.current_scenario}\n\n系统提示词已更新并保存到配置文件")
-            
-        except Exception as e:
-            self.log(f"应用场景错误: {e}")
-            from tkinter import messagebox
-            messagebox.showerror("错误", f"应用场景失败: {e}")
-    
-    # 模式切换功能已禁用
     
     # === 人物移动控制方法 ===
     
