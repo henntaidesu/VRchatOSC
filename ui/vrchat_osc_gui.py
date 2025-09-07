@@ -76,7 +76,6 @@ class VRChatOSCGUI:
         self.single_ai_manager = None  # 延迟初始化，等待VOICEVOX连接
         
         # 为了兼容性保留的变量（逐步迁移到avatar_controller）
-        self.character_window = None  # 角色管理窗口引用
         self.camera_id_mapping = {}  # 摄像头显示名称到ID的映射
         self.emotion_model_type = 'ResEmoteNet'  # 默认使用ResEmoteNet情感识别模型
         
@@ -749,8 +748,6 @@ class VRChatOSCGUI:
             self.send_param_btn.config(text=self.get_text("send_param"))
     
 
-        if hasattr(self, 'use_current_pos_btn'):
-            self.use_current_pos_btn.config(text=self.get_text("update_position"))
         if hasattr(self, 'clear_log_btn'):
             self.clear_log_btn.config(text=self.get_text("clear_log"))
         if hasattr(self, 'clear_speech_btn'):
@@ -848,135 +845,8 @@ class VRChatOSCGUI:
         self.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
         self.overall_status_progress['maximum'] = 100
     
-    def open_character_management(self):
-        """打开角色管理窗口"""
-        if self.character_window is not None and self.character_window.winfo_exists():
-            self.character_window.lift()
-            self.character_window.focus()
-            return
-        
-        self.character_window = tk.Toplevel(self.root)
-        self.character_window.title(self.get_text("character_management"))
-        self.character_window.geometry("500x400")
-        self.character_window.resizable(True, True)
-        
-        # 创建主框架
-        main_frame = ttk.Frame(self.character_window)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # 角色列表框架
-        list_frame = ttk.LabelFrame(main_frame, text=self.get_text("character_management"), padding="5")
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        # 角色列表
-        list_container = ttk.Frame(list_frame)
-        list_container.pack(fill=tk.BOTH, expand=True)
-        
-        self.character_listbox = tk.Listbox(list_container)
-        self.character_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.character_listbox.bind('<<ListboxSelect>>', self.on_character_select)
-        
-        # 滚动条
-        scrollbar = ttk.Scrollbar(list_container, orient="vertical")
-        scrollbar.pack(side=tk.RIGHT, fill="y")
-        self.character_listbox.config(yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.character_listbox.yview)
-        
-        # 距离显示框架
-        distance_frame = ttk.Frame(list_frame)
-        distance_frame.pack(fill=tk.X, pady=(5, 0))
-        
-        self.distance_label = ttk.Label(distance_frame, text=self.get_text("distance_tracking") + ": --")
-        self.distance_label.pack(side=tk.LEFT)
-        
-        # 当前位置显示框架
-        position_frame = ttk.Frame(list_frame)
-        position_frame.pack(fill=tk.X, pady=(2, 0))
-        
-        self.position_label = ttk.Label(position_frame, text=f"当前位置: ({self.player_position['x']:.1f}, {self.player_position['y']:.1f}, {self.player_position['z']:.1f})")
-        self.position_label.pack(side=tk.LEFT)
-        
-        # 添加角色框架
-        add_frame = ttk.LabelFrame(main_frame, text=self.get_text("add_new_character"), padding="5")
-        add_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        # 角色名称输入
-        name_frame = ttk.Frame(add_frame)
-        name_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(name_frame, text=self.get_text("character_name") + ":", width=12).pack(side=tk.LEFT)
-        self.character_name_entry = ttk.Entry(name_frame)
-        self.character_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-        
-        # 坐标输入
-        coord_frame = ttk.Frame(add_frame)
-        coord_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        ttk.Label(coord_frame, text=self.get_text("character_x") + ":", width=6).pack(side=tk.LEFT)
-        self.character_x_entry = ttk.Entry(coord_frame, width=10)
-        self.character_x_entry.pack(side=tk.LEFT, padx=(5, 10))
-        
-        ttk.Label(coord_frame, text=self.get_text("character_y") + ":", width=6).pack(side=tk.LEFT)
-        self.character_y_entry = ttk.Entry(coord_frame, width=10)
-        self.character_y_entry.pack(side=tk.LEFT, padx=(5, 10))
-        
-        ttk.Label(coord_frame, text=self.get_text("character_z") + ":", width=6).pack(side=tk.LEFT)
-        self.character_z_entry = ttk.Entry(coord_frame, width=10)
-        self.character_z_entry.pack(side=tk.LEFT, padx=(5, 0))
-        
-        # 按钮框架
-        button_frame = ttk.Frame(add_frame)
-        button_frame.pack(fill=tk.X, pady=(5, 0))
-
-        ttk.Button(button_frame, text=self.get_text("update_position"), 
-                  command=self.update_character_position).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="使用当前位置", 
-                  command=self.use_current_position).pack(side=tk.LEFT, padx=(0, 5))
-
-        
-        # 刷新角色列表
-        self.refresh_character_list()
-        
-        # 启动距离更新线程
-        if not hasattr(self, 'distance_update_running'):
-            self.distance_update_running = True
-            threading.Thread(target=self.distance_update_loop, daemon=True).start()
     
-    def refresh_character_list(self):
-        """刷新角色列表"""
-        if not hasattr(self, 'character_listbox'):
-            return
-            
-        self.character_listbox.delete(0, tk.END)
-        for name, pos in self.vrc_characters.items():
-            distance = self.calculate_distance(self.player_position, pos)
-            self.character_listbox.insert(tk.END, f"{name} - ({pos['x']:.1f}, {pos['y']:.1f}, {pos['z']:.1f}) - {distance:.2f}m")
     
-    def on_character_select(self, event):
-        """角色选择事件"""
-        selection = self.character_listbox.curselection()
-        if not selection:
-            return
-        
-        character_info = self.character_listbox.get(selection[0])
-        character_name = character_info.split(" - ")[0]
-        
-        if character_name in self.vrc_characters:
-            pos = self.vrc_characters[character_name]
-            self.character_name_entry.delete(0, tk.END)
-            self.character_name_entry.insert(0, character_name)
-            
-            self.character_x_entry.delete(0, tk.END)
-            self.character_x_entry.insert(0, str(pos['x']))
-            
-            self.character_y_entry.delete(0, tk.END)
-            self.character_y_entry.insert(0, str(pos['y']))
-            
-            self.character_z_entry.delete(0, tk.END)
-            self.character_z_entry.insert(0, str(pos['z']))
-            
-            # 更新距离显示
-            distance = self.calculate_distance(self.player_position, pos)
-            self.distance_label.config(text=f"{self.get_text('distance_to').format(name=character_name)}: {distance:.2f}m")
     
     def update_voice_queue_display(self):
         """更新语音队列显示"""
