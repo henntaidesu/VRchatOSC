@@ -423,8 +423,6 @@ class VoicevoxArea:
             messagebox.showerror("错误", f"切换角色失败: {e}")
 
     def on_voicevox_character_changed(self, event=None):
-        """VOICEVOX角色改变事件处理（已废弃，保留兼容性）"""
-        # 这个方法已经不使用，但保留以防其他地方调用
         pass
 
     def get_characters_by_period(self):
@@ -470,12 +468,7 @@ class VoicevoxArea:
                 })
                 
                 period_characters[period][character_name]['display_names'].append(display_name)
-            
-            # 输出调试信息
-            for period, characters in period_characters.items():
-                self.main_app.log(f"{period}: {len(characters)} 个角色")
-                for char_name, char_data in characters.items():
-                    self.main_app.log(f"  {char_name}: {len(char_data['styles'])} 个样式")
+        
             
             return period_characters
             
@@ -517,8 +510,6 @@ class VoicevoxArea:
                     speaker_style=self.main_app.voicevox_style_var.get()
                 )
                 self.main_app.config.save_config()
-                
-                self.main_app.log(f"VOICEVOX期数已切换为: {new_period}, 可用角色: {len(character_list)}个")
             else:
                 self.main_app.log(f"期数 {new_period} 没有可用角色")
                 
