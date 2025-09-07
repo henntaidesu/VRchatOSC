@@ -18,11 +18,11 @@ from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
 from ui.settings_window import SettingsWindow
 from ui.languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
-from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
 from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
 from ui.mainUI.right_area.camera_control import CameraControl
 from ui.mainUI.central_area.user_vrc import VRChatConnection
+from ui.mainUI.central_area.LLM_process import LLMProcessor
 from ui.mainUI.left_area.voicevox_area import VoicevoxArea
 from ui.mainUI.left_area.ai_vrchat import AIVRChatManager
 
@@ -84,9 +84,8 @@ class VRChatOSCGUI:
         self.voicevox_client = None
         self.voicevox_connected = False
         
-        # LLM相关变量
-        self.llm_handler = None
-        self.llm_enabled = True
+        # 初始化LLM处理器
+        self.llm_processor = LLMProcessor(self)
         
         # 初始化摄像头控制（必须在setup_ui之前）
         self.camera_control = CameraControl(self)
@@ -244,35 +243,13 @@ class VRChatOSCGUI:
         debug_frame = ttk.Frame(self.message_frame)
         debug_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
-        # 调试模式开关
-        self.debug_var = tk.BooleanVar(value=self.config.osc_debug_mode)
-        self.debug_check = ttk.Checkbutton(debug_frame, text=self.get_text("debug"), 
-                                     variable=self.debug_var, command=self.toggle_debug_mode)
-        self.debug_check.grid(row=0, column=0, padx=(0, 10))
-        
-        # 强制备用模式开关
-        self.fallback_var = tk.BooleanVar(value=self.config.use_fallback_mode)
-        self.fallback_check = ttk.Checkbutton(debug_frame, text=self.get_text("force_fallback_mode"), 
-                                        variable=self.fallback_var, command=self.toggle_fallback_mode)
-        self.fallback_check.grid(row=0, column=1, padx=(0, 10))
-        
-        # 禁用备用模式开关
-        self.disable_fallback_var = tk.BooleanVar(value=self.config.disable_fallback_mode)
-        self.disable_fallback_check = ttk.Checkbutton(debug_frame, text=self.get_text("disable_fallback_mode"), 
-                                                 variable=self.disable_fallback_var, command=self.toggle_disable_fallback_mode)
-        self.disable_fallback_check.grid(row=0, column=2, padx=(0, 10))
-        
         # 高级设置按钮
         self.settings_btn = ttk.Button(debug_frame, text=self.get_text("settings"), command=self.open_settings)
-        self.settings_btn.grid(row=0, column=3, padx=(0, 5))
-        
-        # 状态显示按钮
-        self.status_btn = ttk.Button(debug_frame, text=self.get_text("show_status"), command=self.show_debug_status)
-        self.status_btn.grid(row=0, column=4, padx=(0, 5))
+        self.settings_btn.grid(row=0, column=0, padx=(0, 5))
         
         # 摄像头按钮 - 现在用于在主界面显示/隐藏摄像头区域
         self.camera_btn = ttk.Button(debug_frame, text=self.get_text("camera_window"), command=self.camera_control.open_camera_window)
-        self.camera_btn.grid(row=0, column=5, padx=(0, 5))
+        self.camera_btn.grid(row=0, column=1, padx=(0, 5))
         
         # 语音阈值设置
         threshold_frame = ttk.Frame(self.message_frame)
@@ -409,7 +386,7 @@ class VRChatOSCGUI:
         self.voicevox_area.start_status_monitoring()
         
         # 初始化LLM处理器
-        self.init_llm_handler()
+        self.llm_processor.init_llm_handler()
 
     def setup_character_management_area(self, parent_frame):
         """设置角色管理区域"""
@@ -600,9 +577,7 @@ class VRChatOSCGUI:
             self.pause_label.config(text=f"{self.config.sentence_pause_threshold:.1f}s")
             
             # 更新复选框状态
-            self.debug_var.set(self.config.osc_debug_mode)
-            self.fallback_var.set(self.config.use_fallback_mode)
-            self.disable_fallback_var.set(self.config.disable_fallback_mode)
+            pass  # 调试和fallback相关设置已删除
             
             # 如果有活动连接，应用新设置
             if self.is_connected and self.client:
@@ -745,12 +720,7 @@ class VRChatOSCGUI:
                         self.log(f"[成功] 音频文件识别并发送: {text}")
                         
                         # 如果启用了LLM处理，发送到LLM
-                        if self.llm_enabled and self.llm_handler and self.llm_handler.is_client_ready():
-                            request_id = self.llm_handler.submit_voice_text(text)
-                            if request_id:
-                                self.log(f"[LLM] 已提交音频文件到AI处理: {text[:50]}...")
-                            else:
-                                self.log("[LLM] 提交音频文件到AI失败")
+                        self.llm_processor.process_voice_text(text)
                     else:
                         self.log("[错误] 音频文件识别失败")
                         
@@ -764,148 +734,6 @@ class VRChatOSCGUI:
         except Exception as e:
             self.log(f"[错误] 音频文件加载失败: {e}")
             messagebox.showerror("文件错误", f"无法加载音频文件: {e}")
-    
-    def toggle_debug_mode(self):
-        """切换调试模式"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            self.debug_var.set(False)
-            return
-        
-        debug_enabled = self.debug_var.get()
-        self.client.set_debug_mode(debug_enabled)
-        status = "启用" if debug_enabled else "禁用"
-        self.log(f"OSC调试模式已{status}")
-    
-    def toggle_fallback_mode(self):
-        """切换强制备用模式"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            self.fallback_var.set(False)
-            return
-        
-        # 如果启用强制备用模式，自动禁用"禁用备用模式"
-        if self.fallback_var.get():
-            self.disable_fallback_var.set(False)
-            if hasattr(self.client, 'set_disable_fallback_mode'):
-                self.client.set_disable_fallback_mode(False)
-        
-        fallback_enabled = self.fallback_var.get()
-        self.client.set_fallback_mode(fallback_enabled)
-        status = "启用" if fallback_enabled else "禁用"
-        self.log(f"强制备用模式已{status}")
-    
-    def toggle_disable_fallback_mode(self):
-        """切换禁用备用模式"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            self.disable_fallback_var.set(False)
-            return
-        
-        # 如果禁用备用模式，自动禁用"强制备用模式"
-        if self.disable_fallback_var.get():
-            self.fallback_var.set(False)
-            self.client.set_fallback_mode(False)
-        
-        disable_enabled = self.disable_fallback_var.get()
-        if hasattr(self.client, 'set_disable_fallback_mode'):
-            self.client.set_disable_fallback_mode(disable_enabled)
-            status = "禁用" if disable_enabled else "启用"
-            self.log(f"备用模式已{status}")
-            
-            if disable_enabled:
-                self.log("注意：系统将只依赖VRChat语音状态，请确保VRChat OSC功能正常")
-    
-    def show_debug_status(self):
-        """显示调试状态信息"""
-        if not self.is_connected:
-            messagebox.showwarning(self.get_text("warning"), self.get_text("please_connect_first"))
-            return
-        
-        try:
-            # 获取详细状态信息
-            status = self.client.get_status()
-            debug_info = self.client.get_debug_info()
-            diagnosis = self.client.osc_client.get_vrchat_connection_diagnosis()
-            
-            # 创建状态信息窗口
-            status_window = tk.Toplevel(self.root)
-            status_window.title("系统状态信息")
-            status_window.geometry("600x500")
-            status_window.resizable(True, True)
-            
-            # 创建文本框显示状态
-            status_text = scrolledtext.ScrolledText(status_window, font=("Consolas", 9))
-            status_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            # 格式化状态信息
-            status_info = "=== VRChat OSC 系统状态 ===\n\n"
-            
-            # 基本状态
-            status_info += "【连接状态】\n"
-            status_info += f"OSC服务器: {'运行中' if status['osc_connected'] else '未运行'}\n"
-            status_info += f"VRChat语音状态: {'说话中' if status['vrc_speaking'] else '静音'}\n"
-            status_info += f"VRChat语音强度: {status['vrc_voice_level']:.4f}\n"
-            status_info += f"语音监听: {'运行中' if status['voice_listening'] else '未运行'}\n"
-            status_info += f"语音引擎: {'就绪' if status['speech_engine_ready'] else '未就绪'}\n\n"
-            
-            # 模式状态
-            status_info += "【录制模式】\n"
-            status_info += f"备用模式激活: {'是' if status['fallback_mode_active'] else '否'}\n"
-            status_info += f"强制备用模式: {'是' if status['use_fallback_mode'] else '否'}\n\n"
-            
-            # VRChat参数
-            status_info += "【检测到的VRChat语音参数】\n"
-            if status['received_voice_parameters']:
-                for param in status['received_voice_parameters']:
-                    status_info += f"- {param}\n"
-            else:
-                status_info += "未检测到任何VRChat语音参数\n"
-            status_info += "\n"
-            
-            # 监听的参数列表
-            status_info += "【监听的参数列表】\n"
-            for param in debug_info['osc']['monitoring_parameters']:
-                status_info += f"- {param}\n"
-            status_info += "\n"
-            
-            # 语音引擎信息
-            status_info += "【语音引擎】\n"
-            status_info += f"计算设备: {debug_info['speech_engine']['device']}\n"
-            status_info += f"语音阈值: {debug_info['speech_engine']['voice_threshold']}\n"
-            status_info += f"模型已加载: {'是' if debug_info['speech_engine']['model_loaded'] else '否'}\n\n"
-            
-            # 调试信息
-            status_info += "【调试设置】\n"
-            status_info += f"OSC调试模式: {'启用' if debug_info['osc']['debug_mode'] else '禁用'}\n"
-            status_info += f"VRChat检测超时: {debug_info['controller']['vrc_detection_timeout']}秒\n\n"
-            
-            # VRChat连接诊断
-            status_info += "【VRChat连接诊断】\n"
-            if diagnosis['status'] == 'working':
-                status_info += "[成功] VRChat OSC连接正常\n"
-            elif diagnosis['status'] == 'no_vrchat_data':
-                status_info += "[错误] 未检测到VRChat数据\n"
-                status_info += "\n[搜索] 可能原因:\n"
-                for issue in diagnosis['issues']:
-                    status_info += f"• {issue}\n"
-                status_info += "\n[建议] 建议解决方案:\n"
-                for suggestion in diagnosis['suggestions']:
-                    status_info += f"• {suggestion}\n"
-            elif diagnosis['status'] == 'receiving_data_but_no_voice':
-                status_info += "[警告] 收到VRChat数据但无语音状态\n"
-                status_info += "\n[建议] 建议:\n"
-                for suggestion in diagnosis['suggestions']:
-                    status_info += f"• {suggestion}\n"
-            else:
-                status_info += "❓ 连接状态未知\n"
-            
-            status_text.insert(tk.END, status_info)
-            status_text.config(state=tk.DISABLED)
-            
-        except Exception as e:
-            messagebox.showerror("错误", f"获取状态信息失败: {e}")
-            self.log(f"显示状态失败: {e}")
     
     def on_language_changed(self, event=None):
         """语言选择框改变事件"""
@@ -991,10 +819,7 @@ class VRChatOSCGUI:
             self.upload_voice_btn.config(text=self.get_text("upload_voice"))
         if hasattr(self, 'record_voice_btn'):
             self.record_voice_btn.config(text=self.get_text("record_voice"))
-        if hasattr(self, 'debug_check'):
-            self.debug_check.config(text=self.get_text("debug"))
-        if hasattr(self, 'status_btn'):
-            self.status_btn.config(text=self.get_text("show_status"))
+        # 调试和状态相关的UI元素已删除
         if hasattr(self, 'camera_btn'):
             self.camera_btn.config(text=self.get_text("camera_window"))
         if hasattr(self, 'settings_btn'):
@@ -1104,94 +929,6 @@ class VRChatOSCGUI:
         self.overall_status_progress = ttk.Progressbar(self.expression_frame, length=250, mode='determinate')
         self.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
         self.overall_status_progress['maximum'] = 100
-    
-    def on_voice_preset_changed(self, event=None):
-        """语音预设变化回调"""
-        preset = self.voice_preset_var.get()
-        
-        # 定义预设参数
-        presets = {
-            "默认": {"speed": 1.0, "pitch": 0.0, "intonation": 1.0, "volume": 1.0},
-            "慢速清晰": {"speed": 0.8, "pitch": -0.05, "intonation": 1.2, "volume": 1.1},
-            "快速自然": {"speed": 1.3, "pitch": 0.02, "intonation": 0.9, "volume": 0.9},
-            "低音温和": {"speed": 0.9, "pitch": -0.1, "intonation": 0.8, "volume": 1.0},
-            "高音活泼": {"speed": 1.2, "pitch": 0.08, "intonation": 1.4, "volume": 1.1},
-            "机器人": {"speed": 1.1, "pitch": -0.12, "intonation": 0.6, "volume": 0.8}
-        }
-        
-        if preset in presets and preset != "自定义":
-            params = presets[preset]
-            # 更新滑块值
-            self.speed_var.set(params["speed"])
-            self.pitch_var.set(params["pitch"])
-            self.intonation_var.set(params["intonation"])
-            self.volume_var.set(params["volume"])
-            
-            # 更新标签显示
-            self.speed_label.config(text=f"{params['speed']:.2f}")
-            self.pitch_label.config(text=f"{params['pitch']:.3f}")
-            self.intonation_label.config(text=f"{params['intonation']:.2f}")
-            self.volume_label.config(text=f"{params['volume']:.2f}")
-            
-            # 应用参数到VOICEVOX
-            if self.voicevox_client:
-                self.voicevox_client.set_voice_parameters(
-                    speed_scale=params["speed"],
-                    pitch_scale=params["pitch"],
-                    intonation_scale=params["intonation"],
-                    volume_scale=params["volume"]
-                )
-            
-            self.log(f"应用语音预设: {preset}")
-    
-    def init_llm_handler(self):
-        """初始化LLM处理器"""
-        def init_in_background():
-            try:
-                self.llm_handler = VoiceLLMHandler(config=self.config)
-                
-                # 设置LLM响应回调
-                self.llm_handler.set_response_callback(self.on_llm_response)
-                
-                if self.llm_handler.is_client_ready():
-                    # 启动处理器
-                    self.llm_handler.start_processing()
-                    self.log("LLM处理器初始化成功")
-                else:
-                    self.log("LLM处理器初始化失败：客户端未就绪")
-                    
-            except Exception as e:
-                self.log(f"初始化LLM处理器失败: {e}")
-        
-        # 在后台线程中初始化
-        threading.Thread(target=init_in_background, daemon=True).start()
-    
-    def on_llm_response(self, response: VoiceLLMResponse):
-        """处理LLM响应"""
-        def update_ui():
-            if response.success:
-                # 显示LLM回复在语音识别框中
-                self.add_speech_output(response.llm_response, "AI回复")
-                
-                # 发送到VRChat聊天框
-                self.client.send_text_message(f"[AI] {response.llm_response}")
-                
-                # 使用VOICEVOX合成语音
-                self.voicevox_area.synthesize_with_voicevox(response.llm_response)
-                
-                self.log(f"LLM响应: {response.llm_response[:100]}...")
-            else:
-                self.log(f"LLM处理失败: {response.error}")
-        
-        # 在主线程中更新UI
-        self.root.after(0, update_ui)
-    
-    def toggle_llm_enabled(self):
-        """切换LLM启用状态"""
-        self.llm_enabled = self.llm_enabled_var.get()
-        status = "启用" if self.llm_enabled else "禁用"
-        self.log(f"AI对话功能已{status}")
-    
     def open_character_management(self):
         """打开角色管理窗口"""
         if self.character_window is not None and self.character_window.winfo_exists():

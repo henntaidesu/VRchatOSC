@@ -365,6 +365,21 @@ class AIVRChatManager:
         except Exception as e:
             self.main_app.log(f"初始化场景系统异常: {e}")
     
+    def load_scenario_data(self):
+        """加载场景数据"""
+        try:
+            scenario_file = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'scenarios.json')
+            if os.path.exists(scenario_file):
+                with open(scenario_file, 'r', encoding='utf-8') as f:
+                    self.scenario_data = json.load(f)
+                self.main_app.log("场景数据加载成功")
+            else:
+                self.main_app.log("场景文件不存在，创建默认场景")
+                self.create_default_scenario_data()
+        except Exception as e:
+            self.main_app.log(f"加载场景数据失败: {e}")
+            self.create_default_scenario_data()
+    
     def create_default_scenario_data(self):
         """创建默认场景数据"""
         try:

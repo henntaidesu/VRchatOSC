@@ -100,7 +100,7 @@ class VoicevoxArea:
         self.main_app.llm_enabled_var = tk.BooleanVar(value=True)
         self.main_app.llm_enabled_check = ttk.Checkbutton(control_frame, text="启用AI对话", 
                                                variable=self.main_app.llm_enabled_var, 
-                                               command=self.main_app.toggle_llm_enabled)
+                                               command=self._toggle_llm_enabled)
         self.main_app.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
         # 第四行：语音参数控制
@@ -165,7 +165,7 @@ class VoicevoxArea:
                                              values=["默认", "慢速清晰", "快速自然", "低音温和", "高音活泼", "机器人", "自定义"], 
                                              state="readonly", width=10)
         self.main_app.voice_preset_combo.pack(side=tk.LEFT, padx=(0, 5))
-        self.main_app.voice_preset_combo.bind('<<ComboboxSelected>>', self.main_app.on_voice_preset_changed)
+        self.main_app.voice_preset_combo.bind('<<ComboboxSelected>>', self.on_voice_preset_changed)
         
         # 控制按钮
         button_frame = ttk.Frame(params_button_frame)
@@ -812,3 +812,47 @@ class VoicevoxArea:
         except Exception as e:
             self.main_app.log(f"加载语音参数预设失败: {e}")
             return False
+    
+    def _toggle_llm_enabled(self):
+        """切换LLM启用状态的包装方法"""
+        enabled = self.main_app.llm_enabled_var.get()
+        self.main_app.llm_processor.toggle_llm_enabled(enabled)
+    
+    def on_voice_preset_changed(self, event=None):
+        """语音预设变化回调"""
+        preset = self.main_app.voice_preset_var.get()
+        
+        # 定义预设参数
+        presets = {
+            "默认": {"speed": 1.0, "pitch": 0.0, "intonation": 1.0, "volume": 1.0},
+            "慢速清晰": {"speed": 0.8, "pitch": -0.05, "intonation": 1.2, "volume": 1.1},
+            "快速自然": {"speed": 1.3, "pitch": 0.02, "intonation": 0.9, "volume": 0.9},
+            "低音温和": {"speed": 0.9, "pitch": -0.1, "intonation": 0.8, "volume": 1.0},
+            "高音活泼": {"speed": 1.2, "pitch": 0.08, "intonation": 1.4, "volume": 1.1},
+            "机器人": {"speed": 1.1, "pitch": -0.12, "intonation": 0.6, "volume": 0.8}
+        }
+        
+        if preset in presets and preset != "自定义":
+            params = presets[preset]
+            # 更新滑块值
+            self.main_app.speed_var.set(params["speed"])
+            self.main_app.pitch_var.set(params["pitch"])
+            self.main_app.intonation_var.set(params["intonation"])
+            self.main_app.volume_var.set(params["volume"])
+            
+            # 更新标签显示
+            self.main_app.speed_label.config(text=f"{params['speed']:.2f}")
+            self.main_app.pitch_label.config(text=f"{params['pitch']:.3f}")
+            self.main_app.intonation_label.config(text=f"{params['intonation']:.2f}")
+            self.main_app.volume_label.config(text=f"{params['volume']:.2f}")
+            
+            # 应用参数到VOICEVOX
+            if self.main_app.voicevox_client:
+                self.main_app.voicevox_client.set_voice_parameters(
+                    speed_scale=params["speed"],
+                    pitch_scale=params["pitch"],
+                    intonation_scale=params["intonation"],
+                    volume_scale=params["volume"]
+                )
+            
+            self.main_app.log(f"应用语音预设: {preset}")
