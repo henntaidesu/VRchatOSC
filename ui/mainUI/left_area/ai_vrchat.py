@@ -71,23 +71,58 @@ class AIVRChatManager:
 
         ttk.Label(movement_grid, text="移动控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
+        # 斜着走按钮 - 左上、右上
+        self.main_app.move_forward_left_btn = ttk.Button(movement_grid, text="↖ 左前", width=8)
+        self.main_app.move_forward_left_btn.grid(row=1, column=0, padx=2, pady=2)
+        self.main_app.move_forward_left_btn.bind("<ButtonPress-1>", lambda e: self.move_forward_left())
+        self.main_app.move_forward_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
+
         # 前进按钮
-        self.main_app.move_forward_btn = ttk.Button(movement_grid, text="↑ 前进", command=self.move_forward, width=8)
+        self.main_app.move_forward_btn = ttk.Button(movement_grid, text="↑ 前进", width=8)
         self.main_app.move_forward_btn.grid(row=1, column=1, padx=2, pady=2)
+        self.main_app.move_forward_btn.bind("<ButtonPress-1>", lambda e: self.move_forward())
+        self.main_app.move_forward_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        # 左移、后退、右移按钮
-        self.main_app.strafe_left_btn = ttk.Button(movement_grid, text="⇐ 左移", command=self.strafe_left, width=8)
+        self.main_app.move_forward_right_btn = ttk.Button(movement_grid, text="↗ 右前", width=8)
+        self.main_app.move_forward_right_btn.grid(row=1, column=2, padx=2, pady=2)
+        self.main_app.move_forward_right_btn.bind("<ButtonPress-1>", lambda e: self.move_forward_right())
+        self.main_app.move_forward_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
+
+        # 左移、蹲下、右移按钮
+        self.main_app.strafe_left_btn = ttk.Button(movement_grid, text="⇐ 左移", width=8)
         self.main_app.strafe_left_btn.grid(row=2, column=0, padx=2, pady=2)
+        self.main_app.strafe_left_btn.bind("<ButtonPress-1>", lambda e: self.strafe_left())
+        self.main_app.strafe_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        self.main_app.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", command=self.move_backward, width=8)
-        self.main_app.move_backward_btn.grid(row=2, column=1, padx=2, pady=2)
+        self.main_app.crouch_btn = ttk.Button(movement_grid, text="蹲下", width=8)
+        self.main_app.crouch_btn.grid(row=2, column=1, padx=2, pady=2)
+        self.main_app.crouch_btn.bind("<ButtonPress-1>", lambda e: self.crouch())
+        self.main_app.crouch_btn.bind("<ButtonRelease-1>", lambda e: self.stop_crouch())
 
-        self.main_app.strafe_right_btn = ttk.Button(movement_grid, text="⇒ 右移", command=self.strafe_right, width=8)
+        self.main_app.strafe_right_btn = ttk.Button(movement_grid, text="⇒ 右移", width=8)
         self.main_app.strafe_right_btn.grid(row=2, column=2, padx=2, pady=2)
+        self.main_app.strafe_right_btn.bind("<ButtonPress-1>", lambda e: self.strafe_right())
+        self.main_app.strafe_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
+
+        # 斜着走按钮 - 左下、后退、右下
+        self.main_app.move_backward_left_btn = ttk.Button(movement_grid, text="↙ 左后", width=8)
+        self.main_app.move_backward_left_btn.grid(row=3, column=0, padx=2, pady=2)
+        self.main_app.move_backward_left_btn.bind("<ButtonPress-1>", lambda e: self.move_backward_left())
+        self.main_app.move_backward_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
+
+        self.main_app.move_backward_btn = ttk.Button(movement_grid, text="↓ 后退", width=8)
+        self.main_app.move_backward_btn.grid(row=3, column=1, padx=2, pady=2)
+        self.main_app.move_backward_btn.bind("<ButtonPress-1>", lambda e: self.move_backward())
+        self.main_app.move_backward_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
+
+        self.main_app.move_backward_right_btn = ttk.Button(movement_grid, text="↘ 右后", width=8)
+        self.main_app.move_backward_right_btn.grid(row=3, column=2, padx=2, pady=2)
+        self.main_app.move_backward_right_btn.bind("<ButtonPress-1>", lambda e: self.move_backward_right())
+        self.main_app.move_backward_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
         # 跳跃按钮
-        self.main_app.jump_btn = ttk.Button(movement_grid, text="↗ 跳跃", command=self.jump, width=8)
-        self.main_app.jump_btn.grid(row=3, column=1, padx=2, pady=2)
+        self.main_app.jump_btn = ttk.Button(movement_grid, text="跳跃", command=self.jump, width=8)
+        self.main_app.jump_btn.grid(row=4, column=1, padx=2, pady=2)
 
         # 右侧: 镜头控制
         camera_grid = ttk.Frame(control_container)
@@ -95,19 +130,52 @@ class AIVRChatManager:
 
         ttk.Label(camera_grid, text="镜头控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
-        # 上看按钮
-        self.main_app.look_up_btn = ttk.Button(camera_grid, text="↑ 上看", command=self.look_up, width=8)
+        # 斜着看按钮 - 左上、上看、右上
+        self.main_app.look_up_left_btn = ttk.Button(camera_grid, text="↖ 左上", width=8)
+        self.main_app.look_up_left_btn.grid(row=1, column=0, padx=2, pady=2)
+        self.main_app.look_up_left_btn.bind("<ButtonPress-1>", lambda e: self.look_up_left())
+        self.main_app.look_up_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
+
+        self.main_app.look_up_btn = ttk.Button(camera_grid, text="↑ 上看", width=8)
         self.main_app.look_up_btn.grid(row=1, column=1, padx=2, pady=2)
+        self.main_app.look_up_btn.bind("<ButtonPress-1>", lambda e: self.look_up())
+        self.main_app.look_up_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        # 左转、下看、右转按钮
-        self.main_app.turn_left_btn = ttk.Button(camera_grid, text="← 左转", command=self.turn_left, width=8)
+        self.main_app.look_up_right_btn = ttk.Button(camera_grid, text="↗ 右上", width=8)
+        self.main_app.look_up_right_btn.grid(row=1, column=2, padx=2, pady=2)
+        self.main_app.look_up_right_btn.bind("<ButtonPress-1>", lambda e: self.look_up_right())
+        self.main_app.look_up_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
+
+        # 左转、停止、右转按钮
+        self.main_app.turn_left_btn = ttk.Button(camera_grid, text="← 左转", width=8)
         self.main_app.turn_left_btn.grid(row=2, column=0, padx=2, pady=2)
+        self.main_app.turn_left_btn.bind("<ButtonPress-1>", lambda e: self.turn_left())
+        self.main_app.turn_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        self.main_app.look_down_btn = ttk.Button(camera_grid, text="↓ 下看", command=self.look_down, width=8)
-        self.main_app.look_down_btn.grid(row=2, column=1, padx=2, pady=2)
+        self.main_app.stop_look_btn = ttk.Button(camera_grid, text="停止", width=8)
+        self.main_app.stop_look_btn.grid(row=2, column=1, padx=2, pady=2)
+        self.main_app.stop_look_btn.bind("<Button-1>", lambda e: self.stop_look())
 
-        self.main_app.turn_right_btn = ttk.Button(camera_grid, text="→ 右转", command=self.turn_right, width=8)
+        self.main_app.turn_right_btn = ttk.Button(camera_grid, text="→ 右转", width=8)
         self.main_app.turn_right_btn.grid(row=2, column=2, padx=2, pady=2)
+        self.main_app.turn_right_btn.bind("<ButtonPress-1>", lambda e: self.turn_right())
+        self.main_app.turn_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
+
+        # 斜着看按钮 - 左下、下看、右下
+        self.main_app.look_down_left_btn = ttk.Button(camera_grid, text="↙ 左下", width=8)
+        self.main_app.look_down_left_btn.grid(row=3, column=0, padx=2, pady=2)
+        self.main_app.look_down_left_btn.bind("<ButtonPress-1>", lambda e: self.look_down_left())
+        self.main_app.look_down_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
+
+        self.main_app.look_down_btn = ttk.Button(camera_grid, text="↓ 下看", width=8)
+        self.main_app.look_down_btn.grid(row=3, column=1, padx=2, pady=2)
+        self.main_app.look_down_btn.bind("<ButtonPress-1>", lambda e: self.look_down())
+        self.main_app.look_down_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
+
+        self.main_app.look_down_right_btn = ttk.Button(camera_grid, text="↘ 右下", width=8)
+        self.main_app.look_down_right_btn.grid(row=3, column=2, padx=2, pady=2)
+        self.main_app.look_down_right_btn.bind("<ButtonPress-1>", lambda e: self.look_down_right())
+        self.main_app.look_down_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
         # 控制速度设置
         speed_frame = ttk.Frame(movement_frame)
@@ -352,6 +420,129 @@ class AIVRChatManager:
                 self.main_app.log(f"下看 (速度: {self.movement_speed * 0.5})")
         except Exception as e:
             self.main_app.log(f"下看异常: {e}")
+    
+    # 停止控制方法
+    def stop_movement(self):
+        """停止移动"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/Vertical", 0.0)
+                self.ai_osc_client.send_parameter("/input/Horizontal", 0.0)
+                self.main_app.log("停止移动")
+        except Exception as e:
+            self.main_app.log(f"停止移动异常: {e}")
+    
+    def stop_look(self):
+        """停止镜头移动"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/LookVertical", 0.0)
+                self.ai_osc_client.send_parameter("/input/LookHorizontal", 0.0)
+                self.main_app.log("停止镜头移动")
+        except Exception as e:
+            self.main_app.log(f"停止镜头移动异常: {e}")
+    
+    # 蹲下控制
+    def crouch(self):
+        """蹲下"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/Run", False)  # 取消跑步
+                self.ai_osc_client.send_parameter("/input/MoveHoldFB", True)  # 使用慢速模式
+                self.main_app.log("蹲下")
+        except Exception as e:
+            self.main_app.log(f"蹲下异常: {e}")
+    
+    def stop_crouch(self):
+        """停止蹲下"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/MoveHoldFB", False)
+                self.main_app.log("停止蹲下")
+        except Exception as e:
+            self.main_app.log(f"停止蹲下异常: {e}")
+    
+    # 斜着移动方法
+    def move_forward_left(self):
+        """左前移动"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/Vertical", self.movement_speed)
+                self.ai_osc_client.send_parameter("/input/Horizontal", -self.movement_speed)
+                self.main_app.log(f"左前移动 (速度: {self.movement_speed})")
+        except Exception as e:
+            self.main_app.log(f"左前移动异常: {e}")
+    
+    def move_forward_right(self):
+        """右前移动"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/Vertical", self.movement_speed)
+                self.ai_osc_client.send_parameter("/input/Horizontal", self.movement_speed)
+                self.main_app.log(f"右前移动 (速度: {self.movement_speed})")
+        except Exception as e:
+            self.main_app.log(f"右前移动异常: {e}")
+    
+    def move_backward_left(self):
+        """左后移动"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/Vertical", -self.movement_speed)
+                self.ai_osc_client.send_parameter("/input/Horizontal", -self.movement_speed)
+                self.main_app.log(f"左后移动 (速度: {self.movement_speed})")
+        except Exception as e:
+            self.main_app.log(f"左后移动异常: {e}")
+    
+    def move_backward_right(self):
+        """右后移动"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/Vertical", -self.movement_speed)
+                self.ai_osc_client.send_parameter("/input/Horizontal", self.movement_speed)
+                self.main_app.log(f"右后移动 (速度: {self.movement_speed})")
+        except Exception as e:
+            self.main_app.log(f"右后移动异常: {e}")
+    
+    # 斜着看方法
+    def look_up_left(self):
+        """左上看"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/LookVertical", self.movement_speed * 0.5)
+                self.ai_osc_client.send_parameter("/input/LookHorizontal", -self.movement_speed * 0.5)
+                self.main_app.log(f"左上看 (速度: {self.movement_speed * 0.5})")
+        except Exception as e:
+            self.main_app.log(f"左上看异常: {e}")
+    
+    def look_up_right(self):
+        """右上看"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/LookVertical", self.movement_speed * 0.5)
+                self.ai_osc_client.send_parameter("/input/LookHorizontal", self.movement_speed * 0.5)
+                self.main_app.log(f"右上看 (速度: {self.movement_speed * 0.5})")
+        except Exception as e:
+            self.main_app.log(f"右上看异常: {e}")
+    
+    def look_down_left(self):
+        """左下看"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/LookVertical", -self.movement_speed * 0.5)
+                self.ai_osc_client.send_parameter("/input/LookHorizontal", -self.movement_speed * 0.5)
+                self.main_app.log(f"左下看 (速度: {self.movement_speed * 0.5})")
+        except Exception as e:
+            self.main_app.log(f"左下看异常: {e}")
+    
+    def look_down_right(self):
+        """右下看"""
+        try:
+            if self.ai_osc_client:
+                self.ai_osc_client.send_parameter("/input/LookVertical", -self.movement_speed * 0.5)
+                self.ai_osc_client.send_parameter("/input/LookHorizontal", self.movement_speed * 0.5)
+                self.main_app.log(f"右下看 (速度: {self.movement_speed * 0.5})")
+        except Exception as e:
+            self.main_app.log(f"右下看异常: {e}")
 
     
     def init_scenario_system(self):

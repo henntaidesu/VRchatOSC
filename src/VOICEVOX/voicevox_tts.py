@@ -32,7 +32,7 @@ class VOICEVOXClient:
         self.current_style_name = "ノーマル"
         
         # 语音参数设置
-        self.speed_scale = 1.0      # 语速倍率 (0.5 - 2.0)
+        self.speed_scale = 1.0      # 语速倍率 (0.0 - 2.0)
         self.pitch_scale = 0.0      # 音高偏移 (-0.15 - 0.15) 
         self.intonation_scale = 1.0 # 抑扬顿挫 (0.0 - 2.0)
         self.volume_scale = 1.0     # 音量倍率 (0.0 - 2.0)
@@ -363,13 +363,13 @@ class VOICEVOXClient:
         设置语音参数
         
         Args:
-            speed_scale: 语速倍率 (0.5 - 2.0)
+            speed_scale: 语速倍率 (0.0 - 2.0)
             pitch_scale: 音高偏移 (-0.15 - 0.15)
             intonation_scale: 抑扬顿挫 (0.0 - 2.0)
             volume_scale: 音量倍率 (0.0 - 2.0)
         """
         if speed_scale is not None:
-            self.speed_scale = max(0.5, min(2.0, speed_scale))
+            self.speed_scale = max(0.0, min(2.0, speed_scale))
         if pitch_scale is not None:
             self.pitch_scale = max(-0.15, min(0.15, pitch_scale))
         if intonation_scale is not None:

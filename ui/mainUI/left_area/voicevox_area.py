@@ -112,7 +112,7 @@ class VoicevoxArea:
         speed_frame.pack(fill=tk.X, pady=(0, 5))
         ttk.Label(speed_frame, text="语速:", width=8).pack(side=tk.LEFT)
         self.main_app.speed_var = tk.DoubleVar(value=1.0)
-        self.main_app.speed_scale = ttk.Scale(speed_frame, from_=0.5, to=2.0, variable=self.main_app.speed_var,
+        self.main_app.speed_scale = ttk.Scale(speed_frame, from_=0.0, to=2.0, variable=self.main_app.speed_var,
                                    orient=tk.HORIZONTAL, command=self.on_speed_changed)
         self.main_app.speed_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         self.main_app.speed_label = ttk.Label(speed_frame, text="1.00", width=5)
@@ -410,6 +410,24 @@ class VoicevoxArea:
                     
                     # 更新Avatar控制器
                     self.main_app.avatar_controller.set_voicevox_client(self.main_app.voicevox_client)
+                    
+                    # 加载角色特定的语音参数预设，如果不存在则使用默认值
+                    loaded_preset = self.load_voice_params_for_speaker(character_name, style_name)
+                    if not loaded_preset:
+                        # 如果没有找到预设，使用默认语音参数
+                        self.main_app.speed_var.set(1.0)
+                        self.main_app.pitch_var.set(0.0)
+                        self.main_app.intonation_var.set(1.0)
+                        self.main_app.volume_var.set(1.0)
+                        
+                        # 应用默认参数到VOICEVOX
+                        if self.main_app.voicevox_client:
+                            self.main_app.voicevox_client.set_voice_parameters(
+                                speed_scale=1.0,
+                                pitch_scale=0.0,
+                                intonation_scale=1.0,
+                                volume_scale=1.0
+                            )
                     
                     self.main_app.log(f"VOICEVOX角色已切换为: {current_period} - {character_name} - {style_name} (ID: {style_id})")
                     messagebox.showinfo("成功", f"角色已切换为:\n期数: {current_period}\n角色: {character_name}\n样式: {style_name}")
