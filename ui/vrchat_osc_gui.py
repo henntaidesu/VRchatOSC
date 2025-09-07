@@ -10,8 +10,6 @@ import threading
 import time
 import sys
 import os
-import numpy as np
-import soundfile as sf
 import cv2
 from PIL import Image, ImageTk
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,10 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
 from ui.settings_window import SettingsWindow
-from src.face.simple_face_detector import SimpleFaceCamera
-from src.face.gpu_emotion_detector import GPUFaceCamera
 from ui.languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
-from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
 from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
@@ -1086,14 +1081,6 @@ class VRChatOSCGUI:
         """处理语音识别结果"""
         # 这个方法现在主要用于兼容性，实际显示已经在各个回调中处理
         pass
-    
-    def update_voice_threshold(self, value):
-        """更新语音阈值"""
-        threshold = float(value)
-        if self.client:
-            self.client.set_voice_threshold(threshold)
-        self.threshold_label.config(text=f"{threshold:.3f}")
-        self.log(f"语音阈值已设置为: {threshold:.3f}")
     
     def update_pause_threshold(self, value):
         """更新断句间隔阈值"""
