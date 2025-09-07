@@ -79,6 +79,8 @@ class ConfigManager:
                 'last_character_personality': 'friendly'
             },
             'VOICEVOX': {
+                'host': 'localhost',
+                'port': '50021',
                 'last_period': '1期',
                 'last_character': 'ずんだもん - ノーマル',
                 'last_speaker_id': '',
@@ -375,6 +377,21 @@ class ConfigManager:
         self.set('Runtime', 'disable_speech_recognition', disable)
     
     # 便捷方法：VOICEVOX配置
+    @property
+    def voicevox_host(self) -> str:
+        """获取VOICEVOX服务器地址"""
+        return self.get('VOICEVOX', 'host', 'localhost')
+    
+    @property
+    def voicevox_port(self) -> int:
+        """获取VOICEVOX服务器端口"""
+        return self.get('VOICEVOX', 'port', 50021)
+    
+    def set_voicevox_server(self, host: str, port: int):
+        """设置VOICEVOX服务器地址和端口"""
+        self.set('VOICEVOX', 'host', host)
+        self.set('VOICEVOX', 'port', port)
+    
     @property
     def voicevox_last_period(self) -> str:
         """获取上次选择的期数"""

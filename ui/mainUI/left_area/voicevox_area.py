@@ -18,7 +18,33 @@ class VoicevoxArea:
         self.main_app.voicevox_control_frame.columnconfigure(0, weight=1)
         self.main_app.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
         
-        # 第一行：期数选择和连接状态
+        # 第一行：服务器设置
+        server_frame = ttk.Frame(self.main_app.voicevox_control_frame)
+        server_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # IP地址输入
+        ttk.Label(server_frame, text="IP:", width=4).pack(side=tk.LEFT, padx=(0, 2))
+        saved_host = self.main_app.config.voicevox_host
+        self.main_app.voicevox_host_var = tk.StringVar(value=saved_host)
+        self.main_app.voicevox_host_entry = ttk.Entry(server_frame, textvariable=self.main_app.voicevox_host_var, width=12)
+        self.main_app.voicevox_host_entry.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 端口输入
+        ttk.Label(server_frame, text="端口:", width=4).pack(side=tk.LEFT, padx=(0, 2))
+        saved_port = self.main_app.config.voicevox_port
+        self.main_app.voicevox_port_var = tk.StringVar(value=str(saved_port))
+        self.main_app.voicevox_port_entry = ttk.Entry(server_frame, textvariable=self.main_app.voicevox_port_var, width=8)
+        self.main_app.voicevox_port_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 连接按钮
+        self.main_app.voicevox_connect_btn = ttk.Button(server_frame, text="连接", command=self.connect_voicevox, width=8)
+        self.main_app.voicevox_connect_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 连接状态
+        self.main_app.voicevox_status_label = ttk.Label(server_frame, text="未连接", foreground="red")
+        self.main_app.voicevox_status_label.pack(side=tk.RIGHT)
+        
+        # 第二行：期数选择
         period_frame = ttk.Frame(self.main_app.voicevox_control_frame)
         period_frame.pack(fill=tk.X, pady=(0, 5))
         
@@ -30,10 +56,6 @@ class VoicevoxArea:
                                                 width=8, state="readonly")
         self.main_app.voicevox_period_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.main_app.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
-        
-        # VOICEVOX连接状态
-        self.main_app.voicevox_status_label = ttk.Label(period_frame, text=self.main_app.get_text("disconnected"), foreground="red")
-        self.main_app.voicevox_status_label.pack(side=tk.RIGHT)
         
         # 第二行：角色名称选择
         character_frame = ttk.Frame(self.main_app.voicevox_control_frame)
@@ -161,29 +183,129 @@ class VoicevoxArea:
         # 角色管理区域 - 直接在左侧VOICEVOX区域下方
         self.main_app.setup_character_management_area(self.main_app.voicevox_control_frame)
 
-    def init_voicevox(self):
+    def init_voicevox(self, retry_count=3):
         """初始化VOICEVOX客户端"""
         def init_in_background():
-            try:
-                self.main_app.voicevox_client = get_voicevox_client()
-                if self.main_app.voicevox_client.test_connection():
-                    self.main_app.voicevox_connected = True
-                    # 获取角色列表
-                    speakers_list = self.main_app.voicevox_client.get_speakers_list()
-                    speaker_names = [speaker['display'] for speaker in speakers_list]
+            # 获取配置的主机和端口
+            host = self.main_app.config.voicevox_host
+            port = self.main_app.config.voicevox_port
+            
+            for attempt in range(retry_count):
+                try:
+                    self.main_app.log(f"正在尝试连接VOICEVOX Engine {host}:{port}... (第{attempt + 1}次)")
                     
-                    # 更新UI（必须在主线程中执行）
-                    self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
-                    self.main_app.log("VOICEVOX连接成功")
-                else:
-                    self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
-                    self.main_app.log("VOICEVOX连接失败")
-            except Exception as e:
-                self.main_app.log(f"初始化VOICEVOX失败: {e}")
-                self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
+                    # 使用配置的主机和端口创建客户端实例
+                    from src.VOICEVOX.voicevox_tts import VOICEVOXClient
+                    self.main_app.voicevox_client = VOICEVOXClient(host=host, port=port)
+                    
+                    # 测试连接
+                    if self.main_app.voicevox_client.test_connection():
+                        try:
+                            # 获取角色列表
+                            speakers_list = self.main_app.voicevox_client.get_speakers_list()
+                            if speakers_list:
+                                speaker_names = [speaker['display'] for speaker in speakers_list]
+                                self.main_app.voicevox_connected = True
+                                
+                                # 更新UI（必须在主线程中执行）
+                                self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
+                                self.main_app.log(f"VOICEVOX连接成功！已加载{len(speaker_names)}个角色")
+                                return
+                            else:
+                                self.main_app.log("VOICEVOX连接成功但未获取到角色列表")
+                        except Exception as e:
+                            self.main_app.log(f"获取VOICEVOX角色列表失败: {e}")
+                    else:
+                        self.main_app.log(f"VOICEVOX Engine连接测试失败 (第{attempt + 1}次)")
+                        
+                except Exception as e:
+                    self.main_app.log(f"VOICEVOX连接尝试失败 (第{attempt + 1}次): {e}")
+                
+                # 如果不是最后一次尝试，等待后重试
+                if attempt < retry_count - 1:
+                    self.main_app.log("等待3秒后重试...")
+                    time.sleep(3)
+            
+            # 所有尝试都失败了
+            self.main_app.voicevox_connected = False
+            error_msg = f"VOICEVOX连接失败！已尝试{retry_count}次。请检查：\n" \
+                       f"1. VOICEVOX Engine是否已启动\n" \
+                       f"2. 端口50021是否被占用\n" \
+                       f"3. 防火墙设置是否正确"
+            self.main_app.log(error_msg)
+            self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
         
         # 在后台线程中初始化，避免阻塞UI
         threading.Thread(target=init_in_background, daemon=True).start()
+    
+    def connect_voicevox(self):
+        """手动连接VOICEVOX服务器"""
+        def connect_in_background():
+            try:
+                # 更新按钮状态
+                self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="disabled", text="连接中..."))
+                self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text="连接中...", foreground="orange"))
+                
+                # 获取用户输入的IP和端口
+                host = self.main_app.voicevox_host_var.get().strip()
+                port = self.main_app.voicevox_port_var.get().strip()
+                
+                # 验证输入
+                if not host:
+                    host = "localhost"
+                    self.main_app.voicevox_host_var.set(host)
+                
+                if not port:
+                    port = "50021"
+                    self.main_app.voicevox_port_var.set(port)
+                
+                try:
+                    port = int(port)
+                except ValueError:
+                    self.main_app.root.after(0, lambda: messagebox.showerror("错误", "端口必须是数字"))
+                    self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="连接"))
+                    self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text="连接失败", foreground="red"))
+                    return
+                
+                self.main_app.log(f"尝试连接VOICEVOX服务器: {host}:{port}")
+                
+                # 创建新的VOICEVOX客户端实例
+                from src.VOICEVOX.voicevox_tts import VOICEVOXClient
+                voicevox_client = VOICEVOXClient(host=host, port=port)
+                
+                # 测试连接
+                if voicevox_client.test_connection():
+                    # 获取角色列表
+                    speakers_list = voicevox_client.get_speakers_list()
+                    if speakers_list:
+                        speaker_names = [speaker['display'] for speaker in speakers_list]
+                        
+                        # 保存成功连接的配置
+                        self.main_app.config.set_voicevox_server(host, port)
+                        self.main_app.config.save_config()
+                        
+                        # 更新全局客户端实例
+                        self.main_app.voicevox_client = voicevox_client
+                        self.main_app.voicevox_connected = True
+                        
+                        # 更新UI
+                        self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
+                        self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="重连"))
+                        self.main_app.log(f"VOICEVOX连接成功！服务器: {host}:{port}, 已加载{len(speaker_names)}个角色")
+                    else:
+                        raise Exception("未获取到角色列表")
+                else:
+                    raise Exception("连接测试失败")
+                    
+            except Exception as e:
+                self.main_app.log(f"VOICEVOX连接失败: {e}")
+                self.main_app.voicevox_connected = False
+                self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
+                self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="连接"))
+                self.main_app.root.after(0, lambda: messagebox.showerror("连接失败", f"无法连接到VOICEVOX服务器 {host}:{port}\n\n错误信息: {e}\n\n请检查:\n1. VOICEVOX Engine是否已启动\n2. IP地址和端口是否正确\n3. 防火墙设置"))
+        
+        # 在后台线程中连接
+        threading.Thread(target=connect_in_background, daemon=True).start()
     
     def update_voicevox_ui(self, speaker_names, connected):
         """更新VOICEVOX UI状态"""
@@ -200,7 +322,10 @@ class VoicevoxArea:
                         voicevox_client=self.main_app.voicevox_client
                     )
                 
-                self.main_app.voicevox_status_label.config(text=self.main_app.get_text("connected"), foreground="green")
+                # 显示连接详细信息
+                host = self.main_app.voicevox_host_var.get()
+                port = self.main_app.voicevox_port_var.get()
+                self.main_app.voicevox_status_label.config(text=f"已连接 ({host}:{port})", foreground="green")
                 self.main_app.voicevox_character_combo['values'] = speaker_names
                 
                 # 设置默认角色（如果配置中有保存的角色）
@@ -227,7 +352,7 @@ class VoicevoxArea:
                     self.on_voicevox_period_changed()
                 
             else:
-                self.main_app.voicevox_status_label.config(text=self.main_app.get_text("disconnected"), foreground="red")
+                self.main_app.voicevox_status_label.config(text="未连接", foreground="red")
                 self.main_app.voicevox_character_combo['values'] = []
                 self.main_app.voicevox_style_combo['values'] = []
                 
@@ -457,3 +582,84 @@ class VoicevoxArea:
         except Exception as e:
             self.main_app.log(f"VOICEVOX语音合成出错: {e}")
             return None
+    
+    def ai_generate_and_send_voice(self):
+        """生成并发送VOICEVOX语音"""
+        text = self.main_app.ai_voicevox_text_entry.get().strip()
+        
+        if not text:
+            messagebox.showwarning("警告", "请输入要合成的文本")
+            return
+        
+        if not self.main_app.single_ai_manager:
+            messagebox.showerror("错误", "AI角色管理器未初始化")
+            return
+        
+        try:
+            # 获取当前选择的VOICEVOX角色ID
+            speaker_id = 0  # 默认使用第一个角色，可以后续扩展为从界面获取
+            
+            success = self.main_app.single_ai_manager.generate_and_send_voice(text, speaker_id)
+            if success:
+                self.main_app.log(f"VOICEVOX语音已生成并添加到队列: {text}")
+                self.main_app.ai_voicevox_text_entry.delete(0, tk.END)
+                messagebox.showinfo("成功", f"语音已添加到播放队列：\n{text[:50]}...")
+            else:
+                messagebox.showerror("错误", "生成语音失败")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"生成语音时出错: {e}")
+            self.main_app.log(f"生成VOICEVOX语音错误: {e}")
+    
+    def check_voicevox_status(self):
+        """检查VOICEVOX连接状态"""
+        if hasattr(self.main_app, 'voicevox_client') and self.main_app.voicevox_client:
+            try:
+                # 测试连接是否可用
+                if self.main_app.voicevox_client.test_connection():
+                    if not self.main_app.voicevox_connected:
+                        # 从断开连接变为连接成功
+                        self.main_app.voicevox_connected = True
+                        host = self.main_app.voicevox_host_var.get()
+                        port = self.main_app.voicevox_port_var.get()
+                        self.main_app.voicevox_status_label.config(text=f"已连接 ({host}:{port})", foreground="green")
+                        self.main_app.log("VOICEVOX连接已恢复")
+                    return True
+                else:
+                    # 连接失败
+                    if self.main_app.voicevox_connected:
+                        # 从连接变为断开
+                        self.main_app.voicevox_connected = False
+                        self.main_app.voicevox_status_label.config(text="连接断开", foreground="red")
+                        self.main_app.log("VOICEVOX连接已断开")
+                    return False
+            except Exception as e:
+                # 连接异常
+                if self.main_app.voicevox_connected:
+                    self.main_app.voicevox_connected = False
+                    self.main_app.voicevox_status_label.config(text="连接异常", foreground="red")
+                    self.main_app.log(f"VOICEVOX连接异常: {e}")
+                return False
+        else:
+            # 没有客户端实例
+            if hasattr(self.main_app, 'voicevox_connected'):
+                self.main_app.voicevox_connected = False
+            if hasattr(self.main_app, 'voicevox_status_label'):
+                self.main_app.voicevox_status_label.config(text="未初始化", foreground="red")
+            return False
+    
+    def start_status_monitoring(self):
+        """开始状态监控"""
+        def monitor_status():
+            self.check_voicevox_status()
+            # 每30秒检查一次状态
+            self.main_app.root.after(30000, monitor_status)
+        
+        # 启动监控（5秒后开始）
+        self.main_app.root.after(5000, monitor_status)
+    
+    def auto_reconnect(self):
+        """自动重连VOICEVOX"""
+        if not hasattr(self.main_app, 'voicevox_connected') or not self.main_app.voicevox_connected:
+            self.main_app.log("尝试自动重连VOICEVOX...")
+            self.init_voicevox(retry_count=1)

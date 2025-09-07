@@ -402,6 +402,9 @@ class VRChatOSCGUI:
         # 初始化VOICEVOX
         self.voicevox_area.init_voicevox()
         
+        # 启动VOICEVOX状态监控
+        self.voicevox_area.start_status_monitoring()
+        
         # 初始化LLM处理器
         self.init_llm_handler()
 
@@ -613,13 +616,13 @@ class VRChatOSCGUI:
         voicevox_control_row = ttk.Frame(vrc_message_frame)
         voicevox_control_row.pack(fill=tk.X, pady=(5, 0))
         
-        self.ai_voicevox_generate_btn = ttk.Button(voicevox_control_row, text="生成并发送语音", command=self.ai_generate_and_send_voice, width=15)
+        self.ai_voicevox_generate_btn = ttk.Button(voicevox_control_row, text="生成并发送语音", command=self.voicevox_area.ai_generate_and_send_voice, width=15)
         self.ai_voicevox_generate_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Label(voicevox_control_row, text="内容:", width=5).pack(side=tk.LEFT)
         self.ai_voicevox_text_entry = ttk.Entry(voicevox_control_row)
         self.ai_voicevox_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.ai_voicevox_text_entry.bind("<Return>", lambda e: self.ai_generate_and_send_voice())
+        self.ai_voicevox_text_entry.bind("<Return>", lambda e: self.voicevox_area.ai_generate_and_send_voice())
         
         # 初始化状态
         self.init_movement_controls()
@@ -3376,34 +3379,6 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror("错误", f"上传语音文件时出错: {e}")
             self.log(f"上传语音文件错误: {e}")
-    
-    def ai_generate_and_send_voice(self):
-        """生成并发送VOICEVOX语音"""
-        text = self.ai_voicevox_text_entry.get().strip()
-        
-        if not text:
-            messagebox.showwarning("警告", "请输入要合成的文本")
-            return
-        
-        if not self.single_ai_manager:
-            messagebox.showerror("错误", "AI角色管理器未初始化")
-            return
-        
-        try:
-            # 获取当前选择的VOICEVOX角色ID
-            speaker_id = 0  # 默认使用第一个角色，可以后续扩展为从界面获取
-            
-            success = self.single_ai_manager.generate_and_send_voice(text, speaker_id)
-            if success:
-                self.log(f"VOICEVOX语音已生成并添加到队列: {text}")
-                self.ai_voicevox_text_entry.delete(0, tk.END)
-                messagebox.showinfo("成功", f"语音已添加到播放队列：\n{text[:50]}...")
-            else:
-                messagebox.showerror("错误", "生成语音失败")
-                
-        except Exception as e:
-            messagebox.showerror("错误", f"生成语音时出错: {e}")
-            self.log(f"生成VOICEVOX语音错误: {e}")
     
     def ai_greet(self):
         """让AI角色打招呼"""
