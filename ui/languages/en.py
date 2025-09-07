@@ -91,4 +91,33 @@ ENGLISH_TEXTS = {
     "failed": "Failed",
     "loading": "Loading...",
     "processing": "Processing...",
+    
+    # AI Character Movement Control
+    "ai_movement_control": "AI Character Movement Control",
+    "movement_control": "Movement Control",
+    "camera_control_title": "Camera Control",
+    "control_speed": "Control Speed:",
+    
+    # Movement Buttons
+    "move_forward_left": "↖ Forward Left",
+    "move_forward": "↑ Forward",
+    "move_forward_right": "↗ Forward Right",
+    "strafe_left": "⇐ Strafe Left",
+    "crouch": "Crouch",
+    "strafe_right": "⇒ Strafe Right",
+    "move_backward_left": "↙ Backward Left",
+    "move_backward": "↓ Backward",
+    "move_backward_right": "↘ Backward Right",
+    "jump": "Jump",
+    
+    # Camera Buttons
+    "look_up_left": "↖ Look Up Left",
+    "look_up": "↑ Look Up",
+    "look_up_right": "↗ Look Up Right",
+    "turn_left": "← Turn Left",
+    "stop_look": "Stop",
+    "turn_right": "→ Turn Right",
+    "look_down_left": "↙ Look Down Left",
+    "look_down": "↓ Look Down",
+    "look_down_right": "↘ Look Down Right",
 }

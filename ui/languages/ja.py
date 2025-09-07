@@ -91,4 +91,33 @@ JAPANESE_TEXTS = {
     "failed": "失敗",
     "loading": "読み込み中...",
     "processing": "処理中...",
+    
+    # AIキャラクター移動制御
+    "ai_movement_control": "AIキャラクター移動制御",
+    "movement_control": "移動制御",
+    "camera_control_title": "カメラ制御",
+    "control_speed": "制御速度:",
+    
+    # 移動ボタン
+    "move_forward_left": "↖ 左前",
+    "move_forward": "↑ 前進",
+    "move_forward_right": "↗ 右前",
+    "strafe_left": "⇐ 左移動",
+    "crouch": "しゃがみ",
+    "strafe_right": "⇒ 右移動",
+    "move_backward_left": "↙ 左後",
+    "move_backward": "↓ 後退",
+    "move_backward_right": "↘ 右後",
+    "jump": "ジャンプ",
+    
+    # カメラボタン
+    "look_up_left": "↖ 左上",
+    "look_up": "↑ 上視",
+    "look_up_right": "↗ 右上",
+    "turn_left": "← 左回転",
+    "stop_look": "停止",
+    "turn_right": "→ 右回転",
+    "look_down_left": "↙ 左下",
+    "look_down": "↓ 下視",
+    "look_down_right": "↘ 右下",
 }

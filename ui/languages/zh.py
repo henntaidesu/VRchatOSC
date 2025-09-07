@@ -91,4 +91,33 @@ CHINESE_TEXTS = {
     "failed": "失败",
     "loading": "加载中...",
     "processing": "处理中...",
+    
+    # AI角色移动控制
+    "ai_movement_control": "AI角色移动控制",
+    "movement_control": "移动控制",
+    "camera_control_title": "镜头控制",
+    "control_speed": "控制速度:",
+    
+    # 移动按钮
+    "move_forward_left": "↖ 左前",
+    "move_forward": "↑ 前进",
+    "move_forward_right": "↗ 右前",
+    "strafe_left": "⇐ 左移",
+    "crouch": "蹲下",
+    "strafe_right": "⇒ 右移",
+    "move_backward_left": "↙ 左后",
+    "move_backward": "↓ 后退",
+    "move_backward_right": "↘ 右后",
+    "jump": "跳跃",
+    
+    # 镜头按钮
+    "look_up_left": "↖ 左上",
+    "look_up": "↑ 上看",
+    "look_up_right": "↗ 右上",
+    "turn_left": "← 左转",
+    "stop_look": "停止",
+    "turn_right": "→ 右转",
+    "look_down_left": "↙ 左下",
+    "look_down": "↓ 下看",
+    "look_down_right": "↘ 右下",
 }
