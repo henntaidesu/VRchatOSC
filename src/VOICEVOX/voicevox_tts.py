@@ -250,6 +250,99 @@ class VOICEVOXClient:
         speakers_list.sort(key=sort_key)
         return speakers_list
     
+    def get_character_names_by_period(self, period: str) -> List[str]:
+        """
+        根据期数获取角色名称列表（去重）
+        
+        Args:
+            period: 期数 ("1期", "2期", "3期")
+            
+        Returns:
+            角色名称列表
+        """
+        character_periods = {
+            # 一期角色
+            "四国めたん": "1期",
+            "ずんだもん": "1期", 
+            "春日部つむぎ": "1期",
+            "雨晴はう": "1期",
+            "波音リツ": "1期",
+            "玄野武宏": "1期",
+            "白上虎太郎": "1期",
+            "青山龍星": "1期",
+            "冥鳴ひまり": "1期",
+            "九州そら": "1期",
+            
+            # 二期角色  
+            "もち子さん": "2期",
+            "剣崎雌雄": "2期",
+            "WhiteCUL": "2期",
+            "後鬼": "2期",
+            "No.7": "2期",
+            "ちび式じい": "2期",
+            "櫻歌ミコ": "2期",
+            "小夜/SAYO": "2期",
+            "ナースロボ_タイプT": "2期",
+            
+            # 三期角色
+            "†聖騎士 紅桜†": "3期",
+            "雀松朱司": "3期",
+            "麒ヶ島宗麟": "3期",
+            "春歌ナナ": "3期",
+            "猫使アル": "3期",
+            "猫使ビィ": "3期",
+            "中国うさぎ": "3期",
+            "栗田まろん": "3期",
+            "あいえるたん": "3期",
+            "満別花丸": "3期",
+            "琴詠ニア": "3期"
+        }
+        
+        # 获取指定期数的角色名称
+        character_names = []
+        for speaker in self.speakers:
+            speaker_period = character_periods.get(speaker['name'], "其他")
+            if speaker_period == period and speaker['name'] not in character_names:
+                character_names.append(speaker['name'])
+        
+        return sorted(character_names)
+    
+    def get_styles_for_character(self, character_name: str) -> List[str]:
+        """
+        获取指定角色的所有样式
+        
+        Args:
+            character_name: 角色名称
+            
+        Returns:
+            样式列表
+        """
+        styles = []
+        for speaker in self.speakers:
+            if speaker['name'] == character_name:
+                for style in speaker['styles']:
+                    styles.append(style['name'])
+                break
+        return styles
+    
+    def get_speaker_id_by_name_and_style(self, character_name: str, style_name: str) -> Optional[int]:
+        """
+        根据角色名称和样式获取speaker_id
+        
+        Args:
+            character_name: 角色名称
+            style_name: 样式名称
+            
+        Returns:
+            speaker_id 或 None
+        """
+        for speaker in self.speakers:
+            if speaker['name'] == character_name:
+                for style in speaker['styles']:
+                    if style['name'] == style_name:
+                        return style['id']
+        return None
+    
     def set_speaker(self, speaker_id: int, speaker_name: str = "", style_name: str = ""):
         """
         设置当前使用的角色

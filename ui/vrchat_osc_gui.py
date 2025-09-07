@@ -540,32 +540,49 @@ class VRChatOSCGUI:
         self.voicevox_control_frame.columnconfigure(0, weight=1)
         self.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
         
-        # 第一行：期数和角色选择（合并到一行）
-        character_frame = ttk.Frame(self.voicevox_control_frame)
-        character_frame.pack(fill=tk.X, pady=(0, 5))
+        # 第一行：期数选择和连接状态
+        period_frame = ttk.Frame(self.voicevox_control_frame)
+        period_frame.pack(fill=tk.X, pady=(0, 5))
         
         # VOICEVOX期数选择
-        ttk.Label(character_frame, text="期数:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(period_frame, text="期数:", width=6).pack(side=tk.LEFT, padx=(0, 5))
         self.voicevox_period_var = tk.StringVar(value=self.config.voicevox_last_period)
-        self.voicevox_period_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_period_var,
+        self.voicevox_period_combo = ttk.Combobox(period_frame, textvariable=self.voicevox_period_var,
                                                 values=["1期", "2期", "3期"],
                                                 width=8, state="readonly")
         self.voicevox_period_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
         
-        # VOICEVOX角色选择
-        self.voicevox_character_var = tk.StringVar(value=self.config.voicevox_last_character)
-        self.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_character_var,
-                                                   width=20, state="readonly")
-        self.voicevox_character_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_changed)
-        
-        
         # VOICEVOX连接状态
-        self.voicevox_status_label = ttk.Label(character_frame, text=self.get_text("disconnected"), foreground="red")
+        self.voicevox_status_label = ttk.Label(period_frame, text=self.get_text("disconnected"), foreground="red")
         self.voicevox_status_label.pack(side=tk.RIGHT)
         
-        # 第三行：控制按钮
+        # 第二行：角色名称选择
+        character_frame = ttk.Frame(self.voicevox_control_frame)
+        character_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(character_frame, text="角色:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        self.voicevox_character_var = tk.StringVar(value=self.config.voicevox_last_speaker_name)
+        self.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.voicevox_character_var,
+                                                   width=15, state="readonly")
+        self.voicevox_character_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_name_changed)
+        
+        # 第三行：样式选择和确定按钮
+        style_frame = ttk.Frame(self.voicevox_control_frame)
+        style_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(style_frame, text="样式:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        self.voicevox_style_var = tk.StringVar(value=self.config.voicevox_last_speaker_style)
+        self.voicevox_style_combo = ttk.Combobox(style_frame, textvariable=self.voicevox_style_var,
+                                               width=15, state="readonly")
+        self.voicevox_style_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 确定按钮
+        self.voicevox_confirm_btn = ttk.Button(style_frame, text="确定", width=8, command=self.confirm_voicevox_character_change)
+        self.voicevox_confirm_btn.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 第四行：控制按钮
         control_frame = ttk.Frame(self.voicevox_control_frame)
         control_frame.pack(fill=tk.X, pady=(5, 0))
         
@@ -2527,77 +2544,124 @@ class VRChatOSCGUI:
                 
                 # 初始化期数和角色选择，恢复上次保存的配置
                 current_period = self.voicevox_period_var.get()
-                period_speakers = self.voicevox_client.get_speakers_by_period(current_period)
+                character_names = self.voicevox_client.get_character_names_by_period(current_period)
                 
-                if period_speakers:
-                    speaker_values = [speaker['display'] for speaker in period_speakers]
-                    self.voicevox_character_combo['values'] = speaker_values
-                    # 恢复上次选择的角色
-                    last_character = self.config.voicevox_last_character
-                    if last_character in speaker_values:
-                        self.voicevox_character_combo.set(last_character)
-                        # 设置对应的说话人
-                        for speaker in period_speakers:
-                            if speaker['display'] == last_character:
-                                self.voicevox_client.set_speaker(
-                                    speaker['speaker_id'],
-                                    speaker['name'],
-                                    speaker['style']
-                                )
-                                break
+                if character_names:
+                    self.voicevox_character_combo['values'] = character_names
+                    
+                    # 恢复上次选择的角色和样式
+                    last_speaker_name = self.config.voicevox_last_speaker_name
+                    last_speaker_style = self.config.voicevox_last_speaker_style
+                    
+                    if last_speaker_name in character_names:
+                        self.voicevox_character_combo.set(last_speaker_name)
+                        
+                        # 更新样式列表
+                        styles = self.voicevox_client.get_styles_for_character(last_speaker_name)
+                        self.voicevox_style_combo['values'] = styles
+                        
+                        if last_speaker_style in styles:
+                            self.voicevox_style_combo.set(last_speaker_style)
+                            # 设置对应的说话人
+                            speaker_id = self.voicevox_client.get_speaker_id_by_name_and_style(last_speaker_name, last_speaker_style)
+                            if speaker_id is not None:
+                                self.voicevox_client.set_speaker(speaker_id, last_speaker_name, last_speaker_style)
+                        else:
+                            # 如果上次的样式不存在，选择第一个样式
+                            if styles:
+                                self.voicevox_style_combo.set(styles[0])
+                                speaker_id = self.voicevox_client.get_speaker_id_by_name_and_style(last_speaker_name, styles[0])
+                                if speaker_id is not None:
+                                    self.voicevox_client.set_speaker(speaker_id, last_speaker_name, styles[0])
                     else:
-                        # 如果上次的角色不在当前期数中，选择第一个
-                        self.voicevox_character_combo.set(speaker_values[0])
-                        first_speaker = period_speakers[0]
-                        self.voicevox_client.set_speaker(
-                            first_speaker['speaker_id'],
-                            first_speaker['name'],
-                            first_speaker['style']
-                        )
+                        # 如果上次的角色不在当前期数中，清空选择
+                        self.voicevox_character_combo.set("")
+                        self.voicevox_style_combo['values'] = []
+                        self.voicevox_style_combo.set("")
                 else:
                     self.voicevox_character_combo['values'] = []
+                    self.voicevox_style_combo['values'] = []
                     
                 self.voicevox_status_label.config(text="已连接", foreground="green")
                 self.voicevox_test_btn.config(state="normal")
             else:
                 self.voicevox_character_combo['values'] = []
+                self.voicevox_style_combo['values'] = []
                 self.voicevox_status_label.config(text="未连接", foreground="red")  
                 self.voicevox_test_btn.config(state="disabled")
         except Exception as e:
             self.log(f"更新VOICEVOX UI失败: {e}")
     
-    def on_voicevox_character_changed(self, event=None):
-        """VOICEVOX角色选择变化时的回调"""
+    def confirm_voicevox_character_change(self):
+        """确认VOICEVOX角色切换"""
         if not self.voicevox_client or not self.voicevox_connected:
+            messagebox.showwarning("警告", "VOICEVOX未连接，无法切换角色")
             return
             
         try:
-            selected_display = self.voicevox_character_var.get()
-            speakers_list = self.voicevox_client.get_speakers_list()
+            selected_character = self.voicevox_character_var.get()
+            selected_style = self.voicevox_style_var.get()
             
-            # 找到对应的角色信息
-            for speaker in speakers_list:
-                if speaker['display'] == selected_display:
-                    self.voicevox_client.set_speaker(
-                        speaker['speaker_id'], 
-                        speaker['name'], 
-                        speaker['style']
-                    )
-                    # 保存配置
-                    self.config.set_voicevox_last_selection(
-                        period=self.voicevox_period_var.get(),
-                        character=selected_display,
-                        speaker_id=str(speaker['speaker_id']),
-                        speaker_name=speaker['name'],
-                        speaker_style=speaker['style']
-                    )
-                    self.config.save_config()
-                    self.log(f"切换VOICEVOX角色: {selected_display}")
-                    # 自动加载该角色的语音参数
-                    self.load_voice_params_for_speaker(speaker['name'], speaker['style'])
-                    break
+            if not selected_character:
+                messagebox.showwarning("警告", "请先选择角色")
+                return
+                
+            if not selected_style:
+                messagebox.showwarning("警告", "请选择样式")
+                return
+                
+            # 获取speaker_id
+            speaker_id = self.voicevox_client.get_speaker_id_by_name_and_style(selected_character, selected_style)
+            
+            if speaker_id is not None:
+                # 记录切换前的状态，用于调试
+                old_info = self.voicevox_client.get_current_speaker_info()
+                self.log(f"切换前角色: {old_info['name']} - {old_info['style']} (ID: {old_info['id']})")
+                
+                # 切换角色
+                self.voicevox_client.set_speaker(
+                    speaker_id, 
+                    selected_character, 
+                    selected_style
+                )
+                
+                # 验证切换是否成功
+                new_info = self.voicevox_client.get_current_speaker_info()
+                self.log(f"切换后角色: {new_info['name']} - {new_info['style']} (ID: {new_info['id']})")
+                
+                # 保存配置
+                current_period = self.voicevox_period_var.get()
+                display_name = f"[{current_period}] {selected_character} - {selected_style}"
+                self.config.set_voicevox_last_selection(
+                    period=current_period,
+                    character=display_name,  # 保持兼容性
+                    speaker_id=str(speaker_id),
+                    speaker_name=selected_character,
+                    speaker_style=selected_style
+                )
+                self.config.save_config()
+                
+                # 记录日志
+                self.log(f"成功切换VOICEVOX角色: {selected_character} - {selected_style} (ID: {speaker_id})")
+                
+                # 自动加载该角色的语音参数
+                self.load_voice_params_for_speaker(selected_character, selected_style)
+                
+                # 显示成功消息
+                messagebox.showinfo("成功", f"角色已切换为: {selected_character} - {selected_style}\n\n请点击'语音测试'验证切换效果")
+                
+            else:
+                messagebox.showerror("错误", f"未找到角色: {selected_character} - {selected_style}")
+                
         except Exception as e:
-            self.log(f"切换VOICEVOX角色失败: {e}")
+            error_msg = f"切换VOICEVOX角色失败: {e}"
+            self.log(error_msg)
+            messagebox.showerror("错误", error_msg)
+    
+    def on_voicevox_character_changed(self, event=None):
+        """VOICEVOX角色选择变化时的回调（保留兼容性，但不自动切换）"""
+        # 这个方法现在只用于兼容性，实际切换通过确定按钮进行
+        pass
     
     def on_voicevox_period_changed(self, event=None):
         """VOICEVOX期数选择变化时的回调"""
@@ -2606,40 +2670,65 @@ class VRChatOSCGUI:
             
         try:
             selected_period = self.voicevox_period_var.get()
-            # 获取指定期数的角色列表
-            period_speakers = self.voicevox_client.get_speakers_by_period(selected_period)
+            # 获取指定期数的角色名称列表
+            character_names = self.voicevox_client.get_character_names_by_period(selected_period)
             
             # 更新角色选择框
-            if period_speakers:
-                speaker_values = [speaker['display'] for speaker in period_speakers]
-                self.voicevox_character_combo['values'] = speaker_values
-                # 默认选择第一个角色
-                self.voicevox_character_combo.set(speaker_values[0])
+            if character_names:
+                self.voicevox_character_combo['values'] = character_names
                 
-                # 自动设置第一个角色
-                first_speaker = period_speakers[0]
-                self.voicevox_client.set_speaker(
-                    first_speaker['speaker_id'],
-                    first_speaker['name'],
-                    first_speaker['style']
-                )
-                # 保存配置
-                self.config.set_voicevox_last_selection(
-                    period=selected_period,
-                    character=speaker_values[0],
-                    speaker_id=str(first_speaker['speaker_id']),
-                    speaker_name=first_speaker['name'],
-                    speaker_style=first_speaker['style']
-                )
-                self.config.save_config()
-                self.log(f"切换到{selected_period}，角色: {speaker_values[0]}")
+                # 尝试恢复之前的选择，如果没有则清空
+                current_selection = self.voicevox_character_var.get()
+                if current_selection in character_names:
+                    # 保持当前选择并更新样式列表
+                    self.voicevox_character_combo.set(current_selection)
+                    self.on_voicevox_character_name_changed()
+                else:
+                    # 清空选择，让用户手动选择
+                    self.voicevox_character_combo.set("")
+                    self.voicevox_style_combo['values'] = []
+                    self.voicevox_style_combo.set("")
+                    self.log(f"已切换到{selected_period}，请选择角色和样式")
             else:
                 self.voicevox_character_combo['values'] = []
                 self.voicevox_character_combo.set("")
+                self.voicevox_style_combo['values'] = []
+                self.voicevox_style_combo.set("")
                 self.log(f"未找到{selected_period}的角色")
                 
         except Exception as e:
             self.log(f"切换VOICEVOX期数失败: {e}")
+    
+    def on_voicevox_character_name_changed(self, event=None):
+        """VOICEVOX角色名称选择变化时的回调"""
+        if not self.voicevox_client or not self.voicevox_connected:
+            return
+            
+        try:
+            selected_character = self.voicevox_character_var.get()
+            if selected_character:
+                # 获取该角色的所有样式
+                styles = self.voicevox_client.get_styles_for_character(selected_character)
+                self.voicevox_style_combo['values'] = styles
+                
+                # 尝试恢复之前的样式选择
+                current_style = self.voicevox_style_var.get()
+                if current_style in styles:
+                    self.voicevox_style_combo.set(current_style)
+                else:
+                    # 默认选择第一个样式
+                    if styles:
+                        self.voicevox_style_combo.set(styles[0])
+                    else:
+                        self.voicevox_style_combo.set("")
+                        
+                self.log(f"已选择角色: {selected_character}，样式: {len(styles)}个")
+            else:
+                self.voicevox_style_combo['values'] = []
+                self.voicevox_style_combo.set("")
+                
+        except Exception as e:
+            self.log(f"更新角色样式失败: {e}")
     
     def on_speed_changed(self, value):
         """语速滑块变化回调"""
@@ -2876,15 +2965,18 @@ class VRChatOSCGUI:
             messagebox.showwarning("警告", "VOICEVOX未连接")
             return
             
-        # 根据当前角色选择测试文本
+        # 获取当前角色信息并记录
         current_speaker = self.voicevox_client.get_current_speaker_info()
+        self.log(f"当前VOICEVOX角色: {current_speaker['name']} - {current_speaker['style']} (ID: {current_speaker['id']})")
         
-        if "ずんだもん" in current_speaker['name']:
-            test_text = "こんにちは！ずんだもんなのだ！"
-        elif "四国めたん" in current_speaker['name']:
-            test_text = "こんにちは、四国めたんです！"
-        else:
-            test_text = "こんにちは！VOICEVOX音声合成のテストです。"
+        # 根据当前角色动态生成测试文本
+        character_name = current_speaker['name']
+        style_name = current_speaker['style']
+        
+        # 构建角色专属的测试文本
+        test_text = f"こんにちは！{character_name}の{style_name}です。音声テストをしています。"
+        
+        self.log(f"测试文本: {test_text}")
         
         def test_in_background():
             try:
@@ -2897,9 +2989,9 @@ class VRChatOSCGUI:
                 success = self.voicevox_client.synthesize_and_play(test_text)
                 
                 if success:
-                    self.log(f"VOICEVOX语音测试成功: {test_text}")
+                    self.log(f"VOICEVOX语音测试成功: {test_text} (角色: {current_speaker['name']})")
                 else:
-                    self.log("VOICEVOX语音测试失败")
+                    self.log(f"VOICEVOX语音测试失败 (角色: {current_speaker['name']})")
                     
                 # 语音播放完成后停止Avatar说话状态
                 if self.avatar_controller.is_avatar_connected():
@@ -2909,7 +3001,7 @@ class VRChatOSCGUI:
                     self.root.after(3000, stop_speaking)  # 3秒后停止
                     
             except Exception as e:
-                self.log(f"VOICEVOX语音测试出错: {e}")
+                self.log(f"VOICEVOX语音测试出错: {e} (角色: {current_speaker['name']})")
                 # 出错时也要重置Avatar状态
                 if self.avatar_controller.is_avatar_connected():
                     self.avatar_controller.stop_speaking()
