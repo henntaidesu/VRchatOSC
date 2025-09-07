@@ -26,6 +26,7 @@ from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
 from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
+from .mainUI.right_area.camera_control import CameraControl
 
 
 class VRChatOSCGUI:
@@ -89,6 +90,8 @@ class VRChatOSCGUI:
         self.llm_handler = None
         self.llm_enabled = True
         
+        # 初始化摄像头控制（必须在setup_ui之前）
+        self.camera_control = CameraControl(self)
         
         self.setup_ui()
         
@@ -397,140 +400,6 @@ class VRChatOSCGUI:
         
         # 初始化LLM处理器
         self.init_llm_handler()
-    
-    def detect_available_cameras(self):
-        """检测可用的摄像头"""
-        available_cameras = []
-        detected_signatures = set()  # 用于避免重复检测同一摄像头
-        
-        # 检查多个摄像头ID
-        for i in range(5):  # 减少到检查ID 0-4，提高检测速度
-            try:
-                # 主要使用DSHOW后端，这在Windows上最可靠
-                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                
-                if cap.isOpened():
-                    # 尝试读取一帧来验证摄像头是否可用
-                    ret, frame = cap.read()
-                    if ret and frame is not None and frame.size > 0:
-                        # 获取摄像头详细信息
-                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        fps = cap.get(cv2.CAP_PROP_FPS)
-                        
-                        # 创建摄像头特征签名（基于分辨率）
-                        signature = f"{width}x{height}"
-                        
-                        # 检查是否已经检测过相同分辨率的摄像头
-                        if signature not in detected_signatures:
-                            detected_signatures.add(signature)
-                            
-                            # 简化显示信息
-                            camera_info = f"摄像头 {i} ({width}x{height})"
-                            available_cameras.append((i, camera_info))
-                            self.log(f"检测到摄像头: {camera_info}")
-                        else:
-                            self.log(f"跳过重复摄像头 ID {i} (相同分辨率: {signature})")
-                
-                cap.release()
-                    
-            except Exception as e:
-                # 忽略检测失败的摄像头
-                continue
-        
-        return available_cameras
-    
-    def refresh_camera_list(self):
-        """刷新摄像头列表"""
-        try:
-            self.log("正在检测可用摄像头...")
-            
-            # 显示检测状态
-            self.camera_combo['values'] = ['正在检测...']
-            self.camera_combo.set('正在检测...')
-            self.root.update()
-            
-            # 在后台线程中检测摄像头
-            def detect_cameras():
-                try:
-                    available_cameras = self.detect_available_cameras()
-                    
-                    # 在主线程中更新UI
-                    self.root.after(0, lambda: self.update_camera_list(available_cameras))
-                    
-                except Exception as e:
-                    self.root.after(0, lambda: self.log(f"检测摄像头失败: {e}"))
-            
-            # 启动检测线程
-            import threading
-            thread = threading.Thread(target=detect_cameras, daemon=True)
-            thread.start()
-            
-        except Exception as e:
-            self.log(f"刷新摄像头列表失败: {e}")
-            self.camera_combo['values'] = ['检测失败']
-            self.camera_combo.set('检测失败')
-    
-    def update_camera_list(self, available_cameras):
-        """更新摄像头列表（在主线程中调用）"""
-        try:
-            if available_cameras:
-                # 创建显示列表
-                camera_values = [info for _, info in available_cameras]
-                self.camera_combo['values'] = camera_values
-                
-                # 保存ID映射
-                self.camera_id_mapping = {info: cam_id for cam_id, info in available_cameras}
-                
-                # 默认选择第一个摄像头
-                self.camera_combo.set(camera_values[0])
-                self.log(f"检测到 {len(available_cameras)} 个可用摄像头")
-                
-            else:
-                no_cameras_text = self.get_text("no_cameras_available")
-                self.camera_combo['values'] = [no_cameras_text]
-                self.camera_combo.set(no_cameras_text)
-                self.camera_id_mapping = {}
-                self.log(self.get_text("no_cameras_available"))
-                
-        except Exception as e:
-            self.log(f"更新摄像头列表失败: {e}")
-            self.camera_combo['values'] = ['更新失败']
-            self.camera_combo.set('更新失败')
-    
-    def on_model_changed(self, event=None):
-        """模型选择变更处理"""
-        self.emotion_model_type = self.model_var.get()
-        self.log(f"情感识别模型已切换为: {self.emotion_model_type}")
-        
-        # 释放现有的GPU检测器
-        if hasattr(self, 'gpu_detector') and self.gpu_detector is not None:
-            try:
-                self.gpu_detector.release()
-                self.gpu_detector = None
-                self.log("已释放旧的GPU检测器")
-            except Exception as e:
-                self.log(f"释放旧GPU检测器时出错: {e}")
-        
-        # 如果切换到GPU模型，强制重新初始化检测器
-        if self.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
-            try:
-                # 总是创建新的检测器以确保模型切换生效
-                from src.face.gpu_emotion_detector import GPUEmotionDetector
-                self.gpu_detector = GPUEmotionDetector(model_type=self.emotion_model_type, device='auto')
-                self.log(f"成功初始化GPU情感检测器: {self.emotion_model_type}")
-            except Exception as e:
-                import traceback
-                self.log(f"GPU检测器初始化失败 ({self.emotion_model_type}): {e}")
-                self.log(f"详细错误: {traceback.format_exc()}")
-                self.gpu_detector = None
-        
-        # 如果面部识别正在运行，需要重启以应用新模型
-        if self.face_detection_running:
-            self.log("检测到模型变更，正在重启面部识别以应用新模型...")
-            self.stop_face_detection()
-            # 延迟一点再启动
-            self.root.after(1000, self.start_face_detection)
     
     def setup_voicevox_area(self, parent_frame):
         """设置VOICEVOX控制区域"""
@@ -1003,14 +872,14 @@ class VRChatOSCGUI:
                                   values=["Simple", "ResEmoteNet", "FER2013", "EmoNeXt"], 
                                   width=12, state="readonly")
         self.model_combo.pack(side=tk.LEFT, padx=(0, 10))
-        self.model_combo.bind("<<ComboboxSelected>>", self.on_model_changed)
+        self.model_combo.bind("<<ComboboxSelected>>", self.camera_control.on_model_changed)
         
         # 刷新摄像头列表按钮
-        self.refresh_btn = ttk.Button(control_buttons, text=self.get_text("refresh"), command=self.refresh_camera_list)
+        self.refresh_btn = ttk.Button(control_buttons, text=self.get_text("refresh"), command=self.camera_control.refresh_camera_list)
         self.refresh_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 初始化摄像头列表
-        self.refresh_camera_list()
+        self.camera_control.refresh_camera_list()
         
         # 摄像头启动/停止按钮
         self.camera_start_btn = ttk.Button(control_buttons, text=self.get_text("start_camera"), command=self.toggle_camera_only)
