@@ -425,6 +425,27 @@ class ConfigManager:
         self.set('VOICEVOX', 'last_speaker_id', speaker_id)
         self.set('VOICEVOX', 'last_speaker_name', speaker_name)
         self.set('VOICEVOX', 'last_speaker_style', speaker_style)
+    
+    # 单独的setter属性用于兼容性
+    @voicevox_last_period.setter
+    def voicevox_last_period(self, value: str):
+        """设置上次选择的期数"""
+        self.set('VOICEVOX', 'last_period', value)
+    
+    @voicevox_last_speaker_name.setter
+    def voicevox_last_speaker_name(self, value: str):
+        """设置上次选择的说话人名称"""
+        self.set('VOICEVOX', 'last_speaker_name', value)
+        
+    @voicevox_last_speaker_style.setter
+    def voicevox_last_speaker_style(self, value: str):
+        """设置上次选择的说话人风格"""
+        self.set('VOICEVOX', 'last_speaker_style', value)
+        
+    @voicevox_last_speaker_id.setter
+    def voicevox_last_speaker_id(self, value: str):
+        """设置上次选择的说话人ID"""
+        self.set('VOICEVOX', 'last_speaker_id', value)
 
 
 # 全局配置管理器实例

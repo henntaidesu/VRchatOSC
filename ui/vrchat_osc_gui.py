@@ -18,16 +18,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
-from .settings_window import SettingsWindow
+from ui.settings_window import SettingsWindow
 from src.face.simple_face_detector import SimpleFaceCamera
 from src.face.gpu_emotion_detector import GPUFaceCamera
-from .languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
+from ui.languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
 from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 from src.llm.voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from src.avatar import AvatarController
 from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
-from .mainUI.right_area.camera_control import CameraControl
-from .mainUI.left_area.voicevox_area import VoicevoxArea
+from ui.mainUI.right_area.camera_control import CameraControl
+from ui.mainUI.left_area.voicevox_area import VoicevoxArea
 
 
 class VRChatOSCGUI:
@@ -2084,7 +2084,7 @@ class VRChatOSCGUI:
     def open_camera_window(self):
         """打开摄像头窗口（保留原功能作为备选）"""
         try:
-            from .camera_window import CameraWindow
+            from ui.camera_window import CameraWindow
             CameraWindow(self.root)
         except Exception as e:
             messagebox.showerror("摄像头错误", f"无法打开摄像头窗口: {e}")
@@ -2156,41 +2156,6 @@ class VRChatOSCGUI:
                 )
             
             self.log(f"应用语音预设: {preset}")
-    
-    def preview_voice(self):
-        """语音试听"""
-        if not self.voicevox_client or not self.voicevox_connected:
-            messagebox.showwarning("警告", "VOICEVOX未连接")
-            return
-        
-        # 获取当前角色信息
-        current_speaker = self.voicevox_client.get_current_speaker_info()
-        
-        # 根据角色选择试听文本
-        preview_texts = {
-            "ずんだもん": "こんにちは！ずんだもんなのだ！この声はどうなのだ？",
-            "四国めたん": "こんにちは、四国めたんです。この設定はいかがですか？",
-            "春日部つむぎ": "こんにちは、春日部つむぎです。声の調子はどうでしょう？",
-            "雨晴はう": "こんにちは、雨晴はうです。パラメータの確認です。",
-            "波音リツ": "こんにちは、波音リツです。音声テストですね。"
-        }
-        
-        # 选择测试文本
-        test_text = preview_texts.get(current_speaker['name'], "こんにちは！音声パラメータのテストです。")
-        
-        def preview_in_background():
-            try:
-                success = self.voicevox_client.synthesize_and_play(test_text)
-                if success:
-                    self.log("语音试听播放成功")
-                else:
-                    self.log("语音试听播放失败")
-            except Exception as e:
-                self.log(f"语音试听错误: {e}")
-        
-        # 在后台线程中播放
-        import threading
-        threading.Thread(target=preview_in_background, daemon=True).start()
     
     def reset_voice_params(self):
         """重置语音参数"""

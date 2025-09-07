@@ -171,7 +171,7 @@ class VoicevoxArea:
         button_frame = ttk.Frame(params_button_frame)
         button_frame.pack(side=tk.RIGHT)
         
-        self.main_app.preview_btn = ttk.Button(button_frame, text="试听", command=self.main_app.preview_voice, width=6)
+        self.main_app.preview_btn = ttk.Button(button_frame, text="试听", command=self.preview_voice, width=6)
         self.main_app.preview_btn.pack(side=tk.LEFT, padx=(5, 2))
         
         self.main_app.reset_params_btn = ttk.Button(button_frame, text="重置", command=self.main_app.reset_voice_params, width=6)
@@ -381,31 +381,25 @@ class VoicevoxArea:
                 messagebox.showwarning("警告", "请选择角色和样式")
                 return
             
-            # 获取角色ID和样式ID
-            speakers_list = self.main_app.voicevox_client.get_speakers_list()
-            speaker_info = None
-            style_id = None
-            
-            for speaker in speakers_list:
-                if speaker['display'] == character_name:
-                    speaker_info = speaker
-                    break
-            
-            if speaker_info:
-                for style in speaker_info['styles']:
-                    if style['name'] == style_name:
-                        style_id = style['id']
-                        break
+            # 获取样式ID
+            # 从display名称中提取角色名称
+            actual_character_name = character_name.split('] ')[-1].split(' - ')[0] if '] ' in character_name else character_name.split(' - ')[0]
+            style_id = self.main_app.voicevox_client.get_speaker_id_by_name_and_style(actual_character_name, style_name)
             
             if style_id is not None:
                 # 保存设置到配置
-                self.main_app.config.voicevox_last_speaker_name = character_name
-                self.main_app.config.voicevox_last_speaker_style = style_name
-                self.main_app.config.voicevox_last_speaker_id = style_id
+                current_period = self.main_app.voicevox_period_var.get()
+                self.main_app.config.set_voicevox_last_selection(
+                    period=current_period,
+                    character=character_name,
+                    speaker_id=str(style_id),
+                    speaker_name=character_name,
+                    speaker_style=style_name
+                )
                 self.main_app.config.save_config()
                 
                 # 更新VOICEVOX客户端的当前说话人
-                self.main_app.voicevox_client.set_current_speaker(style_id)
+                self.main_app.voicevox_client.set_speaker(style_id, actual_character_name, style_name)
                 
                 # 更新Avatar控制器
                 self.main_app.avatar_controller.set_voicevox_client(self.main_app.voicevox_client)
@@ -430,7 +424,14 @@ class VoicevoxArea:
             new_period = self.main_app.voicevox_period_var.get()
             if new_period:
                 # 保存到配置
-                self.main_app.config.voicevox_last_period = new_period
+                current_character = self.main_app.voicevox_character_var.get()
+                current_style = self.main_app.voicevox_style_var.get()
+                self.main_app.config.set_voicevox_last_selection(
+                    period=new_period,
+                    character=current_character,
+                    speaker_name=current_character,
+                    speaker_style=current_style
+                )
                 self.main_app.config.save_config()
                 
                 self.main_app.log(f"VOICEVOX期数已切换为: {new_period}")
@@ -452,13 +453,10 @@ class VoicevoxArea:
                 return
             
             # 获取该角色的样式列表
-            speakers_list = self.main_app.voicevox_client.get_speakers_list()
-            styles = []
-            
-            for speaker in speakers_list:
-                if speaker['display'] == character_name:
-                    styles = [style['name'] for style in speaker['styles']]
-                    break
+            # 从display名称中提取角色名称
+            # 格式通常是 "[期数] 角色名 - 样式" 或类似格式
+            actual_character_name = character_name.split('] ')[-1].split(' - ')[0] if '] ' in character_name else character_name.split(' - ')[0]
+            styles = self.main_app.voicevox_client.get_styles_for_character(actual_character_name)
             
             # 更新样式下拉框
             self.main_app.voicevox_style_combo['values'] = styles
@@ -493,16 +491,9 @@ class VoicevoxArea:
             test_text = "こんにちは、VOICEVOX音声合成のテストです。"
             
             # 获取样式ID
-            speakers_list = self.main_app.voicevox_client.get_speakers_list()
-            style_id = None
-            
-            for speaker in speakers_list:
-                if speaker['display'] == character_name:
-                    for style in speaker['styles']:
-                        if style['name'] == style_name:
-                            style_id = style['id']
-                            break
-                    break
+            # 从display名称中提取角色名称
+            actual_character_name = character_name.split('] ')[-1].split(' - ')[0] if '] ' in character_name else character_name.split(' - ')[0]
+            style_id = self.main_app.voicevox_client.get_speaker_id_by_name_and_style(actual_character_name, style_name)
             
             if style_id is not None:
                 self.main_app.log(f"正在测试VOICEVOX语音合成... 角色: {character_name} - {style_name}")
@@ -512,7 +503,7 @@ class VoicevoxArea:
                     try:
                         # 临时设置说话人用于测试
                         original_speaker = getattr(self.main_app.voicevox_client, '_current_speaker_id', None)
-                        self.main_app.voicevox_client.set_current_speaker(style_id)
+                        self.main_app.voicevox_client.set_speaker(style_id, actual_character_name, style_name)
                         
                         # 使用当前的语音参数进行合成
                         audio_data = self.main_app.voicevox_client.synthesize(
@@ -533,7 +524,7 @@ class VoicevoxArea:
                         
                         # 恢复原来的说话人
                         if original_speaker is not None:
-                            self.main_app.voicevox_client.set_current_speaker(original_speaker)
+                            self.main_app.voicevox_client.set_speaker(original_speaker)
                             
                     except Exception as e:
                         self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX测试失败: {e}"))
@@ -609,6 +600,40 @@ class VoicevoxArea:
         except Exception as e:
             messagebox.showerror("错误", f"生成语音时出错: {e}")
             self.main_app.log(f"生成VOICEVOX语音错误: {e}")
+    
+    def preview_voice(self):
+        """语音试听"""
+        if not self.main_app.voicevox_client or not self.main_app.voicevox_connected:
+            messagebox.showwarning("警告", "VOICEVOX未连接")
+            return
+        
+        # 获取当前角色信息
+        current_speaker = self.main_app.voicevox_client.get_current_speaker_info()
+        
+        # 根据角色选择试听文本
+        preview_texts = {
+            "ずんだもん": "こんにちは！ずんだもんなのだ！この声はどうなのだ？",
+            "四国めたん": "こんにちは、四国めたんです。この設定はいかがですか？",
+            "春日部つむぎ": "こんにちは、春日部つむぎです。声の調子はどうでしょう？",
+            "雨晴はう": "こんにちは、雨晴はうです。パラメータの確認です。",
+            "波音リツ": "こんにちは、波音リツです。音声テストですね。"
+        }
+        
+        # 选择测试文本
+        test_text = preview_texts.get(current_speaker['name'], "こんにちは！音声パラメータのテストです。")
+        
+        def preview_in_background():
+            try:
+                success = self.main_app.voicevox_client.synthesize_and_play(test_text)
+                if success:
+                    self.main_app.log("语音试听播放成功")
+                else:
+                    self.main_app.log("语音试听播放失败")
+            except Exception as e:
+                self.main_app.log(f"语音试听错误: {e}")
+        
+        # 在后台线程中播放
+        threading.Thread(target=preview_in_background, daemon=True).start()
     
     def check_voicevox_status(self):
         """检查VOICEVOX连接状态"""
