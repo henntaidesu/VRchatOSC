@@ -318,7 +318,6 @@ class VoicevoxArea:
                 if not self.main_app.single_ai_manager:
                     from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
                     self.main_app.single_ai_manager = SingleAIVRCManager(
-                        avatar_controller=self.main_app.avatar_controller,
                         voicevox_client=self.main_app.voicevox_client
                     )
                 
