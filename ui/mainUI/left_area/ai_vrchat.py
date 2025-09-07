@@ -119,8 +119,8 @@ class AIVRChatManager:
                                             orient=tk.HORIZONTAL, variable=self.main_app.movement_speed_var)
         self.main_app.movement_speed_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
 
-        self.main_app.speed_label = ttk.Label(speed_frame, text="1.0")
-        self.main_app.speed_label.pack(side=tk.LEFT)
+        self.main_app.movement_speed_label = ttk.Label(speed_frame, text="1.0")
+        self.main_app.movement_speed_label.pack(side=tk.LEFT)
 
         # 更新速度显示
         self.main_app.movement_speed_var.trace('w', self.update_speed_label)
@@ -260,14 +260,14 @@ class AIVRChatManager:
             self.main_app.log(f"初始化移动控制异常: {e}")
     
     def update_speed_label(self, *args):
-        """更新速度标签显示"""
+        """更新移动速度标签显示"""
         try:
-            if hasattr(self.main_app, 'movement_speed_var') and hasattr(self.main_app, 'speed_label'):
+            if hasattr(self.main_app, 'movement_speed_var') and hasattr(self.main_app, 'movement_speed_label'):
                 speed = self.main_app.movement_speed_var.get()
                 self.movement_speed = speed
-                self.main_app.speed_label.config(text=f"{speed:.1f}")
+                self.main_app.movement_speed_label.config(text=f"{speed:.1f}")
         except Exception as e:
-            self.main_app.log(f"更新速度标签异常: {e}")
+            self.main_app.log(f"更新移动速度标签异常: {e}")
     
     # ���6�p
     def move_forward(self):

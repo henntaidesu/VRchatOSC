@@ -325,15 +325,6 @@ class VoicevoxArea:
                 host = self.main_app.voicevox_host_var.get()
                 port = self.main_app.voicevox_port_var.get()
                 self.main_app.voicevox_status_label.config(text=f"已连接 ({host}:{port})", foreground="green")
-                self.main_app.voicevox_character_combo['values'] = speaker_names
-                
-                # 设置默认角色（如果配置中有保存的角色）
-                if self.main_app.config.voicevox_last_speaker_name and self.main_app.config.voicevox_last_speaker_name in speaker_names:
-                    self.main_app.voicevox_character_combo.set(self.main_app.config.voicevox_last_speaker_name)
-                    self.on_voicevox_character_name_changed()  # 触发样式更新
-                elif speaker_names:
-                    self.main_app.voicevox_character_combo.set(speaker_names[0])
-                    self.on_voicevox_character_name_changed()  # 触发样式更新
                 
                 # 启用相关控件
                 self.main_app.voicevox_character_combo['state'] = 'readonly'
@@ -344,11 +335,15 @@ class VoicevoxArea:
                 
                 self.main_app.voicevox_connected = True
                 
-                # 使用配置的期数重新连接
+                # 使用配置的期数初始化界面
                 saved_period = self.main_app.config.voicevox_last_period
-                if saved_period and saved_period != self.main_app.voicevox_period_var.get():
+                if saved_period:
                     self.main_app.voicevox_period_var.set(saved_period)
-                    self.on_voicevox_period_changed()
+                else:
+                    self.main_app.voicevox_period_var.set("3期")  # 默认选择3期
+                
+                # 触发期数变更以加载对应的角色列表
+                self.on_voicevox_period_changed()
                 
             else:
                 self.main_app.voicevox_status_label.config(text="未连接", foreground="red")
@@ -376,38 +371,52 @@ class VoicevoxArea:
                 
             character_name = self.main_app.voicevox_character_var.get()
             style_name = self.main_app.voicevox_style_var.get()
+            current_period = self.main_app.voicevox_period_var.get()
             
-            if not character_name or not style_name:
-                messagebox.showwarning("警告", "请选择角色和样式")
+            if not character_name or not style_name or not current_period:
+                messagebox.showwarning("警告", "请选择期数、角色和样式")
                 return
             
-            # 获取样式ID
-            # 从display名称中提取角色名称
-            actual_character_name = character_name.split('] ')[-1].split(' - ')[0] if '] ' in character_name else character_name.split(' - ')[0]
-            style_id = self.main_app.voicevox_client.get_speaker_id_by_name_and_style(actual_character_name, style_name)
+            # 获取按期数分组的角色数据
+            period_characters = self.get_characters_by_period()
             
-            if style_id is not None:
-                # 保存设置到配置
-                current_period = self.main_app.voicevox_period_var.get()
-                self.main_app.config.set_voicevox_last_selection(
-                    period=current_period,
-                    character=character_name,
-                    speaker_id=str(style_id),
-                    speaker_name=character_name,
-                    speaker_style=style_name
-                )
-                self.main_app.config.save_config()
+            if (current_period in period_characters and 
+                character_name in period_characters[current_period]):
                 
-                # 更新VOICEVOX客户端的当前说话人
-                self.main_app.voicevox_client.set_speaker(style_id, actual_character_name, style_name)
+                # 查找对应的样式ID
+                character_data = period_characters[current_period][character_name]
+                style_id = None
+                display_name = None
                 
-                # 更新Avatar控制器
-                self.main_app.avatar_controller.set_voicevox_client(self.main_app.voicevox_client)
+                for style in character_data['styles']:
+                    if style['name'] == style_name:
+                        style_id = style['id']
+                        display_name = style['display_name']
+                        break
                 
-                self.main_app.log(f"VOICEVOX角色已切换为: {character_name} - {style_name} (ID: {style_id})")
-                messagebox.showinfo("成功", f"角色已切换为: {character_name} - {style_name}")
+                if style_id is not None:
+                    # 保存设置到配置
+                    self.main_app.config.set_voicevox_last_selection(
+                        period=current_period,
+                        character=character_name,
+                        speaker_id=str(style_id),
+                        speaker_name=character_name,
+                        speaker_style=style_name
+                    )
+                    self.main_app.config.save_config()
+                    
+                    # 更新VOICEVOX客户端的当前说话人
+                    self.main_app.voicevox_client.set_speaker(style_id, character_name, style_name)
+                    
+                    # 更新Avatar控制器
+                    self.main_app.avatar_controller.set_voicevox_client(self.main_app.voicevox_client)
+                    
+                    self.main_app.log(f"VOICEVOX角色已切换为: {current_period} - {character_name} - {style_name} (ID: {style_id})")
+                    messagebox.showinfo("成功", f"角色已切换为:\n期数: {current_period}\n角色: {character_name}\n样式: {style_name}")
+                else:
+                    messagebox.showerror("错误", f"在 {current_period} 中找不到角色 {character_name} 的样式 {style_name}")
             else:
-                messagebox.showerror("错误", "无法找到对应的样式ID")
+                messagebox.showerror("错误", f"在 {current_period} 中找不到角色 {character_name}")
                 
         except Exception as e:
             self.main_app.log(f"切换VOICEVOX角色失败: {e}")
@@ -418,26 +427,100 @@ class VoicevoxArea:
         # 这个方法已经不使用，但保留以防其他地方调用
         pass
 
+    def get_characters_by_period(self):
+        """获取按期数分组的角色数据"""
+        try:
+            if not self.main_app.voicevox_connected or not self.main_app.voicevox_client:
+                return {}
+            
+            speakers_list = self.main_app.voicevox_client.get_speakers_list()
+            if not speakers_list:
+                return {}
+            
+            # 按期数分组角色
+            period_characters = {"1期": {}, "2期": {}, "3期": {}}
+            
+            for speaker_item in speakers_list:
+                # 使用VOICEVOX客户端提供的期数和角色信息
+                period = speaker_item.get('period', '1期')
+                character_name = speaker_item.get('name', '')
+                style_name = speaker_item.get('style', '')
+                style_id = speaker_item.get('speaker_id', 0)
+                display_name = speaker_item.get('display', '')
+                
+                if not character_name or not style_name:
+                    continue
+                
+                # 确保期数在我们的分组中
+                if period not in period_characters:
+                    period = "1期"  # 默认分到1期
+                
+                # 初始化角色条目
+                if character_name not in period_characters[period]:
+                    period_characters[period][character_name] = {
+                        'styles': [],
+                        'display_names': []
+                    }
+                
+                # 添加样式信息
+                period_characters[period][character_name]['styles'].append({
+                    'name': style_name,
+                    'id': style_id,
+                    'display_name': display_name
+                })
+                
+                period_characters[period][character_name]['display_names'].append(display_name)
+            
+            # 输出调试信息
+            for period, characters in period_characters.items():
+                self.main_app.log(f"{period}: {len(characters)} 个角色")
+                for char_name, char_data in characters.items():
+                    self.main_app.log(f"  {char_name}: {len(char_data['styles'])} 个样式")
+            
+            return period_characters
+            
+        except Exception as e:
+            self.main_app.log(f"获取期数角色数据失败: {e}")
+            return {}
+
     def on_voicevox_period_changed(self, event=None):
         """VOICEVOX期数改变事件处理"""
         try:
             new_period = self.main_app.voicevox_period_var.get()
-            if new_period:
+            if not new_period:
+                return
+            
+            # 获取按期数分组的角色数据
+            period_characters = self.get_characters_by_period()
+            
+            if new_period in period_characters:
+                # 更新角色下拉框
+                character_list = list(period_characters[new_period].keys())
+                self.main_app.voicevox_character_combo['values'] = character_list
+                
+                # 清空样式选择
+                self.main_app.voicevox_style_combo['values'] = []
+                self.main_app.voicevox_style_var.set("")
+                
+                # 如果有角色，选择第一个
+                if character_list:
+                    self.main_app.voicevox_character_var.set(character_list[0])
+                    self.on_voicevox_character_name_changed()
+                else:
+                    self.main_app.voicevox_character_var.set("")
+                
                 # 保存到配置
-                current_character = self.main_app.voicevox_character_var.get()
-                current_style = self.main_app.voicevox_style_var.get()
                 self.main_app.config.set_voicevox_last_selection(
                     period=new_period,
-                    character=current_character,
-                    speaker_name=current_character,
-                    speaker_style=current_style
+                    character=self.main_app.voicevox_character_var.get(),
+                    speaker_name=self.main_app.voicevox_character_var.get(),
+                    speaker_style=self.main_app.voicevox_style_var.get()
                 )
                 self.main_app.config.save_config()
                 
-                self.main_app.log(f"VOICEVOX期数已切换为: {new_period}")
-                
-                # 重新初始化VOICEVOX连接以使用新期数
-                self.init_voicevox()
+                self.main_app.log(f"VOICEVOX期数已切换为: {new_period}, 可用角色: {len(character_list)}个")
+            else:
+                self.main_app.log(f"期数 {new_period} 没有可用角色")
                 
         except Exception as e:
             self.main_app.log(f"切换VOICEVOX期数失败: {e}")
@@ -449,25 +532,38 @@ class VoicevoxArea:
                 return
                 
             character_name = self.main_app.voicevox_character_var.get()
-            if not character_name:
+            current_period = self.main_app.voicevox_period_var.get()
+            
+            if not character_name or not current_period:
                 return
             
-            # 获取该角色的样式列表
-            # 从display名称中提取角色名称
-            # 格式通常是 "[期数] 角色名 - 样式" 或类似格式
-            actual_character_name = character_name.split('] ')[-1].split(' - ')[0] if '] ' in character_name else character_name.split(' - ')[0]
-            styles = self.main_app.voicevox_client.get_styles_for_character(actual_character_name)
+            # 获取按期数分组的角色数据
+            period_characters = self.get_characters_by_period()
             
-            # 更新样式下拉框
-            self.main_app.voicevox_style_combo['values'] = styles
-            
-            # 如果配置中有保存的样式且在当前样式列表中，则选中它
-            if (self.main_app.config.voicevox_last_speaker_style and 
-                self.main_app.config.voicevox_last_speaker_style in styles):
-                self.main_app.voicevox_style_combo.set(self.main_app.config.voicevox_last_speaker_style)
-            elif styles:
-                # 否则选择第一个样式
-                self.main_app.voicevox_style_combo.set(styles[0])
+            if (current_period in period_characters and 
+                character_name in period_characters[current_period]):
+                
+                # 获取该角色的样式列表
+                character_data = period_characters[current_period][character_name]
+                styles_list = [style['name'] for style in character_data['styles']]
+                
+                # 更新样式下拉框
+                self.main_app.voicevox_style_combo['values'] = styles_list
+                
+                # 如果配置中有保存的样式且在当前样式列表中，则选中它
+                if (self.main_app.config.voicevox_last_speaker_style and 
+                    self.main_app.config.voicevox_last_speaker_style in styles_list):
+                    self.main_app.voicevox_style_combo.set(self.main_app.config.voicevox_last_speaker_style)
+                elif styles_list:
+                    # 否则选择第一个样式
+                    self.main_app.voicevox_style_combo.set(styles_list[0])
+                    
+                self.main_app.log(f"角色 {character_name} ({current_period}) 有 {len(styles_list)} 个样式")
+            else:
+                # 清空样式选择
+                self.main_app.voicevox_style_combo['values'] = []
+                self.main_app.voicevox_style_var.set("")
+                self.main_app.log(f"角色 {character_name} 在 {current_period} 中未找到")
             
         except Exception as e:
             self.main_app.log(f"更新VOICEVOX样式列表失败: {e}")
