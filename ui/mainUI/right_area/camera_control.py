@@ -3,6 +3,9 @@ import cv2
 import threading
 import tkinter as tk
 from tkinter import ttk
+from PIL import Image, ImageTk
+import time
+from tkinter import messagebox
 
 
 class CameraControl:
@@ -179,21 +182,21 @@ class CameraControl:
         self.refresh_camera_list()
         
         # 摄像头启动/停止按钮
-        self.main_app.camera_start_btn = ttk.Button(control_buttons, text=self.main_app.get_text("start_camera"), command=self.main_app.toggle_camera_only)
+        self.main_app.camera_start_btn = ttk.Button(control_buttons, text=self.main_app.get_text("start_camera"), command=self.toggle_camera_only)
         self.main_app.camera_start_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 面部识别启动/停止按钮  
         self.main_app.face_detection_btn = ttk.Button(control_buttons, text=self.main_app.get_text("start_face_detection"), 
-                                           command=self.main_app.toggle_face_detection, state="disabled")
+                                           command=self.toggle_face_detection, state="disabled")
         self.main_app.face_detection_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 截图按钮
-        self.main_app.capture_btn = ttk.Button(control_buttons, text=self.main_app.get_text("screenshot"), command=self.main_app.capture_screenshot, 
+        self.main_app.capture_btn = ttk.Button(control_buttons, text=self.main_app.get_text("screenshot"), command=self.capture_screenshot, 
                                      state="disabled")
         self.main_app.capture_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 保存表情数据按钮
-        self.main_app.save_expression_btn = ttk.Button(control_buttons, text=self.main_app.get_text("save_expression"), command=self.main_app.save_expression_data,
+        self.main_app.save_expression_btn = ttk.Button(control_buttons, text=self.main_app.get_text("save_expression"), command=self.save_expression_data,
                                             state="disabled")
         self.main_app.save_expression_btn.pack(side=tk.LEFT, padx=(0, 5))
         
@@ -284,3 +287,467 @@ class CameraControl:
         self.main_app.overall_status_progress = ttk.Progressbar(self.main_app.expression_frame, length=250, mode='determinate')
         self.main_app.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
         self.main_app.overall_status_progress['maximum'] = 100
+    
+    def toggle_camera_only(self):
+        """只切换摄像头状态（不包含面部识别）"""
+        if not self.main_app.camera_running:
+            self.start_camera_only()
+        else:
+            self.stop_camera_only()
+    
+    def toggle_face_detection(self):
+        """切换面部识别状态"""
+        if not self.main_app.face_detection_running:
+            self.start_face_detection()
+        else:
+            self.stop_face_detection()
+    
+    def start_camera_only(self):
+        """只启动摄像头（不启动面部识别）"""
+        try:
+            # 获取选中的摄像头信息
+            selected_camera = self.main_app.camera_id_var.get()
+            
+            # 从映射中获取实际的摄像头ID
+            if hasattr(self.main_app, 'camera_id_mapping') and selected_camera in self.main_app.camera_id_mapping:
+                camera_id = self.main_app.camera_id_mapping[selected_camera]
+            else:
+                try:
+                    camera_id = int(selected_camera.split()[1]) if '摄像头' in selected_camera else int(selected_camera)
+                except:
+                    camera_id = 0
+                    self.main_app.log("无法解析摄像头ID，使用默认摄像头0")
+            
+            self.main_app.log(f"正在启动摄像头: {selected_camera} (ID: {camera_id})")
+            
+            # 直接使用OpenCV启动摄像头
+            self.main_app.camera = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+            
+            if not self.main_app.camera.isOpened():
+                raise RuntimeError(f"无法打开摄像头 {camera_id}")
+            
+            # 测试读取
+            ret, frame = self.main_app.camera.read()
+            if not ret or frame is None:
+                raise RuntimeError(f"摄像头 {camera_id} 无法读取画面")
+            
+            # 设置分辨率
+            self.main_app.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.main_app.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            
+            self.main_app.camera_running = True
+            self.main_app.camera_start_btn.config(text="停止摄像头")
+            self.main_app.face_detection_btn.config(state="normal")
+            self.main_app.capture_btn.config(state="normal")
+            self.main_app.save_expression_btn.config(state="normal")
+            
+            # 启动视频显示线程
+            self.main_app.camera_thread = threading.Thread(target=self.simple_video_loop, daemon=True)
+            self.main_app.camera_thread.start()
+            
+            self.main_app.log(f"摄像头启动成功: {selected_camera}")
+            
+        except Exception as e:
+            self.main_app.log(f"启动摄像头失败: {e}")
+            if hasattr(self.main_app, 'camera') and self.main_app.camera:
+                self.main_app.camera.release()
+                self.main_app.camera = None
+            self.main_app.camera_running = False
+    
+    def start_face_detection(self):
+        """启动面部识别"""
+        try:
+            self.main_app.log(f"正在启动面部识别模型: {self.main_app.emotion_model_type}")
+            
+            # 如果使用GPU模型，初始化检测器
+            if self.main_app.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
+                if not hasattr(self.main_app, 'gpu_detector') or self.main_app.gpu_detector is None:
+                    try:
+                        from src.face.gpu_emotion_detector import GPUEmotionDetector
+                        self.main_app.gpu_detector = GPUEmotionDetector(model_type=self.main_app.emotion_model_type, device='auto')
+                        self.main_app.log(f"成功初始化GPU情感检测器: {self.main_app.emotion_model_type}")
+                    except Exception as e:
+                        self.main_app.log(f"GPU检测器初始化失败: {e}")
+                        self.main_app.log("将使用Simple模式作为后备")
+                        self.main_app.emotion_model_type = 'Simple'
+            
+            # 这里不需要重新创建摄像头实例，只是设置标志
+            self.main_app.face_detection_running = True
+            self.main_app.face_detection_btn.config(text="停止面部识别")
+            
+            self.main_app.log("面部识别启动成功")
+            
+        except Exception as e:
+            self.main_app.log(f"面部识别启动失败: {e}")
+    
+    def stop_camera_only(self):
+        """只停止摄像头"""
+        try:
+            self.main_app.log("正在停止摄像头...")
+            self.main_app.camera_running = False
+            
+            # 同时停止面部识别
+            if self.main_app.face_detection_running:
+                self.main_app.face_detection_running = False
+                self.main_app.face_detection_btn.config(text=self.main_app.get_text("start_face_detection"), state="disabled")
+            
+            # 等待线程结束
+            if hasattr(self.main_app, 'camera_thread') and self.main_app.camera_thread and self.main_app.camera_thread.is_alive():
+                self.main_app.camera_thread.join(timeout=2)
+            
+            # 释放摄像头
+            if hasattr(self.main_app, 'camera') and self.main_app.camera:
+                self.main_app.camera.release()
+                self.main_app.camera = None
+            
+            # 释放GPU检测器资源
+            if hasattr(self.main_app, 'gpu_detector') and self.main_app.gpu_detector is not None:
+                try:
+                    self.main_app.gpu_detector.release()
+                    self.main_app.gpu_detector = None
+                    self.main_app.log("GPU情感检测器资源已释放")
+                except Exception as e:
+                    self.main_app.log(f"释放GPU检测器资源时出错: {e}")
+            
+            # 更新UI
+            self.main_app.camera_start_btn.config(text=self.main_app.get_text("start_camera"))
+            self.main_app.capture_btn.config(state="disabled")
+            self.main_app.save_expression_btn.config(state="disabled")
+            self.main_app.video_label.config(image="", text=self.main_app.get_text("click_to_start"))
+            
+            self.main_app.log(self.main_app.get_text("camera_stopped"))
+            
+        except Exception as e:
+            self.main_app.log(f"停止摄像头错误: {e}")
+    
+    def stop_face_detection(self):
+        """停止面部识别"""
+        try:
+            self.main_app.face_detection_running = False
+            self.main_app.face_detection_btn.config(text="启动面部识别")
+            
+            # 重置表情数据为默认值
+            default_expressions = {
+                'angry': 0.0, 'disgust': 0.0, 'fear': 0.0, 'happy': 0.0,
+                'sad': 0.0, 'surprise': 0.0, 'neutral': 0.0
+            }
+            self._update_expression_display(default_expressions)
+            
+            self.main_app.log("面部识别已停止")
+            
+        except Exception as e:
+            self.main_app.log(f"停止面部识别失败: {e}")
+    
+    def update_camera_display(self):
+        """更新摄像头显示"""
+        if not self.main_app.camera_running or not hasattr(self.main_app, 'camera') or not self.main_app.camera:
+            return
+        
+        try:
+            ret, frame = self.main_app.camera.read()
+            if ret and frame is not None:
+                # 处理面部识别
+                if self.main_app.face_detection_running:
+                    expressions = self.process_face_detection(frame)
+                    if expressions:
+                        self._update_expression_display(expressions)
+                
+                # 显示视频帧
+                display_frame = cv2.resize(frame, (640, 480))
+                frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(frame_rgb)
+                photo = ImageTk.PhotoImage(img)
+                self.main_app.video_label.config(image=photo, text='')
+                self.main_app.video_label.image = photo  # 保持引用
+                
+                # 继续更新
+                self.main_app.root.after(30, self.update_camera_display)
+            else:
+                self.main_app.log("无法读取摄像头画面")
+                self.stop_camera_only()
+                
+        except Exception as e:
+            self.main_app.log(f"摄像头显示更新失败: {e}")
+            self.stop_camera_only()
+    
+    def capture_screenshot(self):
+        """截图功能"""
+        if not self.main_app.camera_running or not hasattr(self.main_app, 'camera') or not self.main_app.camera:
+            return
+        
+        try:
+            ret, frame = self.main_app.camera.read()
+            if ret and frame is not None:
+                import os
+                from datetime import datetime
+                
+                # 创建截图目录
+                screenshot_dir = "screenshots"
+                if not os.path.exists(screenshot_dir):
+                    os.makedirs(screenshot_dir)
+                
+                # 生成文件名
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"screenshot_{timestamp}.jpg"
+                filepath = os.path.join(screenshot_dir, filename)
+                
+                # 保存图片
+                cv2.imwrite(filepath, frame)
+                self.main_app.log(f"截图已保存: {filepath}")
+                
+        except Exception as e:
+            self.main_app.log(f"截图失败: {e}")
+    
+    def save_expression_data(self):
+        """保存表情数据"""
+        if not hasattr(self.main_app, 'expressions'):
+            return
+        
+        try:
+            import json
+            import os
+            from datetime import datetime
+            
+            # 创建数据目录
+            data_dir = "expression_data"
+            if not os.path.exists(data_dir):
+                os.makedirs(data_dir)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"expressions_{timestamp}.json"
+            filepath = os.path.join(data_dir, filename)
+            
+            # 保存数据
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(self.main_app.expressions, f, ensure_ascii=False, indent=2)
+            
+            self.main_app.log(f"表情数据已保存: {filepath}")
+            
+        except Exception as e:
+            self.main_app.log(f"保存表情数据失败: {e}")
+    
+    def process_face_detection(self, frame):
+        """处理面部识别"""
+        expressions = {
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 0.0     # 中立
+        }
+        
+        try:
+            if self.main_app.emotion_model_type == 'Simple':
+                # 使用简单的OpenCV检测
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
+                
+                # 绘制面部框
+                for (x, y, w, h) in faces:
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    cv2.putText(frame, "Face Detected", (x, y-10), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                
+                # Simple模式：只显示检测到的面部数量，不生成假数据
+                if len(faces) > 0:
+                    # 保持默认的表情值，不生成模拟数据
+                    pass
+            
+            elif self.main_app.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
+                # 使用GPU加速的情感识别模型
+                if hasattr(self.main_app, 'gpu_detector') and self.main_app.gpu_detector is not None:
+                    try:
+                        annotated_frame, expressions = self.main_app.gpu_detector.process_frame(frame)
+                        return annotated_frame, expressions
+                    except Exception as gpu_e:
+                        import traceback
+                        self.main_app.log(f"GPU情感识别处理错误 ({self.main_app.emotion_model_type}): {gpu_e}")
+                        self.main_app.log(f"详细错误信息: {traceback.format_exc()}")
+                        # 回退到简单模式
+                        return self.process_simple_detection(frame)
+                else:
+                    # 如果GPU检测器未初始化，尝试创建
+                    try:
+                        from src.face.gpu_emotion_detector import GPUEmotionDetector
+                        self.main_app.gpu_detector = GPUEmotionDetector(model_type=self.main_app.emotion_model_type, device='auto')
+                        self.main_app.log(f"成功初始化GPU情感检测器: {self.main_app.emotion_model_type}")
+                        annotated_frame, expressions = self.main_app.gpu_detector.process_frame(frame)
+                        return annotated_frame, expressions
+                    except Exception as init_e:
+                        import traceback
+                        self.main_app.log(f"GPU情感检测器初始化失败 ({self.main_app.emotion_model_type}): {init_e}")
+                        self.main_app.log(f"详细错误信息: {traceback.format_exc()}")
+                        self.main_app.log("回退到简单模式")
+                        return self.process_simple_detection(frame)
+            
+        except Exception as e:
+            self.main_app.log(f"面部识别处理错误: {e}")
+        
+        return frame, expressions
+    
+    def _update_expression_display(self, expressions):
+        """更新表情显示（在主线程中调用）"""
+        try:
+            # 更新表情数据
+            self.main_app.expressions.update(expressions)
+            
+            # 更新UI显示
+            for expr_name, value in expressions.items():
+                if expr_name in self.main_app.expression_labels:
+                    self.main_app.expression_labels[expr_name].config(text=f"{value:.2f}")
+                if expr_name in self.main_app.expression_progress_bars:
+                    self.main_app.expression_progress_bars[expr_name]['value'] = value * 100
+            
+            # 更新整体状态
+            self._update_overall_status(expressions)
+            
+        except Exception as e:
+            self.main_app.log(f"更新表情显示失败: {e}")
+    
+    def _update_overall_status(self, expressions):
+        """更新整体情感状态显示"""
+        try:
+            # 找到最强烈的情感
+            max_emotion = max(expressions, key=expressions.get)
+            max_value = expressions[max_emotion]
+            
+            # 情感中文名称映射
+            emotion_names = {
+                'angry': '愤怒', 'disgust': '厌恶', 'fear': '恐惧',
+                'happy': '高兴', 'sad': '伤心', 'surprise': '惊讶', 'neutral': '中立'
+            }
+            
+            emotion_name_cn = emotion_names.get(max_emotion, max_emotion)
+            
+            # 更新标签和进度条
+            if hasattr(self.main_app, 'overall_status_label'):
+                self.main_app.overall_status_label.config(text=f"{emotion_name_cn} ({max_value:.2f})")
+            if hasattr(self.main_app, 'overall_status_progress'):
+                self.main_app.overall_status_progress['value'] = max_value * 100
+            
+        except Exception as e:
+            self.main_app.log(f"更新整体状态失败: {e}")
+    
+    def send_expressions_to_vrchat(self, expressions):
+        """发送表情数据到VRChat"""
+        try:
+            if self.main_app.client and self.main_app.is_connected and hasattr(self.main_app.client, 'osc_client'):
+                # VRChat表情参数映射 - 7种标准情感
+                vrchat_params = {
+                    'angry': '/avatar/parameters/FaceAngry',
+                    'disgust': '/avatar/parameters/FaceDisgust',
+                    'fear': '/avatar/parameters/FaceFear',
+                    'happy': '/avatar/parameters/FaceHappy',
+                    'sad': '/avatar/parameters/FaceSad',
+                    'surprise': '/avatar/parameters/FaceSurprise',
+                    'neutral': '/avatar/parameters/FaceNeutral'
+                }
+                
+                # 发送每个表情参数
+                for expr_name, value in expressions.items():
+                    if expr_name in vrchat_params:
+                        param_address = vrchat_params[expr_name]
+                        # 确保值在0-1范围内
+                        clamped_value = max(0.0, min(1.0, value))
+                        self.main_app.client.osc_client.send_parameter(param_address, clamped_value)
+                        
+        except Exception as e:
+            # 静默处理错误，避免日志过多
+            current_time = time.time()
+            if hasattr(self.main_app, 'last_expression_error_time'):
+                # 只每10秒记录一次错误
+                if current_time - self.main_app.last_expression_error_time > 10:
+                    self.main_app.log(f"表情数据发送错误: {e}")
+                    self.main_app.last_expression_error_time = current_time
+            else:
+                self.main_app.last_expression_error_time = current_time
+                self.main_app.log(f"表情数据发送错误: {e}")
+    
+    def simple_video_loop(self):
+        """简单的视频显示循环（不包含面部识别）"""
+        while self.main_app.camera_running and self.main_app.camera and self.main_app.camera.isOpened():
+            try:
+                ret, frame = self.main_app.camera.read()
+                if ret and frame is not None:
+                    # 调整图像大小
+                    display_frame = cv2.resize(frame, (640, 480))
+                    
+                    # 如果启用了面部识别，进行处理
+                    if self.main_app.face_detection_running:
+                        display_frame, expressions = self.process_face_detection(display_frame)
+                        # 更新表情显示
+                        self.main_app.root.after(0, lambda: self._update_expression_display(expressions))
+                    
+                    # 转换为显示格式
+                    frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(frame_rgb)
+                    photo = ImageTk.PhotoImage(img)
+                    
+                    # 更新显示
+                    self.main_app.current_frame = frame
+                    self.main_app.root.after(0, lambda p=photo: self.update_video_display(p))
+                    
+                time.sleep(0.03)  # 约33fps
+                
+            except Exception as e:
+                if self.main_app.camera_running:
+                    self.main_app.log(f"视频循环错误: {e}")
+                time.sleep(0.1)
+    
+    def update_video_display(self, photo):
+        """更新视频显示（在主线程中调用）"""
+        try:
+            if self.main_app.camera_running and photo:
+                self.main_app.video_label.config(image=photo, text="")
+                self.main_app.video_label.image = photo  # 保持引用防止垃圾回收
+            else:
+                self.main_app.log("显示更新失败: 摄像头未运行或照片为空")
+        except Exception as e:
+            self.main_app.log(f"更新显示错误: {e}")
+            print(f"更新显示错误: {e}")
+    
+    def process_simple_detection(self, frame):
+        """简单的面部检测处理（作为GPU模式的后备）"""
+        expressions = {
+            'angry': 0.0,      # 愤怒
+            'disgust': 0.0,    # 厌恶
+            'fear': 0.0,       # 恐惧
+            'happy': 0.0,      # 高兴
+            'sad': 0.0,        # 伤心
+            'surprise': 0.0,   # 惊讶
+            'neutral': 0.0     # 中立
+        }
+        
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
+            
+            # 绘制面部框和更新表情数据
+            for (x, y, w, h) in faces:
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv2.putText(frame, "Face Detected (Simple)", (x, y-10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            # 简单模式回退：只显示面部检测，不生成假表情数据
+            if len(faces) > 0:
+                # 保持默认表情值，不生成模拟数据
+                pass
+                
+        except Exception as e:
+            self.main_app.log(f"简单面部检测错误: {e}")
+        
+        return frame, expressions
+    
+    def open_camera_window(self):
+        """打开摄像头窗口（保留原功能作为备选）"""
+        try:
+            from ui.camera_window import CameraWindow
+            CameraWindow(self.main_app.root)
+        except Exception as e:
+            messagebox.showerror("摄像头错误", f"无法打开摄像头窗口: {e}")
+            self.main_app.log(f"打开摄像头窗口失败: {e}")

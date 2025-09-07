@@ -113,7 +113,7 @@ class VoicevoxArea:
         ttk.Label(speed_frame, text="语速:", width=8).pack(side=tk.LEFT)
         self.main_app.speed_var = tk.DoubleVar(value=1.0)
         self.main_app.speed_scale = ttk.Scale(speed_frame, from_=0.5, to=2.0, variable=self.main_app.speed_var,
-                                   orient=tk.HORIZONTAL, command=self.main_app.on_speed_changed)
+                                   orient=tk.HORIZONTAL, command=self.on_speed_changed)
         self.main_app.speed_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         self.main_app.speed_label = ttk.Label(speed_frame, text="1.00", width=5)
         self.main_app.speed_label.pack(side=tk.RIGHT)
@@ -124,7 +124,7 @@ class VoicevoxArea:
         ttk.Label(pitch_frame, text="音高:", width=8).pack(side=tk.LEFT)
         self.main_app.pitch_var = tk.DoubleVar(value=0.0)
         self.main_app.pitch_scale = ttk.Scale(pitch_frame, from_=-0.15, to=0.15, variable=self.main_app.pitch_var,
-                                   orient=tk.HORIZONTAL, command=self.main_app.on_pitch_changed)
+                                   orient=tk.HORIZONTAL, command=self.on_pitch_changed)
         self.main_app.pitch_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         self.main_app.pitch_label = ttk.Label(pitch_frame, text="0.00", width=5)
         self.main_app.pitch_label.pack(side=tk.RIGHT)
@@ -135,7 +135,7 @@ class VoicevoxArea:
         ttk.Label(intonation_frame, text="抑扬:", width=8).pack(side=tk.LEFT)
         self.main_app.intonation_var = tk.DoubleVar(value=1.0)
         self.main_app.intonation_scale = ttk.Scale(intonation_frame, from_=0.0, to=2.0, variable=self.main_app.intonation_var,
-                                        orient=tk.HORIZONTAL, command=self.main_app.on_intonation_changed)
+                                        orient=tk.HORIZONTAL, command=self.on_intonation_changed)
         self.main_app.intonation_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         self.main_app.intonation_label = ttk.Label(intonation_frame, text="1.00", width=5)
         self.main_app.intonation_label.pack(side=tk.RIGHT)
@@ -146,7 +146,7 @@ class VoicevoxArea:
         ttk.Label(volume_frame, text="音量:", width=8).pack(side=tk.LEFT)
         self.main_app.volume_var = tk.DoubleVar(value=1.0)
         self.main_app.volume_scale = ttk.Scale(volume_frame, from_=0.0, to=2.0, variable=self.main_app.volume_var,
-                                    orient=tk.HORIZONTAL, command=self.main_app.on_volume_changed)
+                                    orient=tk.HORIZONTAL, command=self.on_volume_changed)
         self.main_app.volume_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         self.main_app.volume_label = ttk.Label(volume_frame, text="1.00", width=5)
         self.main_app.volume_label.pack(side=tk.RIGHT)
@@ -174,10 +174,10 @@ class VoicevoxArea:
         self.main_app.preview_btn = ttk.Button(button_frame, text="试听", command=self.preview_voice, width=6)
         self.main_app.preview_btn.pack(side=tk.LEFT, padx=(5, 2))
         
-        self.main_app.reset_params_btn = ttk.Button(button_frame, text="重置", command=self.main_app.reset_voice_params, width=6)
+        self.main_app.reset_params_btn = ttk.Button(button_frame, text="重置", command=self.reset_voice_params, width=6)
         self.main_app.reset_params_btn.pack(side=tk.LEFT, padx=(2, 2))
         
-        self.main_app.save_params_btn = ttk.Button(button_frame, text="保存", command=self.main_app.save_voice_params, width=6)
+        self.main_app.save_params_btn = ttk.Button(button_frame, text="保存", command=self.save_voice_params, width=6)
         self.main_app.save_params_btn.pack(side=tk.LEFT, padx=(2, 0))
         
         # 角色管理区域 - 直接在左侧VOICEVOX区域下方
@@ -505,14 +505,16 @@ class VoicevoxArea:
                         original_speaker = getattr(self.main_app.voicevox_client, '_current_speaker_id', None)
                         self.main_app.voicevox_client.set_speaker(style_id, actual_character_name, style_name)
                         
-                        # 使用当前的语音参数进行合成
-                        audio_data = self.main_app.voicevox_client.synthesize(
-                            text=test_text,
-                            speed=self.main_app.speed_var.get(),
-                            pitch=self.main_app.pitch_var.get(),
-                            intonation=self.main_app.intonation_var.get(),
-                            volume=self.main_app.volume_var.get()
+                        # 先设置当前的语音参数
+                        self.main_app.voicevox_client.set_voice_parameters(
+                            speed_scale=self.main_app.speed_var.get(),
+                            pitch_scale=self.main_app.pitch_var.get(),
+                            intonation_scale=self.main_app.intonation_var.get(),
+                            volume_scale=self.main_app.volume_var.get()
                         )
+                        
+                        # 合成语音
+                        audio_data = self.main_app.voicevox_client.synthesize_speech(test_text)
                         
                         if audio_data:
                             self.main_app.voicevox_client.play_audio(audio_data)
@@ -551,14 +553,16 @@ class VoicevoxArea:
                 self.main_app.log("VOICEVOX已禁用，跳过语音合成")
                 return None
             
-            # 使用当前的语音参数进行合成
-            audio_data = self.main_app.voicevox_client.synthesize(
-                text=text,
-                speed=self.main_app.speed_var.get(),
-                pitch=self.main_app.pitch_var.get(),
-                intonation=self.main_app.intonation_var.get(),
-                volume=self.main_app.volume_var.get()
+            # 先设置当前的语音参数
+            self.main_app.voicevox_client.set_voice_parameters(
+                speed_scale=self.main_app.speed_var.get(),
+                pitch_scale=self.main_app.pitch_var.get(),
+                intonation_scale=self.main_app.intonation_var.get(),
+                volume_scale=self.main_app.volume_var.get()
             )
+            
+            # 合成语音
+            audio_data = self.main_app.voicevox_client.synthesize_speech(text)
             
             if audio_data:
                 self.main_app.log(f"VOICEVOX语音合成成功: {text[:20]}...")
@@ -687,3 +691,124 @@ class VoicevoxArea:
         if not hasattr(self.main_app, 'voicevox_connected') or not self.main_app.voicevox_connected:
             self.main_app.log("尝试自动重连VOICEVOX...")
             self.init_voicevox(retry_count=1)
+    
+    def on_speed_changed(self, value):
+        """语速滑块变化回调"""
+        speed_value = float(value)
+        self.main_app.speed_label.config(text=f"{speed_value:.2f}")
+        if self.main_app.voicevox_client:
+            self.main_app.voicevox_client.set_voice_parameters(speed_scale=speed_value)
+    
+    def on_pitch_changed(self, value):
+        """音高滑块变化回调"""
+        pitch_value = float(value)
+        self.main_app.pitch_label.config(text=f"{pitch_value:.3f}")
+        if self.main_app.voicevox_client:
+            self.main_app.voicevox_client.set_voice_parameters(pitch_scale=pitch_value)
+    
+    def on_intonation_changed(self, value):
+        """抑扬滑块变化回调"""
+        intonation_value = float(value)
+        self.main_app.intonation_label.config(text=f"{intonation_value:.2f}")
+        if self.main_app.voicevox_client:
+            self.main_app.voicevox_client.set_voice_parameters(intonation_scale=intonation_value)
+    
+    def on_volume_changed(self, value):
+        """音量滑块变化回调"""
+        volume_value = float(value)
+        self.main_app.volume_label.config(text=f"{volume_value:.2f}")
+        if self.main_app.voicevox_client:
+            self.main_app.voicevox_client.set_voice_parameters(volume_scale=volume_value)
+    
+    def reset_voice_params(self):
+        """重置语音参数"""
+        # 重置为默认值
+        self.main_app.speed_var.set(1.0)
+        self.main_app.pitch_var.set(0.0)
+        self.main_app.intonation_var.set(1.0)
+        self.main_app.volume_var.set(1.0)
+        
+        # 应用参数到VOICEVOX
+        if self.main_app.voicevox_client:
+            self.main_app.voicevox_client.set_voice_parameters(
+                speed_scale=1.0,
+                pitch_scale=0.0,
+                intonation_scale=1.0,
+                volume_scale=1.0
+            )
+        
+        self.main_app.log("语音参数已重置为默认值")
+    
+    def save_voice_params(self):
+        """保存语音参数预设"""
+        try:
+            # 获取当前角色信息
+            if not self.main_app.voicevox_client:
+                messagebox.showwarning("警告", "VOICEVOX未连接")
+                return
+            
+            speaker_info = self.main_app.voicevox_client.get_current_speaker_info()
+            if not speaker_info:
+                messagebox.showwarning("警告", "无法获取当前角色信息")
+                return
+            
+            speaker_name = speaker_info.get('name', 'unknown')
+            speaker_style = speaker_info.get('style', 'default')
+            
+            # 获取当前参数值
+            speed = self.main_app.speed_var.get()
+            pitch = self.main_app.pitch_var.get()  
+            intonation = self.main_app.intonation_var.get()
+            volume = self.main_app.volume_var.get()
+            
+            # 保存到配置文件
+            section_name = f"VoicePreset_{speaker_name}_{speaker_style}"
+            self.main_app.config.set(section_name, 'speed', speed)
+            self.main_app.config.set(section_name, 'pitch', pitch)
+            self.main_app.config.set(section_name, 'intonation', intonation)
+            self.main_app.config.set(section_name, 'volume', volume)
+            self.main_app.config.save_config()
+            
+            messagebox.showinfo("成功", f"已保存 {speaker_name} - {speaker_style} 的语音参数预设")
+            self.main_app.log(f"保存语音参数预设: {speaker_name} - {speaker_style}")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"保存语音参数失败: {e}")
+            self.main_app.log(f"保存语音参数失败: {e}")
+    
+    def load_voice_params_for_speaker(self, speaker_name, speaker_style):
+        """为指定角色加载语音参数预设"""
+        try:
+            section_name = f"VoicePreset_{speaker_name}_{speaker_style}"
+            
+            # 检查是否存在该预设
+            if not self.main_app.config.config.has_section(section_name):
+                return False
+            
+            # 加载参数
+            speed = self.main_app.config.get(section_name, 'speed', 1.0)
+            pitch = self.main_app.config.get(section_name, 'pitch', 0.0)
+            intonation = self.main_app.config.get(section_name, 'intonation', 1.0)
+            volume = self.main_app.config.get(section_name, 'volume', 1.0)
+            
+            # 应用到界面
+            self.main_app.speed_var.set(speed)
+            self.main_app.pitch_var.set(pitch)
+            self.main_app.intonation_var.set(intonation)
+            self.main_app.volume_var.set(volume)
+            
+            # 应用参数到VOICEVOX
+            if self.main_app.voicevox_client:
+                self.main_app.voicevox_client.set_voice_parameters(
+                    speed_scale=speed,
+                    pitch_scale=pitch,
+                    intonation_scale=intonation,
+                    volume_scale=volume
+                )
+            
+            self.main_app.log(f"加载语音参数预设: {speaker_name} - {speaker_style}")
+            return True
+            
+        except Exception as e:
+            self.main_app.log(f"加载语音参数预设失败: {e}")
+            return False
