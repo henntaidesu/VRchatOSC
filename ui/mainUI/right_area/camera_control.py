@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 import time
+import numpy as np
 from tkinter import messagebox
 
 
@@ -17,46 +18,153 @@ class CameraControl:
         self.last_emotion_update_time = 0  # 上次更新LLM情感状态的时间
         self.emotion_update_timer = None  # 定时器
         
-    def detect_available_cameras(self):
-        """检测可用的摄像头"""
+        # 主导情感更新跟踪
+        self.last_dominant_update_time = 0  # 上次主导情感更新的时间
+        self.current_dominant_emotion = None  # 当前主导情感信息
+        
+        # 摄像头信息缓存
+        self.detected_cameras_info = {}  # 存储摄像头详细信息
+        
+    def detect_camera_resolutions(self, camera_id):
+        """检测摄像头支持的分辨率"""
+        supported_resolutions = []
+        
+        # 常见分辨率列表（按从小到大排序）
+        common_resolutions = [
+            (320, 240),   # QVGA
+            (640, 480),   # VGA
+            (800, 600),   # SVGA
+            (1024, 768),  # XGA
+            (1280, 720),  # HD 720p
+            (1280, 960),  # SXGA-
+            (1600, 1200), # UXGA
+            (1920, 1080), # Full HD 1080p
+            (2560, 1440), # QHD
+            (3840, 2160)  # 4K UHD
+        ]
+        
+        try:
+            cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                return supported_resolutions
+            
+            for width, height in common_resolutions:
+                # 尝试设置分辨率
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                
+                # 读取实际设置的分辨率
+                actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                
+                # 如果实际分辨率与目标分辨率匹配，说明支持
+                if actual_width == width and actual_height == height:
+                    # 测试是否能实际读取帧
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.shape[:2] == (height, width):
+                        supported_resolutions.append((width, height))
+            
+            cap.release()
+            
+        except Exception as e:
+            print(f"检测摄像头 {camera_id} 分辨率失败: {e}")
+        
+        return supported_resolutions
+    
+    def get_camera_info(self, camera_id):
+        """获取摄像头详细信息"""
+        try:
+            cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                return None
+            
+            # 获取基本信息
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            # 测试读取
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                cap.release()
+                return None
+            
+            cap.release()
+            
+            # 获取支持的分辨率
+            supported_resolutions = self.detect_camera_resolutions(camera_id)
+            
+            camera_info = {
+                'id': camera_id,
+                'default_width': width,
+                'default_height': height,
+                'fps': fps if fps > 0 else 30,  # 如果获取不到FPS，默认30
+                'supported_resolutions': supported_resolutions,
+                'working': True
+            }
+            
+            return camera_info
+            
+        except Exception as e:
+            print(f"获取摄像头 {camera_id} 信息失败: {e}")
+            return None
+
+    def detect_available_cameras(self, log_callback=None):
+        """检测可用的摄像头（增强版）"""
         available_cameras = []
-        detected_signatures = set()  # 用于避免重复检测同一摄像头
+        detected_cameras_info = {}
+        
+        # 使用线程安全的日志记录方式
+        def safe_log(message):
+            if log_callback:
+                log_callback(message)
+            else:
+                print(message)  # 后备日志方法
+        
+        safe_log("开始检测摄像头和分辨率...")
         
         # 检查多个摄像头ID
-        for i in range(5):  # 减少到检查ID 0-4，提高检测速度
+        for i in range(8):  # 扩展到检查更多摄像头
             try:
-                # 主要使用DSHOW后端，这在Windows上最可靠
-                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                safe_log(f"正在检测摄像头 {i}...")
+                camera_info = self.get_camera_info(i)
                 
-                if cap.isOpened():
-                    # 尝试读取一帧来验证摄像头是否可用
-                    ret, frame = cap.read()
-                    if ret and frame is not None and frame.size > 0:
-                        # 获取摄像头详细信息
-                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        fps = cap.get(cv2.CAP_PROP_FPS)
-                        
-                        # 创建摄像头特征签名（基于分辨率）
-                        signature = f"{width}x{height}"
-                        
-                        # 检查是否已经检测过相同分辨率的摄像头
-                        if signature not in detected_signatures:
-                            detected_signatures.add(signature)
-                            
-                            # 简化显示信息
-                            camera_info = f"摄像头 {i} ({width}x{height})"
-                            available_cameras.append((i, camera_info))
-                            self.main_app.log(f"检测到摄像头: {camera_info}")
-                        else:
-                            self.main_app.log(f"跳过重复摄像头 ID {i} (相同分辨率: {signature})")
-                
-                cap.release()
+                if camera_info:
+                    # 获取最大支持分辨率作为默认分辨率
+                    if camera_info['supported_resolutions']:
+                        # 按分辨率大小排序，选择最大的
+                        max_res = max(camera_info['supported_resolutions'], key=lambda res: res[0] * res[1])
+                        max_res_str = f"{max_res[0]}x{max_res[1]}"
+                        # 更新camera_info中的默认分辨率为最大分辨率
+                        camera_info['default_width'] = max_res[0]
+                        camera_info['default_height'] = max_res[1]
+                        default_res = max_res_str
+                    else:
+                        default_res = f"{camera_info['default_width']}x{camera_info['default_height']}"
+                    
+                    supported_count = len(camera_info['supported_resolutions'])
+                    
+                    if supported_count > 1:
+                        display_name = f"摄像头 {i} (最大{default_res}, {supported_count}种分辨率)"
+                    else:
+                        display_name = f"摄像头 {i} ({default_res})"
+                    
+                    available_cameras.append((i, display_name))
+                    detected_cameras_info[i] = camera_info
+                    
+                    # 详细日志
+                    resolutions_str = ", ".join([f"{w}x{h}" for w, h in camera_info['supported_resolutions']])
+                    safe_log(f"[OK] 摄像头 {i}: 最大分辨率{default_res}, FPS:{camera_info['fps']:.1f}")
+                    safe_log(f"  支持分辨率: {resolutions_str}")
                     
             except Exception as e:
                 # 忽略检测失败的摄像头
                 continue
         
+        # 保存摄像头信息供后续使用
+        self.detected_cameras_info = detected_cameras_info
+        
+        safe_log(f"检测完成，发现 {len(available_cameras)} 个可用摄像头")
         return available_cameras
 
     def refresh_camera_list(self):
@@ -72,10 +180,22 @@ class CameraControl:
             # 在后台线程中检测摄像头
             def detect_cameras():
                 try:
-                    available_cameras = self.detect_available_cameras()
+                    # 创建线程安全的日志回调
+                    log_messages = []
+                    def thread_safe_log(message):
+                        log_messages.append(message)
                     
-                    # 在主线程中更新UI
-                    self.main_app.root.after(0, lambda: self.update_camera_list(available_cameras))
+                    available_cameras = self.detect_available_cameras(log_callback=thread_safe_log)
+                    
+                    # 在主线程中更新UI和日志
+                    def update_ui_and_logs():
+                        # 输出所有日志消息
+                        for msg in log_messages:
+                            self.main_app.log(msg)
+                        # 更新摄像头列表
+                        self.update_camera_list(available_cameras)
+                    
+                    self.main_app.root.after(0, update_ui_and_logs)
                     
                 except Exception as e:
                     self.main_app.root.after(0, lambda: self.main_app.log(f"检测摄像头失败: {e}"))
@@ -309,6 +429,14 @@ class CameraControl:
         self.main_app.overall_status_progress = ttk.Progressbar(self.main_app.expression_frame, length=250, mode='determinate')
         self.main_app.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
         self.main_app.overall_status_progress['maximum'] = 100
+        
+        # 主导情感状态显示
+        row += 1
+        ttk.Label(self.main_app.expression_frame, text="主导情感:").grid(
+            row=row, column=0, sticky=tk.W, padx=(0, 5))
+        
+        self.main_app.dominant_emotion_label = ttk.Label(self.main_app.expression_frame, text="无数据", width=30)
+        self.main_app.dominant_emotion_label.grid(row=row, column=1, columnspan=5, sticky=tk.W, padx=(0, 5))
     
     def toggle_camera_only(self):
         """只切换摄像头状态（不包含面部识别）"""
@@ -353,9 +481,18 @@ class CameraControl:
             if not ret or frame is None:
                 raise RuntimeError(f"摄像头 {camera_id} 无法读取画面")
             
-            # 设置分辨率
-            self.main_app.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.main_app.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # 设置分辨率为最大支持分辨率
+            if camera_id in self.detected_cameras_info:
+                camera_info = self.detected_cameras_info[camera_id]
+                width = camera_info['default_width']  # 这已经是最大分辨率
+                height = camera_info['default_height']
+                self.main_app.log(f"设置摄像头分辨率为: {width}x{height}")
+                self.main_app.camera.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                self.main_app.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            else:
+                # 后备选项：使用高分辨率
+                self.main_app.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                self.main_app.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
             
             self.main_app.camera_running = True
             self.main_app.camera_start_btn.config(text="停止摄像头")
@@ -400,7 +537,13 @@ class CameraControl:
             # 启动表情更新定时器
             import time
             self.last_emotion_update_time = time.time()
+            self.last_dominant_update_time = 0  # 重置主导情感更新时间
             self.emotion_data_cache.clear()
+            
+            # 重置主导情感显示
+            if hasattr(self.main_app, 'dominant_emotion_label'):
+                self.main_app.dominant_emotion_label.config(text="等待检测...")
+            
             self._start_emotion_update_timer()
             
             self.main_app.log("面部识别启动成功")
@@ -477,6 +620,14 @@ class CameraControl:
             }
             self._update_expression_display(default_expressions)
             
+            # 重置主导情感显示
+            if hasattr(self.main_app, 'dominant_emotion_label'):
+                self.main_app.dominant_emotion_label.config(text="无数据")
+            
+            # 重置时间戳
+            self.last_dominant_update_time = 0
+            self.current_dominant_emotion = None
+            
             self.main_app.log("面部识别已停止")
             
         except Exception as e:
@@ -496,8 +647,8 @@ class CameraControl:
                     if expressions:
                         self._update_expression_display(expressions)
                 
-                # 显示视频帧
-                display_frame = cv2.resize(frame, (640, 480))
+                # 显示视频帧 - 保持宽高比
+                display_frame = self._resize_frame_keep_aspect_ratio(frame, (640, 480))
                 frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
                 img = Image.fromarray(frame_rgb)
                 photo = ImageTk.PhotoImage(img)
@@ -700,10 +851,23 @@ class CameraControl:
                     try:
                         self.main_app.llm_processor.update_emotion_state(avg_emotions)
                         
-                        # 记录主导情感
+                        # 记录主导情感和时间间隔
+                        import time
+                        current_time = time.time()
                         dominant_emotion = max(avg_emotions.items(), key=lambda x: x[1])
+                        
                         if dominant_emotion[1] > 0.3:  # 只有当情感强度超过阈值时才记录
-                            self.main_app.log(f"[情感更新] 主导情感: {dominant_emotion[0]} (强度: {dominant_emotion[1]:.2f})")
+                            # 计算时间间隔
+                            interval = current_time - self.last_dominant_update_time if self.last_dominant_update_time > 0 else 0
+                            
+                            # 更新主导情感显示
+                            self._update_dominant_emotion_display(dominant_emotion, interval)
+                            
+                            # 记录日志
+                            self.main_app.log(f"[情感更新] 主导情感: {dominant_emotion[0]}, 强度: {dominant_emotion[1]:.2f}")
+                            
+                            # 更新时间戳
+                            self.last_dominant_update_time = current_time
                         
                     except Exception as llm_e:
                         print(f"更新LLM情感状态失败: {llm_e}")
@@ -755,6 +919,50 @@ class CameraControl:
         except Exception as e:
             print(f"添加表情数据到缓存失败: {e}")
     
+    def _resize_frame_keep_aspect_ratio(self, frame, target_size):
+        """
+        保持宽高比缩放图像
+        
+        Args:
+            frame: 输入图像
+            target_size: 目标尺寸 (width, height)
+        
+        Returns:
+            调整大小后的图像
+        """
+        try:
+            target_width, target_height = target_size
+            height, width = frame.shape[:2]
+            
+            # 计算缩放比例
+            scale_w = target_width / width
+            scale_h = target_height / height
+            scale = min(scale_w, scale_h)
+            
+            # 计算新的尺寸
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            
+            # 缩放图像
+            resized_frame = cv2.resize(frame, (new_width, new_height))
+            
+            # 创建目标尺寸的黑色背景
+            result = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+            
+            # 计算居中位置
+            x_offset = (target_width - new_width) // 2
+            y_offset = (target_height - new_height) // 2
+            
+            # 将缩放后的图像放到中心位置
+            result[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = resized_frame
+            
+            return result
+            
+        except Exception as e:
+            print(f"图像缩放失败: {e}")
+            # 如果出错，回退到直接缩放
+            return cv2.resize(frame, target_size)
+    
     def _update_overall_status(self, expressions):
         """更新整体情感状态显示"""
         try:
@@ -778,6 +986,43 @@ class CameraControl:
             
         except Exception as e:
             self.main_app.log(f"更新整体状态失败: {e}")
+    
+    def _update_dominant_emotion_display(self, dominant_emotion, interval):
+        """更新主导情感显示"""
+        try:
+            emotion_name, intensity = dominant_emotion
+            
+            # 情感中文名称映射
+            emotion_names = {
+                'angry': '愤怒', 'disgust': '厌恶', 'fear': '恐惧',
+                'happy': '高兴', 'sad': '伤心', 'surprise': '惊讶', 'neutral': '中立'
+            }
+            
+            emotion_name_cn = emotion_names.get(emotion_name, emotion_name)
+            
+            # 格式化时间间隔
+            if interval > 0:
+                interval_text = f"间隔: {interval:.1f}秒"
+            else:
+                interval_text = "首次更新"
+            
+            # 更新显示文本
+            display_text = f"{emotion_name_cn} (强度: {intensity:.2f}) - {interval_text}"
+            
+            # 更新UI
+            if hasattr(self.main_app, 'dominant_emotion_label'):
+                self.main_app.dominant_emotion_label.config(text=display_text)
+            
+            # 保存当前信息
+            self.current_dominant_emotion = {
+                'name': emotion_name,
+                'name_cn': emotion_name_cn,
+                'intensity': intensity,
+                'interval': interval
+            }
+            
+        except Exception as e:
+            self.main_app.log(f"更新主导情感显示失败: {e}")
     
     def send_expressions_to_vrchat(self, expressions):
         """发送表情数据到VRChat"""
