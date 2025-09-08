@@ -88,8 +88,8 @@ class LLMProcessor:
                     self.main_app.client.send_text_message(f"[AI] {response.llm_response}")
                     self.main_app.log(f"[VRChat] 已发送消息: {response.llm_response[:50]}...")
                 
-                # 按标点符号分割文本并逐句处理
-                self.main_app.log(f"[语音合成] 开始分割和合成: {response.llm_response}")
+                # 按句子结束标点分割文本并逐句处理
+                self.main_app.log(f"[语音合成] 按句子分割（支持中日英标点）: {response.llm_response}")
                 sentences = self._split_by_punctuation(response.llm_response)
                 
                 for i, sentence in enumerate(sentences):
@@ -98,7 +98,7 @@ class LLMProcessor:
                         audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip())
                         
                         if audio_result is not None:
-                            self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()}")
+                            self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()} (大小: {len(audio_result)} bytes)")
                             # 发送音频到9003端口
                             self._send_audio_to_port9003(audio_result)
                         else:
@@ -273,10 +273,15 @@ class LLMProcessor:
             self.emotion_aware_processor.clear_emotion_history()
     
     def _split_by_punctuation(self, text: str) -> list:
-        """按标点符号分割文本"""
+        """按句子结束标点符号分割文本（支持中日英三种语言）"""
         import re
-        # 按照中文和英文标点符号分割
-        sentences = re.split(r'[。！？；,，.!?;]', text)
+        # 句子结束标点符号（中文、日文、英文）
+        # 中文：。！？
+        # 日文：。！？（日文句号与中文相同，但也包括日文特有的）
+        # 英文：.!?
+        # 只在句子结束标点处分割，保留逗号、顿号、分号等暂停标点在句子内
+        end_punctuation = r'[。！？.!?]'
+        sentences = re.split(end_punctuation, text)
         return [s.strip() for s in sentences if s.strip()]
     
     def _send_audio_to_port9003(self, audio_data):
@@ -285,13 +290,38 @@ class LLMProcessor:
             import socket
             import threading
             
+            # 检查音频数据格式和大小
+            if not isinstance(audio_data, bytes):
+                self.main_app.log(f"[警告] VOICEVOX返回的音频数据格式不支持: {type(audio_data)}")
+                return
+                
+            audio_size = len(audio_data)
+            self.main_app.log(f"[端口9003] 准备发送音频数据，大小: {audio_size} bytes")
+            
+            # UDP最大包大小通常是65507字节，但实际建议小于64KB
+            MAX_UDP_SIZE = 64000
+            
             def send_audio_thread():
                 try:
-                    # 创建UDP socket发送到9003端口
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    sock.sendto(audio_data, ('127.0.0.1', 9003))
+                    
+                    if audio_size <= MAX_UDP_SIZE:
+                        # 直接发送
+                        sock.sendto(audio_data, ('127.0.0.1', 9003))
+                        self.main_app.log(f"[端口9003] 音频数据发送成功 ({audio_size} bytes)")
+                    else:
+                        # 分块发送
+                        chunks = [audio_data[i:i+MAX_UDP_SIZE] for i in range(0, audio_size, MAX_UDP_SIZE)]
+                        self.main_app.log(f"[端口9003] 音频过大，分为 {len(chunks)} 块发送")
+                        
+                        for i, chunk in enumerate(chunks):
+                            sock.sendto(chunk, ('127.0.0.1', 9003))
+                            self.main_app.log(f"[端口9003] 发送块 {i+1}/{len(chunks)} ({len(chunk)} bytes)")
+                        
+                        self.main_app.log(f"[端口9003] 所有音频块发送完成")
+                    
                     sock.close()
-                    self.main_app.log("[端口9003] 音频数据发送成功")
+                    
                 except Exception as e:
                     self.main_app.log(f"[端口9003] 音频发送失败: {e}")
             
