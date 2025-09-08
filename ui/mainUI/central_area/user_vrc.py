@@ -234,36 +234,66 @@ class VRChatConnection:
                 self.main_app.log("语音识别模型未加载")
                 return
             
+            # 用于存储分段识别的文本
+            if not hasattr(self.main_app, 'segment_texts'):
+                self.main_app.segment_texts = []
+            if not hasattr(self.main_app, 'is_segmented_recognition'):
+                self.main_app.is_segmented_recognition = False
+                
             def voice_callback(text, is_realtime=False, trigger_reason="", audio_duration=0):
                 if text and text.strip():
                     if is_realtime:
-                        # 实时识别结果 - 显示为预览，带触发原因
+                        # 实时识别结果 - 显示为预览
                         reason_text = f" ({trigger_reason})" if trigger_reason else ""
                         duration_text = f" {audio_duration:.1f}s" if audio_duration > 0 else ""
                         
-                        display_text = f"[实时{reason_text}{duration_text}] {text}"
-                        self.main_app.add_speech_output(display_text, "实时识别")
+                        # 检查是否启动分段识别（超过4.8秒）
+                        if audio_duration > 4.8 and not self.main_app.is_segmented_recognition:
+                            self.main_app.is_segmented_recognition = True
+                            self.main_app.segment_texts = []
+                            self.main_app.log("[分段识别] 检测到长语音，启动分段识别模式")
                         
-                        # 记录到日志，包含更多信息
+                        # 如果是分段识别模式，累积文本
+                        if self.main_app.is_segmented_recognition:
+                            if trigger_reason == "silence_detected" or trigger_reason == "mic_closed":
+                                # 麦克风关闭或检测到静音，添加这一段文本
+                                if text.strip() and text.strip() not in self.main_app.segment_texts:
+                                    self.main_app.segment_texts.append(text.strip())
+                                    self.main_app.log(f"[分段识别] 添加片段: {text.strip()}")
+                                
+                                # 如果是麦克风关闭，合并所有片段发送到LLM
+                                if trigger_reason == "mic_closed" and self.main_app.segment_texts:
+                                    combined_text = " ".join(self.main_app.segment_texts)
+                                    self.main_app.log(f"[分段识别] 麦克风关闭，合并文本发送到LLM: {combined_text}")
+                                    self._send_to_llm_and_voice(combined_text)
+                                    
+                                    # 重置分段识别状态
+                                    self.main_app.is_segmented_recognition = False
+                                    self.main_app.segment_texts = []
+                            else:
+                                # 实时显示当前片段
+                                display_text = f"[分段{reason_text}{duration_text}] {text}"
+                                self.main_app.add_speech_output(display_text, "分段识别")
+                        else:
+                            # 普通实时识别显示
+                            display_text = f"[实时{reason_text}{duration_text}] {text}"
+                            self.main_app.add_speech_output(display_text, "实时识别")
+                        
+                        # 记录到日志
                         self.main_app.log(f"[实时语音{reason_text}] {text}")
                     else:
-                        # 完整识别结果
-                        self.main_app.add_speech_output(text, "持续监听")
-                        # 发送到VRChat
-                        self.main_app.client.send_text_message(f"[语音] {text}")
-                        # 记录到日志
-                        self.main_app.log(f"[持续语音] {text}")
-                        
-                        # 如果启用了LLM处理，发送到LLM
-                        if self.main_app.llm_enabled and self.main_app.llm_handler and self.main_app.llm_handler.is_client_ready():
-                            request_id = self.main_app.llm_handler.submit_voice_text(text)
-                            if request_id:
-                                self.main_app.log(f"[LLM] 已提交语音到AI处理: {text[:50]}...")
-                            else:
-                                self.main_app.log("[LLM] 提交语音到AI失败")
+                        # 完整识别结果（短语音或传统模式）
+                        if not self.main_app.is_segmented_recognition:
+                            self.main_app.add_speech_output(text, "持续监听")
+                            self.main_app.client.send_text_message(f"[语音] {text}")
+                            self.main_app.log(f"[持续语音] {text}")
+                            
+                            # 发送到LLM和语音生成
+                            self._send_to_llm_and_voice(text)
                     
-                    # 调用原有的语音结果处理
-                    self.on_voice_result(text)
+                    # 调用原有的语音结果处理（兼容性）
+                    if not is_realtime and not self.main_app.is_segmented_recognition:
+                        self.on_voice_result(text)
             
             # 设置语音结果回调
             self.main_app.client.set_voice_result_callback(voice_callback)
@@ -347,10 +377,56 @@ class VRChatConnection:
         elif status_type == "vrc_speaking":
             self.main_app.log(f"[VRC语音状态] {'说话中' if data else '静音'}")
     
-    def on_voice_result(self, text: str):
+    def on_voice_result(self, text: str, is_realtime=False, trigger_reason="", audio_duration=0):
         """处理语音识别结果"""
-        # 这个方法现在主要用于兼容性，实际显示已经在各个回调中处理
-        pass
+        if not text or not text.strip():
+            return
+        
+        # 显示语音识别结果
+        self.main_app.log(f"[语音识别] {text}")
+        
+        # 如果启用了LLM处理，发送到LLM
+        if self.main_app.llm_enabled and hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
+            try:
+                if hasattr(self.main_app.llm_processor, 'process_voice_text'):
+                    # 使用LLM处理器的语音文本处理方法
+                    success = self.main_app.llm_processor.process_voice_text(text.strip())
+                    if success:
+                        self.main_app.log(f"[LLM] 已发送到AI处理: {text.strip()}")
+                    else:
+                        self.main_app.log(f"[LLM] 发送失败，处理器可能未就绪: {text.strip()}")
+                else:
+                    self.main_app.log("[LLM] LLM处理器方法不可用")
+            except Exception as e:
+                self.main_app.log(f"[LLM] 发送到AI处理失败: {e}")
+        elif not self.main_app.llm_enabled:
+            self.main_app.log("[LLM] LLM功能已禁用")
+        else:
+            self.main_app.log("[LLM] LLM处理器未初始化")
+    
+    def _send_to_llm_and_voice(self, text: str):
+        """发送文本到LLM处理，LLM处理器会自动处理响应、语音生成和端口发送"""
+        try:
+            if not text or not text.strip():
+                return
+            
+            # 发送到LLM处理（处理器会自动处理后续的语音生成和端口发送）
+            if self.main_app.llm_enabled and hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
+                self.main_app.log(f"[分段LLM] 发送合并文本到AI处理: {text}")
+                
+                if hasattr(self.main_app.llm_processor, 'process_voice_text'):
+                    success = self.main_app.llm_processor.process_voice_text(text.strip())
+                    if success:
+                        self.main_app.log(f"[分段LLM] 文本已发送，等待AI响应和语音生成")
+                    else:
+                        self.main_app.log(f"[分段LLM] 发送失败，处理器可能未就绪")
+                else:
+                    self.main_app.log("[分段LLM] process_voice_text方法不可用")
+            else:
+                self.main_app.log("[分段LLM] LLM功能未启用或未初始化")
+                
+        except Exception as e:
+            self.main_app.log(f"[分段LLM] 发送处理失败: {e}")
     
     def update_player_position(self, x, y, z):
         """更新玩家位置（从OSC调用）"""

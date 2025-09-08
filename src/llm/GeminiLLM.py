@@ -22,7 +22,7 @@ class GeminiResponse:
 class GeminiClient:
     """Gemini LLM客户端类"""
     
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash", config=None):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash", config=None):
         """
         初始化Gemini客户端
         

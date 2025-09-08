@@ -88,14 +88,21 @@ class LLMProcessor:
                     self.main_app.client.send_text_message(f"[AI] {response.llm_response}")
                     self.main_app.log(f"[VRChat] 已发送消息: {response.llm_response[:50]}...")
                 
-                # 使用VOICEVOX合成语音
-                self.main_app.log(f"[语音合成] 开始合成: {response.llm_response}")
-                audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(response.llm_response)
+                # 按标点符号分割文本并逐句处理
+                self.main_app.log(f"[语音合成] 开始分割和合成: {response.llm_response}")
+                sentences = self._split_by_punctuation(response.llm_response)
                 
-                if audio_result is not None:
-                    self.main_app.log(f"[VOICEVOX] 语音合成成功")
-                else:
-                    self.main_app.log(f"[VOICEVOX] 语音合成失败")
+                for i, sentence in enumerate(sentences):
+                    if sentence.strip():
+                        self.main_app.log(f"[语音合成] 处理句子 {i+1}/{len(sentences)}: {sentence}")
+                        audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip())
+                        
+                        if audio_result is not None:
+                            self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()}")
+                            # 发送音频到9003端口
+                            self._send_audio_to_port9003(audio_result)
+                        else:
+                            self.main_app.log(f"[VOICEVOX] 句子合成失败: {sentence.strip()}")
                 
             else:
                 self.main_app.log(f"[LLM错误] 处理失败: {response.error}")
@@ -264,4 +271,33 @@ class LLMProcessor:
         """清除情感历史记录"""
         if self.emotion_aware_processor:
             self.emotion_aware_processor.clear_emotion_history()
-            self.main_app.log("已清除情感历史记录")
+    
+    def _split_by_punctuation(self, text: str) -> list:
+        """按标点符号分割文本"""
+        import re
+        # 按照中文和英文标点符号分割
+        sentences = re.split(r'[。！？；,，.!?;]', text)
+        return [s.strip() for s in sentences if s.strip()]
+    
+    def _send_audio_to_port9003(self, audio_data):
+        """发送音频数据到9003端口"""
+        try:
+            import socket
+            import threading
+            
+            def send_audio_thread():
+                try:
+                    # 创建UDP socket发送到9003端口
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sock.sendto(audio_data, ('127.0.0.1', 9003))
+                    sock.close()
+                    self.main_app.log("[端口9003] 音频数据发送成功")
+                except Exception as e:
+                    self.main_app.log(f"[端口9003] 音频发送失败: {e}")
+            
+            # 在后台线程中发送，避免阻塞UI
+            thread = threading.Thread(target=send_audio_thread, daemon=True)
+            thread.start()
+            
+        except Exception as e:
+            self.main_app.log(f"[端口9003] 创建发送线程失败: {e}")

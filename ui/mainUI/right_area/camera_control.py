@@ -274,7 +274,7 @@ class CameraControl:
         """设置摄像头区域"""
         # 摄像头控制面板
         self.main_app.camera_control_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("camera_control"), padding="5")
-        self.main_app.camera_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.main_app.camera_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         self.main_app.camera_control_frame.columnconfigure(0, weight=1)
         
         # 摄像头控制按钮
@@ -327,7 +327,7 @@ class CameraControl:
         
         # 表情更新间隔控制
         interval_frame = ttk.Frame(self.main_app.camera_control_frame)
-        interval_frame.pack(fill=tk.X, pady=(10, 0))
+        interval_frame.pack(fill=tk.X, pady=(5, 0))
         
         # 表情更新间隔标签和滑块
         ttk.Label(interval_frame, text="表情更新间隔:").pack(side=tk.LEFT, padx=(0, 10))
@@ -342,22 +342,22 @@ class CameraControl:
         self.main_app.emotion_interval_label = ttk.Label(interval_frame, text="3.0s")
         self.main_app.emotion_interval_label.pack(side=tk.LEFT)
         
-        # 摄像头显示区域
-        self.main_app.camera_display_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("camera_feed"), padding="5")
-        self.main_app.camera_display_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        # 摄像头显示区域 - 调整到更上方位置
+        self.main_app.camera_display_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("camera_feed"), padding="2")
+        self.main_app.camera_display_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(3, 3), ipady=2)
         self.main_app.camera_display_frame.columnconfigure(0, weight=1)
         self.main_app.camera_display_frame.rowconfigure(0, weight=1)
         
-        # 视频显示标签 - 设置固定尺寸和样式
+        # 视频显示标签 - 修复向下偏移问题
         self.main_app.video_label = tk.Label(self.main_app.camera_display_frame, text=self.main_app.get_text("click_to_start"), 
                                    bg="black", fg="white",
                                    font=("Arial", 12),
-                                   width=80, height=30)  # 设置足够的显示空间
-        self.main_app.video_label.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
+                                   anchor="center", justify="center")  # 移除固定宽高，避免布局问题
+        self.main_app.video_label.pack(expand=True, fill=tk.BOTH, padx=2, pady=2)  # 减少内边距避免挤压
         
         # 表情数据显示区域
         self.main_app.expression_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("realtime_expression"), padding="5")
-        self.main_app.expression_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.main_app.expression_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(3, 10))
         # 配置表情框架的列权重，避免重叠 - 每列占用3个网格位置
         self.main_app.expression_frame.columnconfigure(2, weight=1)  # 第一列进度条
         self.main_app.expression_frame.columnconfigure(5, weight=1)  # 第二列进度条
@@ -903,21 +903,37 @@ class CameraControl:
             target_width, target_height = target_size
             
             # 检查输入frame是否有效
-            if frame is None or frame.size == 0:
-                self.main_app.log("警告: 输入frame为空")
+            if frame is None:
                 return np.zeros((target_height, target_width, 3), dtype=np.uint8)
             
+            # 检查frame是否为空数组
+            if hasattr(frame, 'size') and frame.size == 0:
+                return np.zeros((target_height, target_width, 3), dtype=np.uint8)
+            
+            # 检查frame形状
+            if len(frame.shape) < 2:
+                return np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                
             height, width = frame.shape[:2]
             
             # 检查原始尺寸是否有效
-            if width == 0 or height == 0:
-                self.main_app.log(f"警告: 输入frame尺寸无效 ({width}x{height})")
+            if width <= 0 or height <= 0:
                 return np.zeros((target_height, target_width, 3), dtype=np.uint8)
+            
+            # 确保frame是3通道BGR格式
+            if len(frame.shape) == 2:  # 灰度图
+                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            elif len(frame.shape) == 3 and frame.shape[2] == 4:  # RGBA
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
             
             # 计算缩放比例，选择较小的比例以确保完整显示
             scale_w = target_width / width
             scale_h = target_height / height
             scale = min(scale_w, scale_h)
+            
+            # 如果原图已经很小，限制最大缩放倍数避免过度放大
+            if scale > 3.0:
+                scale = 3.0
             
             # 计算缩放后的新尺寸
             new_width = max(1, int(width * scale))
@@ -929,13 +945,17 @@ class CameraControl:
             # 创建目标尺寸的黑色背景
             result = np.zeros((target_height, target_width, 3), dtype=np.uint8)
             
-            # 计算居中位置
+            # 计算居中位置 - 优先上下居中
             x_offset = (target_width - new_width) // 2
             y_offset = (target_height - new_height) // 2
             
             # 确保偏移量不为负数
             x_offset = max(0, x_offset)
             y_offset = max(0, y_offset)
+            
+            # 如果图像比目标区域小，确保垂直居中
+            if new_height < target_height:
+                y_offset = (target_height - new_height) // 2
             
             # 确保不越界
             end_y = min(target_height, y_offset + new_height)
@@ -947,14 +967,8 @@ class CameraControl:
             return result
             
         except Exception as e:
-            self.main_app.log(f"图像缩放失败: {e}")
-            print(f"图像缩放失败: {e}")
-            # 如果出错，创建黑色背景
-            try:
-                return np.zeros((target_size[1], target_size[0], 3), dtype=np.uint8)
-            except:
-                # 最后的后备方案
-                return np.zeros((480, 640, 3), dtype=np.uint8)
+            # 静默处理异常，返回黑色背景
+            return np.zeros((target_size[1], target_size[0], 3), dtype=np.uint8)
     
     def _update_overall_status(self, expressions):
         """更新整体情感状态显示"""
@@ -1054,48 +1068,70 @@ class CameraControl:
     
     def simple_video_loop(self):
         """简单的视频显示循环（统一使用保持宽高比的显示方式）"""
+        frame_count = 0
+        last_error_time = 0
+        
         while self.main_app.camera_running and self.main_app.camera and self.main_app.camera.isOpened():
             try:
                 ret, frame = self.main_app.camera.read()
-                if ret and frame is not None:
+                if ret and frame is not None and frame.size > 0:
+                    frame_count += 1
+                    
                     # 如果启用了面部识别，进行处理
                     if self.main_app.face_detection_running:
-                        display_frame, expressions = self.process_face_detection(frame)
-                        # 更新表情显示
-                        self.main_app.root.after(0, lambda e=expressions: self._update_expression_display(e))
+                        try:
+                            display_frame, expressions = self.process_face_detection(frame)
+                            # 更新表情显示
+                            self.main_app.root.after(0, lambda e=expressions: self._update_expression_display(e))
+                        except Exception as face_e:
+                            display_frame = frame
+                            if time.time() - last_error_time > 5:  # 每5秒最多报告一次错误
+                                self.main_app.log(f"面部检测错误: {face_e}")
+                                last_error_time = time.time()
                     else:
                         display_frame = frame
                     
                     # 使用保持宽高比的缩放方式
                     display_frame = self._resize_frame_keep_aspect_ratio(display_frame, (640, 480))
                     
-                    # 转换为显示格式
-                    frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(frame_rgb)
-                    photo = ImageTk.PhotoImage(img)
+                    # 确保显示帧有效
+                    if display_frame is not None and display_frame.size > 0:
+                        # 转换为显示格式
+                        frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+                        img = Image.fromarray(frame_rgb)
+                        photo = ImageTk.PhotoImage(img)
+                        
+                        # 更新显示
+                        self.main_app.current_frame = frame
+                        self.main_app.root.after(0, lambda p=photo: self.update_video_display(p))
                     
-                    # 更新显示
-                    self.main_app.current_frame = frame
-                    self.main_app.root.after(0, lambda p=photo: self.update_video_display(p))
+                else:
+                    # 如果读取失败，等待更长时间
+                    time.sleep(0.1)
+                    continue
                     
                 time.sleep(0.03)  # 约33fps
                 
             except Exception as e:
                 if self.main_app.camera_running:
-                    self.main_app.log(f"视频循环错误: {e}")
+                    # 限制错误日志频率
+                    current_time = time.time()
+                    if current_time - last_error_time > 3:  # 每3秒最多报告一次错误
+                        self.main_app.log(f"视频循环错误: {e}")
+                        last_error_time = current_time
                 time.sleep(0.1)
     
     def update_video_display(self, photo):
         """更新视频显示（在主线程中调用）"""
         try:
-            if self.main_app.camera_running and photo:
-                self.main_app.video_label.config(image=photo, text="")
-                self.main_app.video_label.image = photo  # 保持引用防止垃圾回收
-            else:
-                self.main_app.log("显示更新失败: 摄像头未运行或照片为空")
+            if self.main_app.camera_running and photo and hasattr(self.main_app, 'video_label'):
+                # 确保video_label存在且有效
+                if self.main_app.video_label.winfo_exists():
+                    self.main_app.video_label.config(image=photo, text="")
+                    self.main_app.video_label.image = photo  # 保持引用防止垃圾回收
         except Exception as e:
-            self.main_app.log(f"更新显示错误: {e}")
-            print(f"更新显示错误: {e}")
+            # 静默处理显示更新错误，避免日志过多
+            pass
     
     def process_simple_detection(self, frame):
         """简单的面部检测处理（作为GPU模式的后备）"""

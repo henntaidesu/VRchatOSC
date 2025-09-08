@@ -461,7 +461,10 @@ class SettingsWindow:
         model_combo['values'] = [
             'gemini-1.5-flash',
             'gemini-1.5-pro',
-            'gemini-1.0-pro'
+            'gemini-1.0-pro',
+            'gemini-2.5-flash',
+            'gemini-2.5-pro',
+            'gemini-2.0-pro',
         ]
         model_combo.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
         
