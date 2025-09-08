@@ -351,16 +351,16 @@ class VoiceQueueManager:
                 print(f"语音文件不存在: {file_path}")
                 return False
             
-            print(f"🎤 准备播放音频到VRC虚拟麦克风: {file_path}")
+            print(f"准备播放音频到VRC虚拟麦克风: {file_path}")
             
             # 方案1: 尝试使用9003端口的远程音频服务
             success = self._use_remote_audio_service(file_path)
             if success:
-                print("✅ 通过远程音频服务播放成功")
+                print("通过远程音频服务播放成功")
                 return True
             
             # 方案2: 回退到OSC音频传输（如果远程音频服务不可用）
-            print("📡 远程音频服务不可用，使用OSC音频传输")
+            print("远程音频服务不可用，使用OSC音频传输")
             return self._use_osc_audio_transmission(osc_client, file_path)
             
         except Exception as e:
@@ -379,7 +379,7 @@ class VoiceQueueManager:
             
             from ..audio.virtual_microphone import virtual_microphone
             
-            print(f"🎤 开始播放到虚拟麦克风: {file_path}")
+            print(f"开始播放到虚拟麦克风: {file_path}")
             success = virtual_microphone.play_audio_with_mic_simulation(file_path)
             
             if success:
@@ -565,18 +565,27 @@ class VoiceQueueManager:
     def _get_ai_host_address(self) -> str:
         """获取AI端主机地址"""
         try:
-            # 从AI管理器获取主机地址
+            # 优先从AI管理器的配置获取主机地址
+            if hasattr(self.ai_manager, 'ai_host') and self.ai_manager.ai_host:
+                print(f"从AI管理器配置获取主机地址: {self.ai_manager.ai_host}")
+                return self.ai_manager.ai_host
+            
+            # 从VRC控制器获取主机地址
             if hasattr(self.ai_manager, 'vrc_controller') and self.ai_manager.vrc_controller:
                 if hasattr(self.ai_manager.vrc_controller, 'osc_client'):
-                    return self.ai_manager.vrc_controller.osc_client.host
+                    host = self.ai_manager.vrc_controller.osc_client.host
+                    print(f"从VRC控制器获取主机地址: {host}")
+                    return host
             
             # 从传统多AI管理器获取
             if hasattr(self.ai_manager, 'osc_clients'):
                 for client in self.ai_manager.osc_clients.values():
                     if hasattr(client, 'host'):
-                        return client.host
+                        host = client.host
+                        print(f"从OSC客户端获取主机地址: {host}")
+                        return host
             
-            print("⚠️  无法从AI管理器获取主机地址，使用默认127.0.0.1")
+            print("无法从AI管理器获取主机地址，使用默认127.0.0.1")
             return "127.0.0.1"
             
         except Exception as e:

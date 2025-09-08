@@ -17,13 +17,15 @@ from .voice_queue_manager import VoiceQueueManager
 class SingleAIVRCManager:
     """单AI角色VRC管理器"""
     
-    def __init__(self, voicevox_client=None):
+    def __init__(self, voicevox_client=None, ai_host=None):
         """初始化单AI角色VRC管理器
         
         Args:
             voicevox_client: VOICEVOX客户端
+            ai_host: AI端主机地址
         """
         self.voicevox_client = voicevox_client
+        self.ai_host = ai_host or "127.0.0.1"  # AI端主机地址
         
         # VRChat控制器
         self.vrc_controller: Optional[VRChatController] = None
@@ -41,7 +43,7 @@ class SingleAIVRCManager:
         # 回调函数
         self.status_callback: Optional[Callable] = None
         
-        print("单AI角色VRC管理器已初始化")
+        print(f"单AI角色VRC管理器已初始化 (AI主机: {self.ai_host})")
     
     def create_ai_character(self, name: str, personality: AIPersonality = AIPersonality.FRIENDLY) -> bool:
         """创建AI角色
@@ -170,7 +172,9 @@ class SingleAIVRCManager:
     
     def init_voice_queue_manager(self):
         """初始化语音队列管理器"""
-        if not self.is_vrc_connected:
+        # 即使没有VRC连接，也可以初始化语音队列管理器用于VOICEVOX生成
+        if not self.voicevox_client:
+            print("VOICEVOX客户端未连接，无法初始化语音队列管理器")
             return
         
         try:

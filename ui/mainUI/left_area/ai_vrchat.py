@@ -252,7 +252,7 @@ class AIVRChatManager:
         self.main_app.ai_osc_connect_btn = ttk.Button(button_frame, text="连接AI_VRC", command=self.toggle_ai_osc_connection, width=10)
         self.main_app.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.main_app.refresh_audio_btn = ttk.Button(button_frame, text="刷新音频", command=self.refresh_audio_service_status, width=10)
+        self.main_app.refresh_audio_btn = ttk.Button(button_frame, text="连接音频", command=self.refresh_audio_service_status, width=10)
         self.main_app.refresh_audio_btn.pack(side=tk.LEFT)
 
         self.load_ai_vrc_config_from_file()
@@ -764,13 +764,42 @@ class AIVRChatManager:
             self.main_app.log(f"断开AI OSC异常: {e}")
     
     def refresh_audio_service_status(self):
-        """刷新音频服务状态"""
+        """刷新AI机器音频服务状态 - 检测9003端口"""
         try:
+            # 获取AI机器的主机地址
+            ai_host = self.ai_host if self.ai_host else "127.0.0.1"
+            audio_service_port = 9003
+            
+            self.main_app.log(f"检测AI机器音频服务: {ai_host}:{audio_service_port}")
+            
+            # 检测音频服务连接
+            import socket
+            import time
+            
+            def check_audio_service():
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(3)  # 3秒超时
+                    result = sock.connect_ex((ai_host, audio_service_port))
+                    sock.close()
+                    return result == 0
+                except Exception:
+                    return False
+            
+            is_available = check_audio_service()
+            
             if hasattr(self.main_app, 'ai_audio_status_label'):
-                self.main_app.ai_audio_status_label.config(text="正常", foreground="green")
-            self.main_app.log("音频服务已刷新")
+                if is_available:
+                    self.main_app.ai_audio_status_label.config(text="正常", foreground="green")
+                    self.main_app.log(f"✅ AI机器音频服务连接正常 ({ai_host}:{audio_service_port})")
+                else:
+                    self.main_app.ai_audio_status_label.config(text="异常", foreground="red")
+                    self.main_app.log(f"❌ AI机器音频服务连接失败 ({ai_host}:{audio_service_port})")
+            
         except Exception as e:
-            self.main_app.log(f"刷新音频服务状态异常: {e}")
+            if hasattr(self.main_app, 'ai_audio_status_label'):
+                self.main_app.ai_audio_status_label.config(text="错误", foreground="red")
+            self.main_app.log(f"检测AI机器音频服务异常: {e}")
 
     
     def ai_send_text_message(self):

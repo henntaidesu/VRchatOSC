@@ -317,9 +317,18 @@ class VoicevoxArea:
                 # 初始化SingleAI管理器
                 if not self.main_app.single_ai_manager:
                     from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
+                    
+                    # 获取AI主机地址（从AI_VRC配置获取）
+                    ai_host = "127.0.0.1"  # 默认值
+                    if hasattr(self.main_app, 'ai_vrchat_manager') and self.main_app.ai_vrchat_manager:
+                        ai_host = getattr(self.main_app.ai_vrchat_manager, 'ai_host', "127.0.0.1")
+                    
                     self.main_app.single_ai_manager = SingleAIVRCManager(
-                        voicevox_client=self.main_app.voicevox_client
+                        voicevox_client=self.main_app.voicevox_client,
+                        ai_host=ai_host
                     )
+                    # 立即初始化语音队列管理器
+                    self.main_app.single_ai_manager.init_voice_queue_manager()
                 
                 # 显示连接详细信息
                 host = self.main_app.voicevox_host_var.get()
@@ -690,13 +699,39 @@ class VoicevoxArea:
             messagebox.showwarning("警告", "请输入要合成的文本")
             return
         
+        if not self.main_app.voicevox_connected:
+            messagebox.showerror("错误", "VOICEVOX未连接，请先连接VOICEVOX")
+            return
+            
         if not self.main_app.single_ai_manager:
             messagebox.showerror("错误", "AI角色管理器未初始化")
             return
         
         try:
-            # 获取当前选择的VOICEVOX角色ID
-            speaker_id = 0  # 默认使用第一个角色，可以后续扩展为从界面获取
+            # 获取当前选择的VOICEVOX配置
+            speaker_id = 0  # 默认ID
+            character_name = "AI角色"  # 默认角色名
+            
+            # 尝试获取界面中选择的说话人ID
+            if hasattr(self.main_app, 'voicevox_character_combo') and self.main_app.voicevox_character_combo.get():
+                try:
+                    # 从组合框获取当前选择的角色信息
+                    selected_character = self.main_app.voicevox_character_combo.get()
+                    character_name = selected_character
+                    
+                    # 如果有样式选择，获取对应的speaker_id  
+                    if hasattr(self.main_app, 'voicevox_style_combo') and self.main_app.voicevox_style_combo.get():
+                        # 从当前样式获取speaker_id
+                        if hasattr(self, 'current_styles') and self.current_styles:
+                            selected_style = self.main_app.voicevox_style_combo.get()
+                            for style in self.current_styles:
+                                if style.get('name') == selected_style:
+                                    speaker_id = style.get('id', 0)
+                                    break
+                except Exception as e:
+                    self.main_app.log(f"获取VOICEVOX配置失败，使用默认值: {e}")
+            
+            self.main_app.log(f"使用VOICEVOX配置: 角色={character_name}, speaker_id={speaker_id}")
             
             success = self.main_app.single_ai_manager.generate_and_send_voice(text, speaker_id)
             if success:

@@ -730,7 +730,7 @@ class VRChatOSCGUI:
                 self.status_label.config(text=self.get_text("connected"))
             else:
                 self.status_label.config(text=self.get_text("disconnected"))
-        if hasattr(self, 'voicevox_status_label') and hasattr(self, 'voicevox_status_label'):
+        if hasattr(self, 'voicevox_status_label'):
             # VOICEVOX状态根据实际连接状态更新
             pass
         
