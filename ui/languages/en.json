@@ -154,5 +154,31 @@
   "character_removed": "Character Removed",
   "invalid_position": "Invalid Position Coordinates",
   "character_exists": "Character Already Exists",
-  "select_character_to_remove": "Please select a character to remove"
+  "select_character_to_remove": "Please select a character to remove",
+
+  "ai_movement_control": "AI Character Movement Control",
+  "movement_control": "Movement Control",
+  "camera_control_title": "Camera Control",
+  "control_speed": "Control Speed:",
+
+  "move_forward_left": "↖ Forward Left",
+  "move_forward": "↑ Forward",
+  "move_forward_right": "↗ Forward Right",
+  "strafe_left": "⇐ Strafe Left",
+  "crouch": "Crouch",
+  "strafe_right": "⇒ Strafe Right",
+  "move_backward_left": "↙ Backward Left",
+  "move_backward": "↓ Backward",
+  "move_backward_right": "↘ Backward Right",
+  "jump": "Jump",
+
+  "look_up_left": "↖ Look Up Left",
+  "look_up": "↑ Look Up",
+  "look_up_right": "↗ Look Up Right",
+  "turn_left": "← Turn Left",
+  "stop_look": "Stop",
+  "turn_right": "→ Turn Right",
+  "look_down_left": "↙ Look Down Left",
+  "look_down": "↓ Look Down",
+  "look_down_right": "↘ Look Down Right"
 }

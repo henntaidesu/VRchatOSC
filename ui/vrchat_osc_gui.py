@@ -779,6 +779,9 @@ class VRChatOSCGUI:
         if hasattr(self, 'expression_labels'):
             self.refresh_expression_labels()
         
+        # 更新AI角色移动控制区域
+        self.refresh_ai_movement_control_labels()
+        
         # 记录语言切换
         self.log(f"界面语言已切换为: {selected_display}")
     
@@ -845,8 +848,38 @@ class VRChatOSCGUI:
         self.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
         self.overall_status_progress['maximum'] = 100
     
-    
-    
+    def refresh_ai_movement_control_labels(self):
+        """刷新AI角色移动控制区域的标签文本"""
+        try:
+            # 更新所有按钮文本
+            button_mapping = {
+                'move_forward_left_btn': 'move_forward_left',
+                'move_forward_btn': 'move_forward',
+                'move_forward_right_btn': 'move_forward_right',
+                'strafe_left_btn': 'strafe_left',
+                'crouch_btn': 'crouch',
+                'strafe_right_btn': 'strafe_right',
+                'move_backward_left_btn': 'move_backward_left',
+                'move_backward_btn': 'move_backward',
+                'move_backward_right_btn': 'move_backward_right',
+                'jump_btn': 'jump',
+                'look_up_left_btn': 'look_up_left',
+                'look_up_btn': 'look_up',
+                'look_up_right_btn': 'look_up_right',
+                'turn_left_btn': 'turn_left',
+                'stop_look_btn': 'stop_look',
+                'turn_right_btn': 'turn_right',
+                'look_down_left_btn': 'look_down_left',
+                'look_down_btn': 'look_down',
+                'look_down_right_btn': 'look_down_right'
+            }
+            
+            for button_attr, text_key in button_mapping.items():
+                if hasattr(self, button_attr):
+                    button = getattr(self, button_attr)
+                    button.config(text=self.get_text(text_key))
+        except Exception as e:
+            self.log(f"更新AI移动控制标签失败: {e}")
     
     def update_voice_queue_display(self):
         """更新语音队列显示"""
