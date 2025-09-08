@@ -19,6 +19,10 @@ class LLMProcessor:
         self.llm_enabled = True
         self.streaming_mode = True  # 是否使用流式模式
         self.emotion_awareness_enabled = True  # 是否启用情感感知
+        
+        # 对话记录相关
+        self.conversation_file_path = None
+        self._init_conversation_recording()
     
     def init_llm_handler(self):
         """初始化LLM处理器"""
@@ -80,6 +84,12 @@ class LLMProcessor:
                 # 详细显示LLM返回内容
                 self.main_app.log(f"[LLM返回] 完整回复: {response.llm_response}")
                 
+                # 记录对话
+                if hasattr(self, 'current_user_input') and self.current_user_input:
+                    self._record_conversation(self.current_user_input, response.llm_response)
+                    # 清空当前用户输入
+                    self.current_user_input = None
+                
                 # 显示LLM回复在语音识别框中
                 self.main_app.add_speech_output(response.llm_response, "AI回复")
                 
@@ -119,6 +129,9 @@ class LLMProcessor:
             
             if not text.strip():
                 return False
+            
+            # 存储用户输入以便后续记录对话
+            self.current_user_input = text.strip()
             
             # 根据模式选择处理器
             if self.streaming_mode:
@@ -319,7 +332,7 @@ class LLMProcessor:
             import socket
             import threading
             
-            # 检查音频数据格式和大小
+            # 检查音频数据格式
             if not isinstance(audio_data, bytes):
                 self.main_app.log(f"[警告] VOICEVOX返回的音频数据格式不支持: {type(audio_data)}")
                 return
@@ -327,29 +340,13 @@ class LLMProcessor:
             audio_size = len(audio_data)
             self.main_app.log(f"[端口9003] 准备发送音频数据，大小: {audio_size} bytes")
             
-            # UDP最大包大小通常是65507字节，但实际建议小于64KB
-            MAX_UDP_SIZE = 64000
-            
             def send_audio_thread():
                 try:
+                    # 直接发送整个音频，不分块
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    
-                    if audio_size <= MAX_UDP_SIZE:
-                        # 直接发送
-                        sock.sendto(audio_data, ('127.0.0.1', 9003))
-                        self.main_app.log(f"[端口9003] 音频数据发送成功 ({audio_size} bytes)")
-                    else:
-                        # 分块发送
-                        chunks = [audio_data[i:i+MAX_UDP_SIZE] for i in range(0, audio_size, MAX_UDP_SIZE)]
-                        self.main_app.log(f"[端口9003] 音频过大，分为 {len(chunks)} 块发送")
-                        
-                        for i, chunk in enumerate(chunks):
-                            sock.sendto(chunk, ('127.0.0.1', 9003))
-                            self.main_app.log(f"[端口9003] 发送块 {i+1}/{len(chunks)} ({len(chunk)} bytes)")
-                        
-                        self.main_app.log(f"[端口9003] 所有音频块发送完成")
-                    
+                    sock.sendto(audio_data, ('127.0.0.1', 9003))
                     sock.close()
+                    self.main_app.log(f"[端口9003] 音频数据发送成功 ({audio_size} bytes)")
                     
                 except Exception as e:
                     self.main_app.log(f"[端口9003] 音频发送失败: {e}")
@@ -386,3 +383,84 @@ class LLMProcessor:
                 
         except Exception as e:
             self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败: {e}")
+    
+    def _init_conversation_recording(self):
+        """初始化对话记录功能"""
+        try:
+            import os
+            from datetime import datetime
+            
+            # 设置记录目录路径
+            self.record_dir = os.path.join(os.getcwd(), "Record", "text")
+            
+            # 确保目录存在
+            self._ensure_record_directory()
+            
+            # 生成文件名：启动时间
+            start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"conversation_{start_time}.vsc"
+            self.conversation_file_path = os.path.join(self.record_dir, filename)
+            
+            # 创建文件并写入头部信息
+            with open(self.conversation_file_path, 'w', encoding='utf-8') as f:
+                f.write(f"# VRChat OSC 对话记录\n")
+                f.write(f"# 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 文件格式: VSCode对话记录格式\n")
+                f.write(f"# ==========================================\n\n")
+            
+            self.main_app.log(f"[对话记录] 已创建记录文件: {filename}")
+            
+        except Exception as e:
+            self.main_app.log(f"[对话记录] 初始化失败: {e}")
+            self.conversation_file_path = None
+    
+    def _ensure_record_directory(self):
+        """确保记录目录存在，不存在则创建"""
+        try:
+            import os
+            
+            if not os.path.exists(self.record_dir):
+                os.makedirs(self.record_dir, exist_ok=True)
+                self.main_app.log(f"[对话记录] 已创建目录: {self.record_dir}")
+            else:
+                self.main_app.log(f"[对话记录] 目录已存在: {self.record_dir}")
+            
+        except Exception as e:
+            self.main_app.log(f"[对话记录] 创建目录失败: {e}")
+    
+    def _record_conversation(self, user_input: str, ai_response: str):
+        """记录对话到文件"""
+        try:
+            if not self.conversation_file_path:
+                return
+            
+            # 确保目录存在（防止目录被删除）
+            if hasattr(self, 'record_dir'):
+                self._ensure_record_directory()
+            
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            with open(self.conversation_file_path, 'a', encoding='utf-8') as f:
+                f.write(f"[{timestamp}] 用户: {user_input}\n")
+                f.write(f"[{timestamp}] AI: {ai_response}\n")
+                f.write(f"---\n\n")
+            
+            self.main_app.log(f"[对话记录] 已记录对话")
+            
+        except Exception as e:
+            self.main_app.log(f"[对话记录] 记录失败: {e}")
+            # 如果记录失败，尝试重新初始化
+            try:
+                self._init_conversation_recording()
+                self.main_app.log(f"[对话记录] 重新初始化完成，尝试再次记录")
+                # 重新尝试记录
+                with open(self.conversation_file_path, 'a', encoding='utf-8') as f:
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] 用户: {user_input}\n")
+                    f.write(f"[{timestamp}] AI: {ai_response}\n")
+                    f.write(f"---\n\n")
+                self.main_app.log(f"[对话记录] 重新记录成功")
+            except Exception as retry_e:
+                self.main_app.log(f"[对话记录] 重新记录也失败: {retry_e}")
