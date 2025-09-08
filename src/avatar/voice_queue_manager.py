@@ -302,7 +302,16 @@ class VoiceQueueManager:
                 print(f"未找到AI角色 '{item.character_name}' 的OSC客户端")
                 if hasattr(self.ai_manager, 'osc_clients'):
                     print(f"可用的OSC客户端: {list(self.ai_manager.osc_clients.keys())}")
-                return False
+                print("尝试使用远程音频服务发送语音")
+                
+                # 直接尝试远程音频服务
+                success = self._use_remote_audio_service(item.file_path)
+                if success:
+                    print("通过远程音频服务发送成功")
+                    return True
+                else:
+                    print("远程音频服务发送失败")
+                    return False
             
             print(f"找到OSC客户端: {osc_client}")
             
