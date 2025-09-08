@@ -142,9 +142,22 @@ class VRChatConnection:
                 self.main_app.client.cleanup()
                 self.main_app.client = None
                 
+                # 清理Avatar控制器的OSC客户端
+                if hasattr(self.main_app, 'avatar_controller') and self.main_app.avatar_controller:
+                    self.main_app.avatar_controller.set_osc_client(None)
+                
                 # 清理AI移动控制的OSC客户端
                 if hasattr(self.main_app, 'ai_vrchat_area') and self.main_app.ai_vrchat_area:
                     self.main_app.ai_vrchat_area.set_osc_client(None)
+                
+                # 清理单AI角色管理器（如果存在）
+                if hasattr(self.main_app, 'single_ai_manager') and self.main_app.single_ai_manager:
+                    try:
+                        self.main_app.single_ai_manager.cleanup()
+                        self.main_app.single_ai_manager = None
+                        self.main_app.log("已清理AI角色管理器")
+                    except Exception as e:
+                        self.main_app.log(f"清理AI角色管理器时出错: {e}")
             
             self.update_ui_state(False)
             self.main_app.log("[成功] 已断开VRChat连接")
@@ -166,13 +179,13 @@ class VRChatConnection:
         self.main_app.is_connected = connected
         
         if connected:
-            self.main_app.connect_btn.config(text=self.main_app.get_text("disconnect"))
+            self.main_app.connect_btn.config(text=self.main_app.get_text("disconnect"), state="normal")
             self.main_app.status_label.config(text=self.main_app.get_text("connected"), foreground="green")
             # 启用功能按钮
             self.main_app.listen_btn.config(state="normal")
             self.main_app.upload_voice_btn.config(state="normal")
         else:
-            self.main_app.connect_btn.config(text=self.main_app.get_text("connect"))
+            self.main_app.connect_btn.config(text=self.main_app.get_text("connect"), state="normal")
             self.main_app.status_label.config(text=self.main_app.get_text("disconnected"), foreground="red")
             # 禁用功能按钮
             self.main_app.listen_btn.config(state="disabled")

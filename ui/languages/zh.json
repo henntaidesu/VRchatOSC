@@ -1,6 +1,6 @@
 {
   "title": "VRChat OSC 通信工具",
-  "connection_settings": "连接设置",
+  "connection_settings": "USER_VRC连接设置",
   "host_address": "主机地址:",
   "send_port": "发送端口:",
   "receive_port": "接收端口:",

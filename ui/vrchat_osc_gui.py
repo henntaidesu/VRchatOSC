@@ -563,11 +563,11 @@ class VRChatOSCGUI:
         """窗口关闭事件处理"""
         try:
             if self.camera_running:
-                self.stop_camera_only()
+                self.camera_control.stop_camera_only()
             if self.is_listening:
-                self.stop_voice_listening()
+                self.vrchat_connection.stop_voice_listening()
             if self.is_connected:
-                self.disconnect_from_vrchat()
+                self.vrchat_connection.disconnect_from_vrchat()
             
             # 清理AI角色管理器
             if self.single_ai_manager:
