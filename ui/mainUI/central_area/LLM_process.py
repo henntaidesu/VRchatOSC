@@ -77,22 +77,31 @@ class LLMProcessor:
         """处理LLM响应"""
         try:
             if response.success:
+                # 详细显示LLM返回内容
+                self.main_app.log(f"[LLM返回] 完整回复: {response.llm_response}")
+                
                 # 显示LLM回复在语音识别框中
                 self.main_app.add_speech_output(response.llm_response, "AI回复")
                 
                 # 如果VRChat已连接，发送消息到VRChat
                 if self.main_app.client:
                     self.main_app.client.send_text_message(f"[AI] {response.llm_response}")
+                    self.main_app.log(f"[VRChat] 已发送消息: {response.llm_response[:50]}...")
                 
                 # 使用VOICEVOX合成语音
-                self.main_app.voicevox_area.synthesize_with_voicevox(response.llm_response)
+                self.main_app.log(f"[语音合成] 开始合成: {response.llm_response}")
+                audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(response.llm_response)
                 
-                self.main_app.log(f"LLM响应: {response.llm_response[:100]}...")
+                if audio_result is not None:
+                    self.main_app.log(f"[VOICEVOX] 语音合成成功")
+                else:
+                    self.main_app.log(f"[VOICEVOX] 语音合成失败")
+                
             else:
-                self.main_app.log(f"LLM处理失败: {response.error}")
+                self.main_app.log(f"[LLM错误] 处理失败: {response.error}")
             
         except Exception as e:
-            self.main_app.log(f"处理LLM响应时出错: {e}")
+            self.main_app.log(f"[错误] 处理LLM响应时出错: {e}")
         
         # 在主线程中更新UI
         self.main_app.root.after(0, lambda: None)
@@ -118,41 +127,44 @@ class LLMProcessor:
                 if self.emotion_awareness_enabled and self.emotion_aware_processor:
                     # 使用情感感知流式处理器
                     if self.emotion_aware_processor.is_client_ready():
+                        self.main_app.log(f"[语音识别] 提交到情感感知LLM: {text}")
                         request_id = self.emotion_aware_processor.submit_voice_text(text)
                         if request_id:
-                            self.main_app.log(f"[情感感知LLM] 已提交语音到AI处理: {text[:50]}...")
+                            self.main_app.log(f"[情感感知LLM] ✅ 已提交语音到AI处理 (ID: {request_id})")
                             return True
                         else:
-                            self.main_app.log("[情感感知LLM] 提交语音到AI失败")
+                            self.main_app.log("[情感感知LLM] ❌ 提交语音到AI失败")
                             return False
                     else:
-                        self.main_app.log("[情感感知LLM] 情感感知处理器未就绪")
+                        self.main_app.log("[情感感知LLM] ⚠️ 情感感知处理器未就绪")
                         return False
                 elif self.streaming_processor:
                     # 使用普通流式处理器
                     if self.streaming_processor.is_client_ready():
+                        self.main_app.log(f"[语音识别] 提交到流式LLM: {text}")
                         request_id = self.streaming_processor.submit_voice_text(text)
                         if request_id:
-                            self.main_app.log(f"[流式LLM] 已提交语音到AI处理: {text[:50]}...")
+                            self.main_app.log(f"[流式LLM] ✅ 已提交语音到AI处理 (ID: {request_id})")
                             return True
                         else:
-                            self.main_app.log("[流式LLM] 提交语音到AI失败")
+                            self.main_app.log("[流式LLM] ❌ 提交语音到AI失败")
                             return False
                     else:
-                        self.main_app.log("[流式LLM] 流式处理器未就绪")
+                        self.main_app.log("[流式LLM] ⚠️ 流式处理器未就绪")
                         return False
             else:
                 # 使用传统处理器
                 if self.llm_handler and self.llm_handler.is_client_ready():
+                    self.main_app.log(f"[语音识别] 提交到传统LLM: {text}")
                     request_id = self.llm_handler.submit_voice_text(text)
                     if request_id:
-                        self.main_app.log(f"[LLM] 已提交语音到AI处理: {text[:50]}...")
+                        self.main_app.log(f"[传统LLM] ✅ 已提交语音到AI处理 (ID: {request_id})")
                         return True
                     else:
-                        self.main_app.log("[LLM] 提交语音到AI失败")
+                        self.main_app.log("[传统LLM] ❌ 提交语音到AI失败")
                         return False
                 else:
-                    self.main_app.log("[LLM] LLM处理器未就绪")
+                    self.main_app.log("[传统LLM] ⚠️ LLM处理器未就绪")
                     return False
         except Exception as e:
             self.main_app.log(f"处理语音文本时出错: {e}")

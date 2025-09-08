@@ -633,37 +633,6 @@ class CameraControl:
         except Exception as e:
             self.main_app.log(f"停止面部识别失败: {e}")
     
-    def update_camera_display(self):
-        """更新摄像头显示"""
-        if not self.main_app.camera_running or not hasattr(self.main_app, 'camera') or not self.main_app.camera:
-            return
-        
-        try:
-            ret, frame = self.main_app.camera.read()
-            if ret and frame is not None:
-                # 处理面部识别
-                if self.main_app.face_detection_running:
-                    expressions = self.process_face_detection(frame)
-                    if expressions:
-                        self._update_expression_display(expressions)
-                
-                # 显示视频帧 - 保持宽高比
-                display_frame = self._resize_frame_keep_aspect_ratio(frame, (640, 480))
-                frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(frame_rgb)
-                photo = ImageTk.PhotoImage(img)
-                self.main_app.video_label.config(image=photo, text='')
-                self.main_app.video_label.image = photo  # 保持引用
-                
-                # 继续更新
-                self.main_app.root.after(30, self.update_camera_display)
-            else:
-                self.main_app.log("无法读取摄像头画面")
-                self.stop_camera_only()
-                
-        except Exception as e:
-            self.main_app.log(f"摄像头显示更新失败: {e}")
-            self.stop_camera_only()
     
     def capture_screenshot(self):
         """截图功能"""
@@ -921,30 +890,41 @@ class CameraControl:
     
     def _resize_frame_keep_aspect_ratio(self, frame, target_size):
         """
-        保持宽高比缩放图像
+        保持宽高比缩放图像，防止变形
         
         Args:
-            frame: 输入图像
+            frame: 输入图像 (numpy array)
             target_size: 目标尺寸 (width, height)
         
         Returns:
-            调整大小后的图像
+            调整大小后的图像，保持宽高比，空白区域用黑色填充
         """
         try:
             target_width, target_height = target_size
+            
+            # 检查输入frame是否有效
+            if frame is None or frame.size == 0:
+                self.main_app.log("警告: 输入frame为空")
+                return np.zeros((target_height, target_width, 3), dtype=np.uint8)
+            
             height, width = frame.shape[:2]
             
-            # 计算缩放比例
+            # 检查原始尺寸是否有效
+            if width == 0 or height == 0:
+                self.main_app.log(f"警告: 输入frame尺寸无效 ({width}x{height})")
+                return np.zeros((target_height, target_width, 3), dtype=np.uint8)
+            
+            # 计算缩放比例，选择较小的比例以确保完整显示
             scale_w = target_width / width
             scale_h = target_height / height
             scale = min(scale_w, scale_h)
             
-            # 计算新的尺寸
-            new_width = int(width * scale)
-            new_height = int(height * scale)
+            # 计算缩放后的新尺寸
+            new_width = max(1, int(width * scale))
+            new_height = max(1, int(height * scale))
             
             # 缩放图像
-            resized_frame = cv2.resize(frame, (new_width, new_height))
+            resized_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
             
             # 创建目标尺寸的黑色背景
             result = np.zeros((target_height, target_width, 3), dtype=np.uint8)
@@ -953,15 +933,28 @@ class CameraControl:
             x_offset = (target_width - new_width) // 2
             y_offset = (target_height - new_height) // 2
             
+            # 确保偏移量不为负数
+            x_offset = max(0, x_offset)
+            y_offset = max(0, y_offset)
+            
+            # 确保不越界
+            end_y = min(target_height, y_offset + new_height)
+            end_x = min(target_width, x_offset + new_width)
+            
             # 将缩放后的图像放到中心位置
-            result[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = resized_frame
+            result[y_offset:end_y, x_offset:end_x] = resized_frame[:end_y-y_offset, :end_x-x_offset]
             
             return result
             
         except Exception as e:
+            self.main_app.log(f"图像缩放失败: {e}")
             print(f"图像缩放失败: {e}")
-            # 如果出错，回退到直接缩放
-            return cv2.resize(frame, target_size)
+            # 如果出错，创建黑色背景
+            try:
+                return np.zeros((target_size[1], target_size[0], 3), dtype=np.uint8)
+            except:
+                # 最后的后备方案
+                return np.zeros((480, 640, 3), dtype=np.uint8)
     
     def _update_overall_status(self, expressions):
         """更新整体情感状态显示"""
@@ -1060,19 +1053,21 @@ class CameraControl:
                 self.main_app.log(f"表情数据发送错误: {e}")
     
     def simple_video_loop(self):
-        """简单的视频显示循环（不包含面部识别）"""
+        """简单的视频显示循环（统一使用保持宽高比的显示方式）"""
         while self.main_app.camera_running and self.main_app.camera and self.main_app.camera.isOpened():
             try:
                 ret, frame = self.main_app.camera.read()
                 if ret and frame is not None:
-                    # 调整图像大小
-                    display_frame = cv2.resize(frame, (640, 480))
-                    
                     # 如果启用了面部识别，进行处理
                     if self.main_app.face_detection_running:
-                        display_frame, expressions = self.process_face_detection(display_frame)
+                        display_frame, expressions = self.process_face_detection(frame)
                         # 更新表情显示
-                        self.main_app.root.after(0, lambda: self._update_expression_display(expressions))
+                        self.main_app.root.after(0, lambda e=expressions: self._update_expression_display(e))
+                    else:
+                        display_frame = frame
+                    
+                    # 使用保持宽高比的缩放方式
+                    display_frame = self._resize_frame_keep_aspect_ratio(display_frame, (640, 480))
                     
                     # 转换为显示格式
                     frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)

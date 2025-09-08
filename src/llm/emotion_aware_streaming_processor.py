@@ -217,14 +217,23 @@ class EmotionAwareStreamingProcessor(StreamingLLMProcessor):
         """处理情感感知的LLM流式响应"""
         if not response.success:
             print(f"[错误] 情感感知LLM处理失败: {response.error}")
+            if hasattr(self.main_app, 'log'):
+                self.main_app.log(f"[情感感知LLM错误] {response.error}")
             return
+        
+        # 记录情感感知的LLM返回
+        dominant_emotion = self._get_dominant_emotion(self.current_emotions)
+        emotion_intensity = self.current_emotions.get(dominant_emotion, 0.0)
+        
+        print(f"[情感感知LLM返回] 回复内容: {response.llm_response}")
+        print(f"[情感感知] 已根据用户情感调整回复 - 主导情感: {dominant_emotion} (强度: {emotion_intensity:.2f})")
+        
+        if hasattr(self.main_app, 'log'):
+            self.main_app.log(f"[情感感知LLM] 返回内容: {response.llm_response}")
+            self.main_app.log(f"[情感感知] 主导情感: {dominant_emotion} (强度: {emotion_intensity:.2f})")
         
         # 调用父类的响应处理
         super()._on_llm_streaming_response(response)
-        
-        # 记录情感感知响应
-        dominant_emotion = self._get_dominant_emotion(self.current_emotions)
-        print(f"[情感感知] LLM回复已根据用户情感({dominant_emotion})调整")
     
     def _process_sentence(self, sentence_data: StreamingSentence):
         """

@@ -165,7 +165,14 @@ class StreamingLLMProcessor:
         """处理LLM流式响应"""
         if not response.success:
             print(f"[错误] LLM处理失败: {response.error}")
+            if hasattr(self.main_app, 'log'):
+                self.main_app.log(f"[LLM错误] {response.error}")
             return
+        
+        # 显示LLM返回的完整内容
+        print(f"[LLM返回] 完整回复: {response.llm_response}")
+        if hasattr(self.main_app, 'log'):
+            self.main_app.log(f"[LLM返回] {response.llm_response}")
         
         # 累积响应文本
         self.current_response = response.llm_response
@@ -185,8 +192,12 @@ class StreamingLLMProcessor:
             try:
                 self.sentence_queue.put(sentence_data, timeout=0.1)
                 print(f"[句子检测] 发现完整句子: {sentence}")
+                if hasattr(self.main_app, 'log'):
+                    self.main_app.log(f"[句子检测] 发现完整句子: {sentence}")
             except queue.Full:
                 print("[警告] 句子处理队列已满")
+                if hasattr(self.main_app, 'log'):
+                    self.main_app.log("[警告] 句子处理队列已满")
         
         # 显示完整回复到界面
         if hasattr(self.main_app, 'add_speech_output'):
@@ -269,10 +280,16 @@ class StreamingLLMProcessor:
             
             # 1. 使用VOICEVOX合成语音
             if self.voice_synthesis_enabled and hasattr(self.main_app, 'voicevox_area'):
+                print(f"[语音合成] 开始合成语音: {sentence_text}")
+                if hasattr(self.main_app, 'log'):
+                    self.main_app.log(f"[语音合成] 开始合成: {sentence_text}")
+                
                 audio_data = self.main_app.voicevox_area.synthesize_with_voicevox(sentence_text)
                 
                 if audio_data and isinstance(audio_data, np.ndarray):
-                    print(f"[VOICEVOX] 语音合成成功: {sentence_text[:20]}...")
+                    print(f"[VOICEVOX] 语音合成成功 - 文本: {sentence_text}")
+                    if hasattr(self.main_app, 'log'):
+                        self.main_app.log(f"[VOICEVOX] 语音合成成功: {sentence_text[:30]}...")
                     
                     # 2. 保存为临时WAV文件
                     try:
@@ -286,17 +303,24 @@ class StreamingLLMProcessor:
                         # 3. 发送音频文件到9003端口
                         if self.remote_audio_client:
                             try:
+                                print(f"[9003发送] 正在发送音频: {sentence_text}")
                                 success = self.remote_audio_client.play_audio_file(
                                     temp_audio_path, 
                                     use_queue=True, 
                                     priority=0
                                 )
                                 if success:
-                                    print(f"[9003] 音频发送成功: {sentence_text[:20]}...")
+                                    print(f"[9003] ✅ 音频发送成功: {sentence_text}")
+                                    if hasattr(self.main_app, 'log'):
+                                        self.main_app.log(f"[9003] 音频发送成功: {sentence_text[:30]}...")
                                 else:
-                                    print(f"[9003] 音频发送失败: {sentence_text[:20]}...")
+                                    print(f"[9003] ❌ 音频发送失败: {sentence_text}")
+                                    if hasattr(self.main_app, 'log'):
+                                        self.main_app.log(f"[9003] 音频发送失败: {sentence_text[:30]}...")
                             except Exception as e:
                                 print(f"[错误] 发送音频到9003失败: {e}")
+                                if hasattr(self.main_app, 'log'):
+                                    self.main_app.log(f"[错误] 发送音频到9003失败: {e}")
                             finally:
                                 # 清理临时文件
                                 try:
