@@ -70,7 +70,8 @@ class VRChatConnection:
                         self.main_app.root.after(0, lambda: self._connection_failed("OSC服务器启动失败"))
                         
                 except Exception as e:
-                    self.main_app.root.after(0, lambda: self._connection_failed(str(e)))
+                    error_msg = str(e)
+                    self.main_app.root.after(0, lambda: self._connection_failed(error_msg))
             
             # 启动连接线程
             threading.Thread(target=connect_thread, daemon=True).start()

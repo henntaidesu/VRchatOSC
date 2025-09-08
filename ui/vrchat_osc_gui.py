@@ -56,6 +56,7 @@ class VRChatOSCGUI:
         self.language_var = tk.StringVar(value=self.config.voice_language)
         self.device_var = tk.StringVar(value=self.config.voice_device)
         self.ui_language = tk.StringVar(value=self.config.ui_language)  # 界面语言：zh=中文, ja=日语
+        self.disable_fallback_var = tk.BooleanVar(value=self.config.disable_fallback_mode)
         
         # 语音文件相关变量
         self.uploaded_audio_data = None
