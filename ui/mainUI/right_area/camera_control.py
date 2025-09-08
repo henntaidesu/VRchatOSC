@@ -12,6 +12,11 @@ class CameraControl:
     def __init__(self, main_app):
         self.main_app = main_app
         
+        # 表情数据缓存和平均计算相关变量
+        self.emotion_data_cache = []  # 存储表情数据的缓存
+        self.last_emotion_update_time = 0  # 上次更新LLM情感状态的时间
+        self.emotion_update_timer = None  # 定时器
+        
     def detect_available_cameras(self):
         """检测可用的摄像头"""
         available_cameras = []
@@ -200,9 +205,26 @@ class CameraControl:
                                             state="disabled")
         self.main_app.save_expression_btn.pack(side=tk.LEFT, padx=(0, 5))
         
+        # 表情更新间隔控制
+        interval_frame = ttk.Frame(self.main_app.camera_control_frame)
+        interval_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # 表情更新间隔标签和滑块
+        ttk.Label(interval_frame, text="表情更新间隔:").pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.main_app.emotion_update_interval_var = tk.DoubleVar(value=3.0)  # 默认3秒
+        self.main_app.emotion_interval_scale = ttk.Scale(interval_frame, from_=1.0, to=10.0,
+                                                variable=self.main_app.emotion_update_interval_var,
+                                                orient='horizontal',
+                                                command=self._on_emotion_interval_changed)
+        self.main_app.emotion_interval_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        
+        self.main_app.emotion_interval_label = ttk.Label(interval_frame, text="3.0s")
+        self.main_app.emotion_interval_label.pack(side=tk.LEFT)
+        
         # 摄像头显示区域
         self.main_app.camera_display_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("camera_feed"), padding="5")
-        self.main_app.camera_display_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        self.main_app.camera_display_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         self.main_app.camera_display_frame.columnconfigure(0, weight=1)
         self.main_app.camera_display_frame.rowconfigure(0, weight=1)
         
@@ -215,7 +237,7 @@ class CameraControl:
         
         # 表情数据显示区域
         self.main_app.expression_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("realtime_expression"), padding="5")
-        self.main_app.expression_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        self.main_app.expression_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         # 配置表情框架的列权重，避免重叠 - 每列占用3个网格位置
         self.main_app.expression_frame.columnconfigure(2, weight=1)  # 第一列进度条
         self.main_app.expression_frame.columnconfigure(5, weight=1)  # 第二列进度条
@@ -375,6 +397,12 @@ class CameraControl:
             self.main_app.face_detection_running = True
             self.main_app.face_detection_btn.config(text="停止面部识别")
             
+            # 启动表情更新定时器
+            import time
+            self.last_emotion_update_time = time.time()
+            self.emotion_data_cache.clear()
+            self._start_emotion_update_timer()
+            
             self.main_app.log("面部识别启动成功")
             
         except Exception as e:
@@ -390,6 +418,14 @@ class CameraControl:
             if self.main_app.face_detection_running:
                 self.main_app.face_detection_running = False
                 self.main_app.face_detection_btn.config(text=self.main_app.get_text("start_face_detection"), state="disabled")
+                
+                # 停止表情更新定时器
+                if self.emotion_update_timer:
+                    self.main_app.root.after_cancel(self.emotion_update_timer)
+                    self.emotion_update_timer = None
+                
+                # 清空缓存
+                self.emotion_data_cache.clear()
             
             # 等待线程结束
             if hasattr(self.main_app, 'camera_thread') and self.main_app.camera_thread and self.main_app.camera_thread.is_alive():
@@ -425,6 +461,14 @@ class CameraControl:
         try:
             self.main_app.face_detection_running = False
             self.main_app.face_detection_btn.config(text="启动面部识别")
+            
+            # 停止表情更新定时器
+            if self.emotion_update_timer:
+                self.main_app.root.after_cancel(self.emotion_update_timer)
+                self.emotion_update_timer = None
+            
+            # 清空缓存
+            self.emotion_data_cache.clear()
             
             # 重置表情数据为默认值
             default_expressions = {
@@ -605,16 +649,111 @@ class CameraControl:
             # 更新整体状态
             self._update_overall_status(expressions)
             
-            # 将表情数据传递给LLM处理器（用于情感感知）
-            if hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
-                try:
-                    self.main_app.llm_processor.update_emotion_state(expressions)
-                except Exception as llm_e:
-                    # 不影响正常表情显示功能
-                    print(f"更新LLM情感状态失败: {llm_e}")
+            # 将表情数据添加到缓存（用于平均计算）
+            self._add_emotion_to_cache(expressions)
             
         except Exception as e:
             self.main_app.log(f"更新表情显示失败: {e}")
+    
+    def _on_emotion_interval_changed(self, value):
+        """表情更新间隔滑块变化回调"""
+        try:
+            interval = float(value)
+            self.main_app.emotion_interval_label.config(text=f"{interval:.1f}s")
+            
+            # 重启定时器（如果正在运行）
+            if self.emotion_update_timer:
+                self.main_app.root.after_cancel(self.emotion_update_timer)
+                self.emotion_update_timer = None
+            
+            # 清空缓存重新开始
+            self.emotion_data_cache.clear()
+            import time
+            self.last_emotion_update_time = time.time()
+            
+            # 启动新的定时器
+            self._start_emotion_update_timer()
+            
+            self.main_app.log(f"表情更新间隔已设置为: {interval:.1f}秒")
+            
+        except Exception as e:
+            self.main_app.log(f"更新表情间隔设置失败: {e}")
+    
+    def _start_emotion_update_timer(self):
+        """启动表情更新定时器"""
+        try:
+            if hasattr(self.main_app, 'face_detection_running') and self.main_app.face_detection_running:
+                interval_ms = int(self.main_app.emotion_update_interval_var.get() * 1000)
+                self.emotion_update_timer = self.main_app.root.after(interval_ms, self._process_emotion_average)
+        except Exception as e:
+            self.main_app.log(f"启动表情定时器失败: {e}")
+    
+    def _process_emotion_average(self):
+        """处理表情数据平均值并更新LLM"""
+        try:
+            if self.emotion_data_cache:
+                # 计算平均表情数据
+                avg_emotions = self._calculate_average_emotions()
+                
+                # 更新LLM的情感状态
+                if hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
+                    try:
+                        self.main_app.llm_processor.update_emotion_state(avg_emotions)
+                        
+                        # 记录主导情感
+                        dominant_emotion = max(avg_emotions.items(), key=lambda x: x[1])
+                        if dominant_emotion[1] > 0.3:  # 只有当情感强度超过阈值时才记录
+                            self.main_app.log(f"[情感更新] 主导情感: {dominant_emotion[0]} (强度: {dominant_emotion[1]:.2f})")
+                        
+                    except Exception as llm_e:
+                        print(f"更新LLM情感状态失败: {llm_e}")
+                
+                # 清空缓存准备下一轮
+                self.emotion_data_cache.clear()
+                import time
+                self.last_emotion_update_time = time.time()
+            
+            # 继续下一轮定时器
+            self._start_emotion_update_timer()
+            
+        except Exception as e:
+            self.main_app.log(f"处理表情平均值失败: {e}")
+    
+    def _calculate_average_emotions(self):
+        """计算缓存中表情数据的平均值"""
+        if not self.emotion_data_cache:
+            return {'angry': 0.0, 'disgust': 0.0, 'fear': 0.0, 'happy': 0.0, 
+                   'sad': 0.0, 'surprise': 0.0, 'neutral': 0.0}
+        
+        # 计算各个情感的平均值
+        avg_emotions = {}
+        emotion_names = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
+        
+        for emotion in emotion_names:
+            values = [data.get(emotion, 0.0) for data in self.emotion_data_cache]
+            avg_emotions[emotion] = sum(values) / len(values) if values else 0.0
+        
+        return avg_emotions
+    
+    def _add_emotion_to_cache(self, emotions):
+        """将表情数据添加到缓存中"""
+        try:
+            import time
+            
+            # 添加时间戳
+            emotion_data = emotions.copy()
+            emotion_data['timestamp'] = time.time()
+            
+            # 添加到缓存
+            self.emotion_data_cache.append(emotion_data)
+            
+            # 限制缓存大小（防止内存过多占用）
+            max_cache_size = 1000  # 最多保存1000帧数据
+            if len(self.emotion_data_cache) > max_cache_size:
+                self.emotion_data_cache.pop(0)
+            
+        except Exception as e:
+            print(f"添加表情数据到缓存失败: {e}")
     
     def _update_overall_status(self, expressions):
         """更新整体情感状态显示"""
