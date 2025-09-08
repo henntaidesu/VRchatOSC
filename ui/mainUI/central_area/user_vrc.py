@@ -98,6 +98,10 @@ class VRChatConnection:
             # 设置Avatar控制器的OSC客户端（VRChatController）
             self.main_app.avatar_controller.set_osc_client(self.main_app.client)
             
+            # 设置AI移动控制的OSC客户端
+            if hasattr(self.main_app, 'ai_vrchat_area') and self.main_app.ai_vrchat_area:
+                self.main_app.ai_vrchat_area.set_osc_client(self.main_app.client)
+            
             # 通过VRChatController设置位置回调
             self.main_app.client.set_position_callback(self.update_player_position)
         
@@ -136,6 +140,10 @@ class VRChatConnection:
                 # 清理资源
                 self.main_app.client.cleanup()
                 self.main_app.client = None
+                
+                # 清理AI移动控制的OSC客户端
+                if hasattr(self.main_app, 'ai_vrchat_area') and self.main_app.ai_vrchat_area:
+                    self.main_app.ai_vrchat_area.set_osc_client(None)
             
             self.update_ui_state(False)
             self.main_app.log("[成功] 已断开VRChat连接")

@@ -20,8 +20,22 @@ class AIVRChatManager:
         self.ai_selected_voice_file = None
         self.movement_speed = 1.0
         
-        # ���6�s
-        self.movement_speed = 1.0
+        # 读取AI_CHARACTER_VRC配置
+        self.ai_host = main_app.config.ai_character_host
+        self.ai_send_port = main_app.config.ai_character_send_port  
+        self.ai_receive_port = main_app.config.ai_character_receive_port
+        self.auto_connect = main_app.config.ai_character_auto_connect
+        self.connection_timeout = main_app.config.ai_character_connection_timeout
+        self.last_character_name = main_app.config.ai_character_last_name
+        self.last_character_personality = main_app.config.ai_character_last_personality
+        
+        # 调试配置加载
+        self.main_app.log(f"AI_CHARACTER_VRC配置已加载:")
+        self.main_app.log(f"  主机: {self.ai_host}")  
+        self.main_app.log(f"  发送端口: {self.ai_send_port}")
+        self.main_app.log(f"  接收端口: {self.ai_receive_port}")
+        self.main_app.log(f"  自动连接: {self.auto_connect}")
+        self.main_app.log(f"  角色: {self.last_character_name or '未设置'}")
     
     def setup_ai_character_interface(self, parent_frame):
         """设置AI角色管理界面"""
@@ -123,6 +137,14 @@ class AIVRChatManager:
         # 跳跃按钮
         self.main_app.jump_btn = ttk.Button(movement_grid, text=self.main_app.get_text("jump"), command=self.jump, width=6)
         self.main_app.jump_btn.grid(row=4, column=1, padx=2, pady=2)
+        
+        # OSC连接测试按钮
+        self.main_app.osc_test_btn = ttk.Button(movement_grid, text="测试连接", command=self.test_osc_connection, width=6)
+        self.main_app.osc_test_btn.grid(row=4, column=0, padx=2, pady=2)
+        
+        # AI角色连接按钮
+        self.main_app.ai_connect_btn = ttk.Button(movement_grid, text="AI连接", command=self.connect_ai_vrchat, width=6)
+        self.main_app.ai_connect_btn.grid(row=4, column=2, padx=2, pady=2)
 
         # 右侧: 镜头控制
         camera_grid = ttk.Frame(control_container)
@@ -192,6 +214,18 @@ class AIVRChatManager:
 
         # 更新速度显示
         self.main_app.movement_speed_var.trace('w', self.update_speed_label)
+        
+        # AI角色配置信息显示区域
+        ai_config_frame = ttk.LabelFrame(movement_frame, text="AI角色配置", padding="5")
+        ai_config_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # 显示AI角色连接信息
+        ai_info_text = f"主机: {self.ai_host}:{self.ai_send_port} | 自动连接: {'是' if self.auto_connect else '否'}"
+        if self.last_character_name:
+            ai_info_text += f" | 角色: {self.last_character_name}"
+        
+        self.main_app.ai_config_label = ttk.Label(ai_config_frame, text=ai_info_text, font=("", 8))
+        self.main_app.ai_config_label.pack()
 
         # VRC OSC连接控制区域
         vrc_control_frame = ttk.LabelFrame(parent_frame, text="VRC连接配置", padding="5")
@@ -324,8 +358,149 @@ class AIVRChatManager:
             self.movement_speed = 1.0
             if hasattr(self.main_app, 'movement_speed_var'):
                 self.main_app.movement_speed_var.set(self.movement_speed)
+            
+            # 设置OSC客户端
+            if hasattr(self.main_app, 'client') and self.main_app.client:
+                self.ai_osc_client = self.main_app.client
+                self.main_app.log("AI移动控制OSC客户端已连接")
         except Exception as e:
             self.main_app.log(f"初始化移动控制异常: {e}")
+    
+    def set_osc_client(self, osc_client):
+        """设置OSC客户端"""
+        try:
+            self.ai_osc_client = osc_client
+            if osc_client:
+                self.main_app.log("AI移动控制OSC客户端已更新")
+                # 测试连接
+                self.test_osc_connection()
+            else:
+                self.main_app.log("AI移动控制OSC客户端已断开")
+        except Exception as e:
+            self.main_app.log(f"设置OSC客户端异常: {e}")
+    
+    def create_ai_osc_client(self):
+        """创建独立的AI角色OSC客户端"""
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+            from src.osc_client import OSCClient
+            
+            # 直接创建OSC客户端，而不是VRChatController
+            ai_client = OSCClient(
+                host=self.ai_host,
+                send_port=self.ai_send_port,
+                receive_port=self.ai_receive_port
+            )
+            
+            self.ai_osc_client = ai_client
+            self.main_app.log(f"AI角色OSC客户端已创建: {self.ai_host}:{self.ai_send_port}")
+            
+            # 测试AI角色连接
+            self.test_osc_connection()
+            return True
+            
+        except Exception as e:
+            self.main_app.log(f"创建AI角色OSC客户端失败: {e}")
+            self.main_app.log(f"错误详情: {str(e)}")
+            return False
+    
+    def connect_ai_vrchat(self):
+        """连接到AI角色VRChat"""
+        try:
+            if self.auto_connect:
+                self.main_app.log("自动连接AI角色VRChat...")
+                if self.create_ai_osc_client():
+                    self.ai_is_connected = True
+                    self.main_app.log("✓ AI角色VRChat连接成功")
+                else:
+                    self.main_app.log("✗ AI角色VRChat连接失败")
+            else:
+                self.main_app.log("AI角色VRChat自动连接已禁用")
+        except Exception as e:
+            self.main_app.log(f"连接AI角色VRChat异常: {e}")
+    
+    def save_ai_character_config(self, character_name=None, personality=None):
+        """保存AI角色配置"""
+        try:
+            if character_name:
+                self.last_character_name = character_name
+                if personality:
+                    self.last_character_personality = personality
+                self.main_app.config.set_ai_character_last_info(character_name, personality or self.last_character_personality)
+                self.main_app.log(f"AI角色配置已保存: {character_name}")
+                
+                # 更新配置显示
+                self.update_ai_config_display()
+        except Exception as e:
+            self.main_app.log(f"保存AI角色配置异常: {e}")
+    
+    def update_ai_config_display(self):
+        """更新AI角色配置显示"""
+        try:
+            ai_info_text = f"主机: {self.ai_host}:{self.ai_send_port} | 自动连接: {'是' if self.auto_connect else '否'}"
+            if self.last_character_name:
+                ai_info_text += f" | 角色: {self.last_character_name}"
+            
+            if hasattr(self.main_app, 'ai_config_label'):
+                self.main_app.ai_config_label.config(text=ai_info_text)
+        except Exception as e:
+            self.main_app.log(f"更新AI配置显示异常: {e}")
+    
+    def test_osc_connection(self):
+        """测试OSC连接是否正常"""
+        try:
+            if self.ai_osc_client:
+                # 发送一个安全的测试消息（发送chatbox消息测试连接）
+                success = self.ai_osc_client.send_chatbox_message("AI移动控制已连接", send_immediately=False, show_in_chatbox=False)
+                if success:
+                    self.main_app.log("✓ AI OSC连接测试成功 - AI移动控制已就绪")
+                    return True
+                else:
+                    self.main_app.log("✗ AI OSC连接测试失败")
+                    return False
+            else:
+                self.main_app.log("✗ AI OSC客户端未设置")
+                return False
+        except Exception as e:
+            self.main_app.log(f"AI OSC连接测试异常: {e}")
+            # 尝试简单的消息发送测试
+            try:
+                if self.ai_osc_client:
+                    success = self.ai_osc_client.send_message("/test", 1.0)
+                    if success:
+                        self.main_app.log("✓ AI OSC基本连接测试成功")
+                        return True
+            except Exception as e2:
+                self.main_app.log(f"基本连接测试也失败: {e2}")
+            return False
+    
+    def send_osc_command(self, address: str, value, action_name: str):
+        """发送OSC命令的通用方法"""
+        try:
+            # 详细的连接状态检查
+            if not hasattr(self, 'ai_osc_client') or not self.ai_osc_client:
+                self.main_app.log(f"✗ AI OSC客户端未初始化，无法执行{action_name}")
+                self.main_app.log(f"   连接状态: ai_is_connected={getattr(self, 'ai_is_connected', False)}")
+                self.main_app.log(f"   OSC客户端: {hasattr(self, 'ai_osc_client')} / {getattr(self, 'ai_osc_client', None)}")
+                return False
+            
+            # 调试信息
+            self.main_app.log(f"发送OSC命令: {address} = {value} 到 {self.ai_host}:{self.ai_send_port}")
+            
+            success = self.ai_osc_client.send_message(address, value)
+            if success:
+                self.main_app.log(f"✓ {action_name}执行成功")
+                return True
+            else:
+                self.main_app.log(f"✗ {action_name}发送失败 - OSC客户端返回失败")
+                return False
+        except Exception as e:
+            self.main_app.log(f"✗ {action_name}异常: {e}")
+            import traceback
+            self.main_app.log(f"   异常详情: {traceback.format_exc()}")
+            return False
     
     def update_speed_label(self, *args):
         """更新移动速度标签显示"""
@@ -340,135 +515,79 @@ class AIVRChatManager:
     # ���6�p
     def move_forward(self):
         """前进"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", self.movement_speed)
-                self.main_app.log(f"前进 (速度: {self.movement_speed})")
-        except Exception as e:
-            self.main_app.log(f"前进异常: {e}")
+        self.send_osc_command("/input/Vertical", self.movement_speed, f"前进 (速度: {self.movement_speed})")
     
     def move_backward(self):
         """后退"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", -self.movement_speed)
-                self.main_app.log(f"后退 (速度: {self.movement_speed})")
-        except Exception as e:
-            self.main_app.log(f"后退异常: {e}")
+        self.send_osc_command("/input/Vertical", -self.movement_speed, f"后退 (速度: {self.movement_speed})")
     
     def strafe_left(self):
         """左移"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Horizontal", -self.movement_speed)
-                self.main_app.log(f"左移 (速度: {self.movement_speed})")
-        except Exception as e:
-            self.main_app.log(f"左移异常: {e}")
+        self.send_osc_command("/input/Horizontal", -self.movement_speed, f"左移 (速度: {self.movement_speed})")
     
     def strafe_right(self):
         """右移"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Horizontal", self.movement_speed)
-                self.main_app.log(f"右移 (速度: {self.movement_speed})")
-        except Exception as e:
-            self.main_app.log(f"右移异常: {e}")
+        self.send_osc_command("/input/Horizontal", self.movement_speed, f"右移 (速度: {self.movement_speed})")
     
     def jump(self):
         """跳跃"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Jump", True)
-                self.main_app.log("跳跃")
-                # 跳跃后自动复位
-                self.main_app.root.after(100, lambda: self.ai_osc_client.send_parameter("/input/Jump", False))
-        except Exception as e:
-            self.main_app.log(f"跳跃异常: {e}")
+        if self.send_osc_command("/input/Jump", 1, "跳跃"):
+            # 跳跃后自动复位
+            self.main_app.root.after(100, lambda: self.send_osc_command("/input/Jump", 0, "跳跃复位"))
     
     def turn_left(self):
         """左转"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", -self.movement_speed * 0.5)
-                self.main_app.log(f"左转 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"左转异常: {e}")
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "左转")
     
     def turn_right(self):
         """右转"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", self.movement_speed * 0.5)
-                self.main_app.log(f"右转 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"右转异常: {e}")
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "右转")
     
     def look_up(self):
-        """上看"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", self.movement_speed * 0.5)
-                self.main_app.log(f"上看 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"上看异常: {e}")
+        """上看（VRChat OSC不支持垂直视角，改为右转）"""
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "上转（右转）")
     
     def look_down(self):
-        """下看"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", -self.movement_speed * 0.5)
-                self.main_app.log(f"下看 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"下看异常: {e}")
+        """下看（VRChat OSC不支持垂直视角，改为左转）"""  
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "下转（左转）")
     
     # 停止控制方法
     def stop_movement(self):
         """停止移动"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", 0.0)
-                self.ai_osc_client.send_parameter("/input/Horizontal", 0.0)
-                self.main_app.log("停止移动")
-        except Exception as e:
-            self.main_app.log(f"停止移动异常: {e}")
+        self.send_osc_command("/input/Vertical", 0.0, "停止前后移动")
+        self.send_osc_command("/input/Horizontal", 0.0, "停止左右移动")
     
     def stop_look(self):
         """停止镜头移动"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", 0.0)
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", 0.0)
-                self.main_app.log("停止镜头移动")
-        except Exception as e:
-            self.main_app.log(f"停止镜头移动异常: {e}")
+        # 只停止水平视角，因为VRChat OSC不支持垂直视角控制
+        self.send_osc_command("/input/LookHorizontal", 0.0, "停止镜头移动")
     
-    # 蹲下控制
+    # 跑步控制（VRChat OSC没有专门的蹲下参数，使用跑步控制代替）
     def crouch(self):
-        """蹲下"""
+        """切换为走路模式（取消跑步）"""
         try:
             if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Run", False)  # 取消跑步
-                self.ai_osc_client.send_parameter("/input/MoveHoldFB", True)  # 使用慢速模式
-                self.main_app.log("蹲下")
+                self.ai_osc_client.send_message("/input/Run", 0)  # 取消跑步，使用走路模式
+                self.main_app.log("切换为走路模式")
         except Exception as e:
-            self.main_app.log(f"蹲下异常: {e}")
+            self.main_app.log(f"切换走路模式异常: {e}")
     
     def stop_crouch(self):
-        """停止蹲下"""
+        """恢复跑步模式"""
         try:
             if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/MoveHoldFB", False)
-                self.main_app.log("停止蹲下")
+                self.ai_osc_client.send_message("/input/Run", 1)  # 恢复跑步模式
+                self.main_app.log("恢复跑步模式")
         except Exception as e:
-            self.main_app.log(f"停止蹲下异常: {e}")
+            self.main_app.log(f"恢复跑步模式异常: {e}")
     
     # 斜着移动方法
     def move_forward_left(self):
         """左前移动"""
         try:
             if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", self.movement_speed)
-                self.ai_osc_client.send_parameter("/input/Horizontal", -self.movement_speed)
+                self.ai_osc_client.send_message("/input/Vertical", self.movement_speed)
+                self.ai_osc_client.send_message("/input/Horizontal", -self.movement_speed)
                 self.main_app.log(f"左前移动 (速度: {self.movement_speed})")
         except Exception as e:
             self.main_app.log(f"左前移动异常: {e}")
@@ -477,8 +596,8 @@ class AIVRChatManager:
         """右前移动"""
         try:
             if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", self.movement_speed)
-                self.ai_osc_client.send_parameter("/input/Horizontal", self.movement_speed)
+                self.ai_osc_client.send_message("/input/Vertical", self.movement_speed)
+                self.ai_osc_client.send_message("/input/Horizontal", self.movement_speed)
                 self.main_app.log(f"右前移动 (速度: {self.movement_speed})")
         except Exception as e:
             self.main_app.log(f"右前移动异常: {e}")
@@ -487,8 +606,8 @@ class AIVRChatManager:
         """左后移动"""
         try:
             if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", -self.movement_speed)
-                self.ai_osc_client.send_parameter("/input/Horizontal", -self.movement_speed)
+                self.ai_osc_client.send_message("/input/Vertical", -self.movement_speed)
+                self.ai_osc_client.send_message("/input/Horizontal", -self.movement_speed)
                 self.main_app.log(f"左后移动 (速度: {self.movement_speed})")
         except Exception as e:
             self.main_app.log(f"左后移动异常: {e}")
@@ -497,52 +616,28 @@ class AIVRChatManager:
         """右后移动"""
         try:
             if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/Vertical", -self.movement_speed)
-                self.ai_osc_client.send_parameter("/input/Horizontal", self.movement_speed)
+                self.ai_osc_client.send_message("/input/Vertical", -self.movement_speed)
+                self.ai_osc_client.send_message("/input/Horizontal", self.movement_speed)
                 self.main_app.log(f"右后移动 (速度: {self.movement_speed})")
         except Exception as e:
             self.main_app.log(f"右后移动异常: {e}")
     
-    # 斜着看方法
+    # 斜向镜头控制方法（VRChat OSC只支持水平转向）
     def look_up_left(self):
-        """左上看"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", self.movement_speed * 0.5)
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", -self.movement_speed * 0.5)
-                self.main_app.log(f"左上看 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"左上看异常: {e}")
+        """左上看（实际为左转）"""
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "左上转")
     
     def look_up_right(self):
-        """右上看"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", self.movement_speed * 0.5)
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", self.movement_speed * 0.5)
-                self.main_app.log(f"右上看 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"右上看异常: {e}")
+        """右上看（实际为右转）"""
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "右上转")
     
     def look_down_left(self):
-        """左下看"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", -self.movement_speed * 0.5)
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", -self.movement_speed * 0.5)
-                self.main_app.log(f"左下看 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"左下看异常: {e}")
+        """左下看（实际为左转）"""
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "左下转")
     
     def look_down_right(self):
-        """右下看"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_parameter("/input/LookVertical", -self.movement_speed * 0.5)
-                self.ai_osc_client.send_parameter("/input/LookHorizontal", self.movement_speed * 0.5)
-                self.main_app.log(f"右下看 (速度: {self.movement_speed * 0.5})")
-        except Exception as e:
-            self.main_app.log(f"右下看异常: {e}")
+        """右下看（实际为右转）"""
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "右下转")
 
     
     def init_scenario_system(self):
@@ -642,19 +737,36 @@ class AIVRChatManager:
     def connect_ai_osc(self):
         """连接AI OSC"""
         try:
-            self.ai_is_connected = True
-            if hasattr(self.main_app, 'ai_osc_status_label'):
-                self.main_app.ai_osc_status_label.config(text="已连接", foreground="green")
-            if hasattr(self.main_app, 'ai_osc_connect_btn'):
-                self.main_app.ai_osc_connect_btn.config(text="断开VRC")
-            self.main_app.log("AI OSC已连接")
+            # 先创建OSC客户端
+            if self.create_ai_osc_client():
+                self.ai_is_connected = True
+                if hasattr(self.main_app, 'ai_osc_status_label'):
+                    self.main_app.ai_osc_status_label.config(text="已连接", foreground="green")
+                if hasattr(self.main_app, 'ai_osc_connect_btn'):
+                    self.main_app.ai_osc_connect_btn.config(text="断开VRC")
+                self.main_app.log("AI OSC已连接")
+                return True
+            else:
+                self.main_app.log("AI OSC连接失败")
+                return False
         except Exception as e:
             self.main_app.log(f"连接AI OSC异常: {e}")
+            return False
     
     def disconnect_ai_osc(self):
         """断开AI OSC"""
         try:
             self.ai_is_connected = False
+            
+            # 清理OSC客户端
+            if hasattr(self, 'ai_osc_client') and self.ai_osc_client:
+                try:
+                    if hasattr(self.ai_osc_client, 'stop_server'):
+                        self.ai_osc_client.stop_server()
+                except:
+                    pass
+                self.ai_osc_client = None
+            
             if hasattr(self.main_app, 'ai_osc_status_label'):
                 self.main_app.ai_osc_status_label.config(text="未连接", foreground="red")
             if hasattr(self.main_app, 'ai_osc_connect_btn'):

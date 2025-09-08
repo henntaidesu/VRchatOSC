@@ -71,8 +71,8 @@ class ConfigManager:
             },
             'AI_CHARACTER_VRC': {
                 'ai_host': '127.0.0.1',
-                'ai_send_port': '9002',
-                'ai_receive_port': '9003',
+                'ai_send_port': '9000',
+                'ai_receive_port': '9001',
                 'auto_connect': 'false',
                 'connection_timeout': '10',
                 'last_character_name': '',
