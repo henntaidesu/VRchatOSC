@@ -92,17 +92,8 @@ class LLMProcessor:
                 self.main_app.log(f"[语音合成] 按句子分割（支持中日英标点）: {response.llm_response}")
                 sentences = self._split_by_punctuation(response.llm_response)
                 
-                for i, sentence in enumerate(sentences):
-                    if sentence.strip():
-                        self.main_app.log(f"[语音合成] 处理句子 {i+1}/{len(sentences)}: {sentence}")
-                        audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip())
-                        
-                        if audio_result is not None:
-                            self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()} (大小: {len(audio_result)} bytes)")
-                            # 发送音频到9003端口
-                            self._send_audio_to_port9003(audio_result)
-                        else:
-                            self.main_app.log(f"[VOICEVOX] 句子合成失败: {sentence.strip()}")
+                # 使用顺序播放处理
+                self._process_sentences_sequentially(sentences)
                 
             else:
                 self.main_app.log(f"[LLM错误] 处理失败: {response.error}")
@@ -284,6 +275,44 @@ class LLMProcessor:
         sentences = re.split(end_punctuation, text)
         return [s.strip() for s in sentences if s.strip()]
     
+    def _process_sentences_sequentially(self, sentences):
+        """按顺序处理句子，确保音频按顺序播放"""
+        import threading
+        import time
+        
+        def sequential_processor():
+            try:
+                for i, sentence in enumerate(sentences):
+                    if sentence.strip():
+                        self.main_app.log(f"[顺序播放] 处理句子 {i+1}/{len(sentences)}: {sentence}")
+                        
+                        # 同步合成音频
+                        audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip())
+                        
+                        if audio_result is not None:
+                            self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()} (大小: {len(audio_result)} bytes)")
+                            
+                            # 同步发送音频到9003端口
+                            self._send_audio_to_port9003_sync(audio_result, i+1, len(sentences))
+                            
+                            # 等待一小段时间确保音频开始播放再处理下一句
+                            # 根据音频长度估算播放时间（简单估算：每1000字节约0.1秒）
+                            estimated_duration = max(0.5, len(audio_result) / 10000)  # 最少0.5秒间隔
+                            self.main_app.log(f"[顺序播放] 等待 {estimated_duration:.1f}s 后处理下一句")
+                            time.sleep(estimated_duration)
+                            
+                        else:
+                            self.main_app.log(f"[VOICEVOX] 句子合成失败: {sentence.strip()}")
+                            
+                self.main_app.log("[顺序播放] 所有句子处理完成")
+                
+            except Exception as e:
+                self.main_app.log(f"[顺序播放] 处理出错: {e}")
+        
+        # 在后台线程中顺序处理，避免阻塞UI
+        thread = threading.Thread(target=sequential_processor, daemon=True)
+        thread.start()
+    
     def _send_audio_to_port9003(self, audio_data):
         """发送音频数据到9003端口"""
         try:
@@ -331,3 +360,29 @@ class LLMProcessor:
             
         except Exception as e:
             self.main_app.log(f"[端口9003] 创建发送线程失败: {e}")
+    
+    def _send_audio_to_port9003_sync(self, audio_data, sentence_index, total_sentences):
+        """同步发送音频数据到9003端口（用于顺序播放）"""
+        try:
+            import socket
+            
+            # 检查音频数据格式
+            if not isinstance(audio_data, bytes):
+                self.main_app.log(f"[警告] 音频数据格式不支持: {type(audio_data)}")
+                return
+                
+            audio_size = len(audio_data)
+            self.main_app.log(f"[端口9003] 发送句子 {sentence_index}/{total_sentences}，大小: {audio_size} bytes")
+            
+            # 直接发送整个音频，不分块
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            
+            try:
+                sock.sendto(audio_data, ('127.0.0.1', 9003))
+                self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送成功 ({audio_size} bytes)")
+                
+            finally:
+                sock.close()
+                
+        except Exception as e:
+            self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败: {e}")
