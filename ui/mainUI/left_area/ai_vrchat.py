@@ -207,18 +207,6 @@ class AIVRChatManager:
         # 更新速度显示
         self.main_app.movement_speed_var.trace('w', self.update_speed_label)
         
-        # AI角色配置信息显示区域
-        ai_config_frame = ttk.LabelFrame(movement_frame, text="AI角色配置", padding="5")
-        ai_config_frame.pack(fill=tk.X, pady=(10, 0))
-        
-        # 显示AI角色连接信息
-        ai_info_text = f"主机: {self.ai_host}:{self.ai_send_port} | 自动连接: {'是' if self.auto_connect else '否'}"
-        if self.last_character_name:
-            ai_info_text += f" | 角色: {self.last_character_name}"
-        
-        self.main_app.ai_config_label = ttk.Label(ai_config_frame, text=ai_info_text, font=("", 8))
-        self.main_app.ai_config_label.pack()
-
         # AI_VRC OSC连接控制区域
         vrc_control_frame = ttk.LabelFrame(parent_frame, text="AI_VRC连接配置", padding="5")
         vrc_control_frame.pack(fill=tk.X, pady=(5, 5))
@@ -423,22 +411,8 @@ class AIVRChatManager:
                 self.main_app.config.set_ai_character_last_info(character_name, personality or self.last_character_personality)
                 self.main_app.log(f"AI角色配置已保存: {character_name}")
                 
-                # 更新配置显示
-                self.update_ai_config_display()
         except Exception as e:
             self.main_app.log(f"保存AI角色配置异常: {e}")
-    
-    def update_ai_config_display(self):
-        """更新AI角色配置显示"""
-        try:
-            ai_info_text = f"主机: {self.ai_host}:{self.ai_send_port} | 自动连接: {'是' if self.auto_connect else '否'}"
-            if self.last_character_name:
-                ai_info_text += f" | 角色: {self.last_character_name}"
-            
-            if hasattr(self.main_app, 'ai_config_label'):
-                self.main_app.ai_config_label.config(text=ai_info_text)
-        except Exception as e:
-            self.main_app.log(f"更新AI配置显示异常: {e}")
     
     def test_osc_connection(self):
         """测试OSC连接是否正常"""
@@ -731,8 +705,6 @@ class AIVRChatManager:
                 self.ai_send_port = int(ai_send_port)  
                 self.ai_receive_port = int(ai_receive_port)
                 
-                # 更新配置显示
-                self.update_ai_config_display()
                 
                 messagebox.showinfo("保存成功", "AI VRC配置已保存")
                 self.main_app.log(f"AI VRC配置已保存: {ai_host}:{ai_send_port}")
