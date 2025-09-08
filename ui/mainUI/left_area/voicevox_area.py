@@ -708,30 +708,48 @@ class VoicevoxArea:
             return
         
         try:
-            # 获取当前选择的VOICEVOX配置
-            speaker_id = 0  # 默认ID
-            character_name = "AI角色"  # 默认角色名
+            # 直接从VOICEVOX客户端获取当前设置的说话人信息
+            speaker_id = 0
+            character_name = "AI角色"
             
-            # 尝试获取界面中选择的说话人ID
-            if hasattr(self.main_app, 'voicevox_character_combo') and self.main_app.voicevox_character_combo.get():
+            if self.main_app.voicevox_client:
                 try:
-                    # 从组合框获取当前选择的角色信息
-                    selected_character = self.main_app.voicevox_character_combo.get()
-                    character_name = selected_character
-                    
-                    # 如果有样式选择，获取对应的speaker_id  
-                    if hasattr(self.main_app, 'voicevox_style_combo') and self.main_app.voicevox_style_combo.get():
-                        # 从当前样式获取speaker_id
-                        if hasattr(self, 'current_styles') and self.current_styles:
-                            selected_style = self.main_app.voicevox_style_combo.get()
-                            for style in self.current_styles:
-                                if style.get('name') == selected_style:
-                                    speaker_id = style.get('id', 0)
-                                    break
+                    # 获取当前VOICEVOX客户端的说话人信息
+                    current_speaker = self.main_app.voicevox_client.get_current_speaker_info()
+                    if current_speaker:
+                        # VOICEVOX客户端返回的字段名是 'id'，而且是字符串
+                        speaker_id = int(current_speaker.get('id', 0))
+                        character_name = current_speaker.get('name', 'AI角色')
+                        style_name = current_speaker.get('style', '')
+                        print(f"从VOICEVOX客户端获取当前说话人: {character_name} - {style_name} (ID: {speaker_id})")
+                    else:
+                        print("无法获取VOICEVOX当前说话人信息，使用默认值")
+                        
+                    # 如果无法从客户端获取，尝试从界面获取
+                    if speaker_id == 0 and hasattr(self.main_app, 'voicevox_character_combo') and self.main_app.voicevox_character_combo.get():
+                        selected_character = self.main_app.voicevox_character_combo.get()
+                        character_name = selected_character
+                        
+                        if hasattr(self.main_app, 'voicevox_style_combo') and self.main_app.voicevox_style_combo.get():
+                            if hasattr(self, 'current_styles') and self.current_styles:
+                                selected_style = self.main_app.voicevox_style_combo.get()
+                                for style in self.current_styles:
+                                    if style.get('name') == selected_style:
+                                        speaker_id = style.get('id', 0)
+                                        break
+                                        
                 except Exception as e:
-                    self.main_app.log(f"获取VOICEVOX配置失败，使用默认值: {e}")
+                    print(f"获取VOICEVOX说话人信息失败: {e}")
             
-            self.main_app.log(f"使用VOICEVOX配置: 角色={character_name}, speaker_id={speaker_id}")
+            print(f"使用VOICEVOX配置: 角色={character_name}, speaker_id={speaker_id}")
+            
+            # 在生成语音前再次确认设置说话人ID，确保切换生效
+            if self.main_app.voicevox_client and speaker_id >= 0:
+                try:
+                    self.main_app.voicevox_client.set_speaker(speaker_id)
+                    print(f"强制设置VOICEVOX说话人ID: {speaker_id}")
+                except Exception as e:
+                    print(f"设置说话人ID失败: {e}")
             
             success = self.main_app.single_ai_manager.generate_and_send_voice(text, speaker_id)
             if success:

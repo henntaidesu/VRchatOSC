@@ -31,6 +31,7 @@ class VoiceQueueItem:
     emotion: str = "neutral"  # 情感类型
     speaker_id: int = 0       # VOICEVOX说话人ID
     status: str = "pending"   # 状态: pending, processing, completed, error
+    permanent_file_path: str = ""  # 永久保存的文件路径
 
 
 class VoiceQueueManager:
@@ -223,10 +224,12 @@ class VoiceQueueManager:
             temp_file = os.path.join(self.temp_dir, f"{item.item_id}.wav")
             print(f"临时文件路径: {temp_file}")
             
-            # 设置说话人ID
-            if item.speaker_id > 0:
+            # 设置说话人ID（即使是0也要设置，确保使用指定的说话人）
+            if item.speaker_id >= 0:
                 self.voicevox_client.set_speaker(item.speaker_id)
                 print(f"设置说话人ID: {item.speaker_id}")
+            else:
+                print(f"使用当前VOICEVOX客户端的默认说话人")
             
             # 使用VOICEVOX合成语音并保存到文件
             print(f"开始合成语音: {item.text[:50]}...")
@@ -242,10 +245,13 @@ class VoiceQueueManager:
             print(f"语音文件生成成功: {temp_file}")
             item.file_path = temp_file
             
-            # 发送到AI角色的VRC
-            print(f"准备发送语音到VRC角色: {item.character_name}")
-            result = self._send_voice_to_character(item)
-            print(f"发送到VRC结果: {result}")
+            # 保存生成的语音文件到永久位置
+            self._save_generated_voice_file(item, temp_file)
+            
+            # 立即发送到remote_audio.py播放队列
+            print(f"语音生成完成，立即发送到remote_audio.py播放队列")
+            result = self._send_voice_immediately(item)
+            print(f"发送结果: {result}")
             return result
             
         except Exception as e:
@@ -268,6 +274,63 @@ class VoiceQueueManager:
             print(f"处理语音文件项目时出错: {e}")
             return False
     
+    def _send_voice_immediately(self, item: VoiceQueueItem) -> bool:
+        """立即发送语音到remote_audio.py播放队列"""
+        try:
+            print(f"准备立即发送语音: {item.filename if hasattr(item, 'filename') else item.text[:30]}")
+            
+            # 预处理音频文件 - 转换为44100Hz
+            processed_file = self._preprocess_audio_for_vrc(item.file_path)
+            if not processed_file:
+                print("音频预处理失败")
+                return False
+            
+            # 获取AI端IP地址
+            ai_host = self._get_ai_host_address()
+            if not ai_host:
+                print("无法获取AI端IP地址")
+                return False
+            
+            # 导入远程音频客户端
+            import sys
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            sys.path.append(project_root)
+            
+            from remote_audio import RemoteAudioClient
+            
+            print(f"连接到远程音频服务: {ai_host}:9003")
+            client = RemoteAudioClient(host=ai_host, port=9003)
+            
+            # 测试连接
+            if not client.ping():
+                print(f"无法连接到远程音频服务 ({ai_host}:9003)")
+                return False
+            
+            # 发送到播放队列（按时间顺序，不使用优先级）
+            filename = f"{item.character_name}_{int(item.created_time)}.wav"
+            success = client.play_audio_file(processed_file, use_queue=True, priority=0)
+            
+            # 清理临时文件
+            if processed_file != item.file_path:
+                try:
+                    os.unlink(processed_file)
+                except:
+                    pass
+            
+            if success:
+                print(f"语音已成功发送到remote_audio.py播放队列: {filename}")
+                return True
+            else:
+                print(f"发送语音到播放队列失败: {filename}")
+                return False
+                
+        except Exception as e:
+            print(f"立即发送语音失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def _send_voice_to_character(self, item: VoiceQueueItem) -> bool:
         """将语音发送到指定AI角色的VRC实例"""
         print(f"尝试发送语音到角色: {item.character_name}")
@@ -277,73 +340,15 @@ class VoiceQueueManager:
             return False
         
         try:
-            # 检查AI管理器类型，支持SingleAIVRCManager
-            osc_client = None
-            avatar_controller = None
-            
-            # 处理SingleAIVRCManager类型
-            if hasattr(self.ai_manager, 'vrc_controller') and self.ai_manager.vrc_controller:
-                osc_client = self.ai_manager.vrc_controller.osc_client
-                # 尝试从AI角色获取avatar_controller
-                if hasattr(self.ai_manager, 'ai_character') and self.ai_manager.ai_character:
-                    avatar_controller = getattr(self.ai_manager.ai_character, 'avatar_controller', None)
-                else:
-                    avatar_controller = None
-                print(f"找到SingleAI VRC控制器的OSC客户端: {osc_client}")
-                print(f"AI角色Avatar控制器: {avatar_controller}")
-            
-            # 处理传统的多AI管理器类型
-            elif hasattr(self.ai_manager, 'osc_clients'):
-                print(f"获取OSC客户端列表: {list(self.ai_manager.osc_clients.keys())}")
-                osc_client = self.ai_manager.osc_clients.get(item.character_name)
-                avatar_controller = self.ai_manager.avatar_controllers.get(item.character_name)
-            
-            if not osc_client:
-                print(f"未找到AI角色 '{item.character_name}' 的OSC客户端")
-                if hasattr(self.ai_manager, 'osc_clients'):
-                    print(f"可用的OSC客户端: {list(self.ai_manager.osc_clients.keys())}")
-                print("尝试使用远程音频服务发送语音")
-                
-                # 直接尝试远程音频服务
-                success = self._use_remote_audio_service(item.file_path)
-                if success:
-                    print("通过远程音频服务发送成功")
-                    return True
-                else:
-                    print("远程音频服务发送失败")
-                    return False
-            
-            print(f"找到OSC客户端: {osc_client}")
-            
-            # 设置Avatar表情（基于emotion）
-            if avatar_controller:
-                print(f"设置Avatar表情: {item.emotion}")
-                if hasattr(avatar_controller, 'start_speaking'):
-                    avatar_controller.start_speaking(item.text, item.emotion, voice_level=0.8)
-                else:
-                    print("Avatar控制器不支持start_speaking方法")
-            else:
-                print("未找到Avatar控制器")
-            
-            # 发送语音文件到VRChat
-            print(f"开始发送语音文件到VRChat: {item.file_path}")
-            success = self._upload_voice_to_vrc(osc_client, item.file_path)
-            print(f"语音文件发送结果: {success}")
-            
+            # 直接使用远程音频服务，不再检查OSC客户端
+            print("使用远程音频服务发送语音到AI端")
+            success = self._use_remote_audio_service(item.file_path)
             if success:
-                print(f"语音已发送到VRChat角色: {item.character_name}")
-                
-                # 语音播放完成后停止说话状态
-                if avatar_controller:
-                    # 估算播放时长
-                    duration = self._estimate_audio_duration(item.file_path)
-                    print(f"预计播放时长: {duration}秒")
-                    if hasattr(avatar_controller, 'stop_speaking'):
-                        threading.Timer(duration, lambda: avatar_controller.stop_speaking()).start()
-                    else:
-                        print("Avatar控制器不支持stop_speaking方法")
-            
-            return success
+                print("通过远程音频服务发送成功")
+                return True
+            else:
+                print("远程音频服务发送失败")
+                return False
             
         except Exception as e:
             print(f"发送语音到角色时出错: {e}")
@@ -392,9 +397,9 @@ class VoiceQueueManager:
             success = virtual_microphone.play_audio_with_mic_simulation(file_path)
             
             if success:
-                print(f"✅ 虚拟麦克风播放成功，时长{duration:.2f}秒")
+                print(f"虚拟麦克风播放成功，时长{duration:.2f}秒")
             else:
-                print("❌ 虚拟麦克风播放失败")
+                print("虚拟麦克风播放失败")
             
             return success
             
@@ -441,30 +446,30 @@ class VoiceQueueManager:
             # 获取AI端IP地址（从ai_manager获取）
             ai_host = self._get_ai_host_address()
             if not ai_host:
-                print("❌ 无法获取AI端IP地址")
+                print("无法获取AI端IP地址")
                 return False
             
-            print(f"🔌 尝试连接远程音频服务: {ai_host}:9003")
+            print(f"尝试连接远程音频服务: {ai_host}:9003")
             
             # 连接远程AI端的音频服务
             client = RemoteAudioClient(host=ai_host, port=9003)
             
             # 测试连接
             if not client.ping():
-                print(f"❌ 无法连接到远程音频服务 ({ai_host}:9003)")
-                print("💡 请在AI端机器上运行: python remote_audio.py")
+                print(f"无法连接到远程音频服务 ({ai_host}:9003)")
+                print("请在AI端机器上运行: python remote_audio.py")
                 return False
             
-            print(f"✅ 成功连接到远程音频服务 ({ai_host}:9003)")
+            print(f"成功连接到远程音频服务 ({ai_host}:9003)")
             
             # 预处理音频文件 - 转换为44100Hz
             processed_file = self._preprocess_audio_for_vrc(file_path)
             if not processed_file:
-                print("❌ 音频预处理失败")
+                print("音频预处理失败")
                 return False
             
-            # 播放预处理后的音频文件
-            success = client.play_audio_file(processed_file)
+            # 播放预处理后的音频文件，使用队列播放
+            success = client.play_audio_file(processed_file, use_queue=True, priority=0)
             
             # 清理临时文件
             if processed_file != file_path:
@@ -474,10 +479,10 @@ class VoiceQueueManager:
                     pass
             
             if success:
-                print("🎤 远程音频服务播放完成")
+                print("远程音频服务播放完成")
                 return True
             else:
-                print("❌ 远程音频服务播放失败")
+                print("远程音频服务播放失败")
                 return False
                 
         except Exception as e:
@@ -499,7 +504,7 @@ class VoiceQueueManager:
             import numpy as np
             import tempfile
             
-            print(f"🔄 预处理音频文件: {os.path.basename(file_path)}")
+            print(f"预处理音频文件: {os.path.basename(file_path)}")
             
             # 读取原始音频
             data, original_sample_rate = sf.read(file_path)
@@ -509,18 +514,18 @@ class VoiceQueueManager:
             
             # 检查是否需要转换采样率
             if original_sample_rate == target_sample_rate:
-                print(f"   ✅ 采样率已是 {target_sample_rate} Hz，无需转换")
+                print(f"   采样率已是 {target_sample_rate} Hz，无需转换")
                 return file_path
             
             # 进行采样率转换
-            print(f"   🔄 采样率转换: {original_sample_rate} → {target_sample_rate} Hz")
+            print(f"   采样率转换: {original_sample_rate} → {target_sample_rate} Hz")
             
             try:
                 # 优先使用scipy的高质量重采样
                 from scipy.signal import resample
                 new_sample_count = int(len(data) * target_sample_rate / original_sample_rate)
                 resampled_data = resample(data, new_sample_count)
-                print(f"   ✅ scipy重采样完成: {len(resampled_data)} samples")
+                print(f"   scipy重采样完成: {len(resampled_data)} samples")
                 
             except ImportError:
                 # 回退到线性插值
@@ -546,7 +551,7 @@ class VoiceQueueManager:
                             data[:, channel]
                         )
                 
-                print(f"   ✅ 线性插值重采样完成: {len(resampled_data)} samples")
+                print(f"   线性插值重采样完成: {len(resampled_data)} samples")
             
             # 保存到临时文件
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
@@ -557,16 +562,16 @@ class VoiceQueueManager:
             # 验证输出文件
             verify_data, verify_sr = sf.read(temp_path)
             new_duration = len(verify_data) / verify_sr
-            print(f"   ✅ 输出: {verify_sr} Hz, {new_duration:.1f}秒, {len(verify_data)} samples")
+            print(f"   输出: {verify_sr} Hz, {new_duration:.1f}秒, {len(verify_data)} samples")
             
             return temp_path
             
         except ImportError as e:
-            print(f"   ❌ 缺少音频处理库: {e}")
-            print("   💡 请安装: pip install soundfile scipy numpy")
+            print(f"   缺少音频处理库: {e}")
+            print("   请安装: pip install soundfile scipy numpy")
             return None
         except Exception as e:
-            print(f"   ❌ 音频预处理失败: {e}")
+            print(f"   音频预处理失败: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -620,7 +625,7 @@ class VoiceQueueManager:
             chunk_size = 8192  # 每块大小
             total_chunks = len(audio_base64) // chunk_size + (1 if len(audio_base64) % chunk_size else 0)
             
-            print(f"📦 OSC音频传输：分块发送{total_chunks}块")
+            print(f"OSC音频传输：分块发送{total_chunks}块")
             
             # 发送音频开始信号
             osc_client.send_message("/vrchat/audio/start", [total_chunks, duration])
@@ -637,7 +642,7 @@ class VoiceQueueManager:
             # 发送音频结束信号
             osc_client.send_message("/vrchat/audio/end", [])
             
-            print(f"📡 OSC音频传输完成，预计播放{duration:.2f}秒")
+            print(f"OSC音频传输完成，预计播放{duration:.2f}秒")
             return True
             
         except Exception as e:
@@ -653,6 +658,36 @@ class VoiceQueueManager:
         except:
             # 如果无法读取，使用文本长度估算
             return len(self.current_item.text) * 0.15 if self.current_item else 2.0
+    
+    def _save_generated_voice_file(self, item: VoiceQueueItem, temp_file: str):
+        """保存生成的语音文件到永久位置"""
+        try:
+            # 创建保存目录
+            save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "generated_voices")
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+                print(f"创建语音保存目录: {save_dir}")
+            
+            # 生成文件名：时间戳_角色名_文本摘要.wav
+            timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(item.created_time))
+            text_snippet = "".join(c for c in item.text[:20] if c.isalnum() or c in "._- ")
+            filename = f"{timestamp}_{item.character_name}_{text_snippet}.wav"
+            
+            # 确保文件名安全
+            filename = "".join(c for c in filename if c.isalnum() or c in "._- ")
+            permanent_path = os.path.join(save_dir, filename)
+            
+            # 复制临时文件到永久位置
+            import shutil
+            shutil.copy2(temp_file, permanent_path)
+            
+            print(f"语音文件已保存: {permanent_path}")
+            
+            # 更新项目的永久文件路径
+            item.permanent_file_path = permanent_path
+            
+        except Exception as e:
+            print(f"保存语音文件失败: {e}")
     
     def get_queue_status(self) -> Dict:
         """获取队列状态"""
