@@ -41,7 +41,7 @@ class AIVRChatManager:
     def setup_ai_character_interface(self, parent_frame):
         """设置AI角色管理界面"""
         # 场景选择区域
-        scenario_frame = ttk.LabelFrame(parent_frame, text="AI场景选择", padding="5")
+        scenario_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("ai_scenario_selection"), padding="5")
         scenario_frame.pack(fill=tk.X, pady=(0, 5))
 
         scenario_row = ttk.Frame(scenario_frame)
@@ -73,7 +73,7 @@ class AIVRChatManager:
         self.main_app.scenario_desc_label.pack(fill=tk.X, pady=(5, 0))
 
         # AI角色移动控制区域
-        movement_frame = ttk.LabelFrame(parent_frame, text="AI角色移动控制", padding="5")
+        movement_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("ai_character_movement"), padding="5")
         movement_frame.pack(fill=tk.X, pady=(0, 5))
 
         # 移动和镜头控制布局
@@ -208,7 +208,7 @@ class AIVRChatManager:
         self.main_app.movement_speed_var.trace('w', self.update_speed_label)
         
         # AI_VRC OSC连接控制区域
-        vrc_control_frame = ttk.LabelFrame(parent_frame, text="AI_VRC连接配置", padding="5")
+        vrc_control_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("ai_vrc_connection_config"), padding="5")
         vrc_control_frame.pack(fill=tk.X, pady=(5, 5))
 
         # 使用grid布局优化空间利用
@@ -238,7 +238,7 @@ class AIVRChatManager:
         self.main_app.ai_audio_status_label = ttk.Label(status_frame, text="未检查", foreground="gray", width=10)
         self.main_app.ai_audio_status_label.pack(side=tk.LEFT, padx=(0, 15))
 
-        ttk.Label(status_frame, text="AI_VRC连接:", width=10).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(status_frame, text=self.main_app.get_text("ai_vrc_connection_status"), width=10).pack(side=tk.LEFT, padx=(0, 2))
         self.main_app.ai_osc_status_label = ttk.Label(status_frame, text="未连接", foreground="red", width=20)
         self.main_app.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 5))
 
@@ -249,7 +249,7 @@ class AIVRChatManager:
         self.main_app.save_ai_config_btn = ttk.Button(button_frame, text="保存配置", command=self.save_ai_vrc_config, width=10)
         self.main_app.save_ai_config_btn.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.main_app.ai_osc_connect_btn = ttk.Button(button_frame, text="连接AI_VRC", command=self.toggle_ai_osc_connection, width=10)
+        self.main_app.ai_osc_connect_btn = ttk.Button(button_frame, text=self.main_app.get_text("connect_ai_vrc"), command=self.toggle_ai_osc_connection, width=10)
         self.main_app.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         self.main_app.refresh_audio_btn = ttk.Button(button_frame, text="连接音频", command=self.refresh_audio_service_status, width=10)
@@ -258,7 +258,7 @@ class AIVRChatManager:
         self.load_ai_vrc_config_from_file()
 
         # AI_VRC消息发送区域
-        vrc_message_frame = ttk.LabelFrame(parent_frame, text="AI_VRC消息控制", padding="5")
+        vrc_message_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("ai_vrc_message_control"), padding="5")
         vrc_message_frame.pack(fill=tk.X, pady=(5, 5))
 
         text_message_row = ttk.Frame(vrc_message_frame)
@@ -731,7 +731,7 @@ class AIVRChatManager:
                 if hasattr(self.main_app, 'ai_osc_status_label'):
                     self.main_app.ai_osc_status_label.config(text="已连接", foreground="green")
                 if hasattr(self.main_app, 'ai_osc_connect_btn'):
-                    self.main_app.ai_osc_connect_btn.config(text="断开AI_VRC")
+                    self.main_app.ai_osc_connect_btn.config(text=self.main_app.get_text("disconnect_ai_vrc"))
                 self.main_app.log("AI OSC已连接")
                 return True
             else:
@@ -758,7 +758,7 @@ class AIVRChatManager:
             if hasattr(self.main_app, 'ai_osc_status_label'):
                 self.main_app.ai_osc_status_label.config(text="未连接", foreground="red")
             if hasattr(self.main_app, 'ai_osc_connect_btn'):
-                self.main_app.ai_osc_connect_btn.config(text="连接AI_VRC")
+                self.main_app.ai_osc_connect_btn.config(text=self.main_app.get_text("connect_ai_vrc"))
             self.main_app.log("AI OSC已断开")
         except Exception as e:
             self.main_app.log(f"断开AI OSC异常: {e}")

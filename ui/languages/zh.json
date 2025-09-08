@@ -202,5 +202,22 @@
   "ai_vrc_connection_status": "AI_VRC连接:",
   "connect_ai_vrc": "连接AI_VRC",
   "disconnect_ai_vrc": "断开AI_VRC",
-  "ai_vrc_message_control": "AI_VRC消息控制"
+  "ai_vrc_message_control": "AI_VRC消息控制",
+  "advanced_settings_title": "高级设置",
+  "show": "显示",
+  "hide": "隐藏",
+  "save_config": "保存配置",
+  "connect_audio": "连接音频",
+  "apply_scenario": "应用场景",
+  "current_scenario": "当前场景:",
+  "mode": "模式:",
+  "host": "主机:",
+  "send": "发送:",
+  "receive": "接收:",
+  "audio_service": "音频服务:",
+  "not_checked": "未检查",
+  "control_panel": "控制面板",
+  "start": "开始",
+  "stop": "停止",
+  "port": "端口:"
 }

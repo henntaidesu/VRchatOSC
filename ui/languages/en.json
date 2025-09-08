@@ -205,5 +205,22 @@
   "ai_vrc_connection_status": "AI_VRC Connection:",
   "connect_ai_vrc": "Connect AI_VRC",
   "disconnect_ai_vrc": "Disconnect AI_VRC",
-  "ai_vrc_message_control": "AI_VRC Message Control"
+  "ai_vrc_message_control": "AI_VRC Message Control",
+  "advanced_settings_title": "Advanced Settings",
+  "show": "Show",
+  "hide": "Hide",
+  "save_config": "Save Config",
+  "connect_audio": "Connect Audio",
+  "apply_scenario": "Apply Scenario",
+  "current_scenario": "Current Scenario:",
+  "mode": "Mode:",
+  "host": "Host:",
+  "send": "Send:",
+  "receive": "Receive:",
+  "audio_service": "Audio Service:",
+  "not_checked": "Not Checked",
+  "control_panel": "Control Panel",
+  "start": "Start",
+  "stop": "Stop",
+  "port": "Port:"
 }

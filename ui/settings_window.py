@@ -16,21 +16,23 @@ from config_manager import config_manager
 class SettingsWindow:
     """设置窗口类"""
     
-    def __init__(self, parent, callback=None):
+    def __init__(self, parent, callback=None, main_app=None):
         """
         初始化设置窗口
         
         Args:
             parent: 父窗口
             callback: 设置保存后的回调函数
+            main_app: 主应用程序引用，用于获取多语言文本
         """
         self.parent = parent
         self.callback = callback
+        self.main_app = main_app
         self.config = config_manager
         
         # 创建设置窗口
         self.window = tk.Toplevel(parent)
-        self.window.title("高级设置")
+        self.window.title(self._get_text("advanced_settings_title"))
         self.window.geometry("600x700")
         self.window.resizable(False, False)
         
@@ -47,6 +49,12 @@ class SettingsWindow:
         
         # 窗口关闭事件
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def _get_text(self, key, default=None):
+        """获取多语言文本"""
+        if self.main_app and hasattr(self.main_app, 'get_text'):
+            return self.main_app.get_text(key)
+        return default or key
     
     def _backup_config(self):
         """备份当前配置"""
@@ -86,7 +94,7 @@ class SettingsWindow:
     def create_osc_tab(self):
         """创建OSC设置选项卡"""
         osc_frame = ttk.Frame(self.notebook)
-        self.notebook.add(osc_frame, text="OSC连接")
+        self.notebook.add(osc_frame, text=self.main_app.get_text("osc_connection"))
         
         # 主机地址
         row = 0
@@ -109,7 +117,7 @@ class SettingsWindow:
         # 调试模式
         row += 1
         self.debug_mode_var = tk.BooleanVar(value=self.config.osc_debug_mode)
-        ttk.Checkbutton(osc_frame, text="启用OSC调试模式", variable=self.debug_mode_var).grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
+        ttk.Checkbutton(osc_frame, text=self.main_app.get_text("enable_osc_debug_mode"), variable=self.debug_mode_var).grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
         
         osc_frame.columnconfigure(1, weight=1)
     
@@ -247,12 +255,12 @@ class SettingsWindow:
         # 禁用备用模式
         row += 1
         self.disable_fallback_var = tk.BooleanVar(value=self.config.disable_fallback_mode)
-        ttk.Checkbutton(modes_frame, text="禁用备用模式（只使用VRChat状态）", 
+        ttk.Checkbutton(modes_frame, text=self.main_app.get_text("disable_backup_mode"), 
                        variable=self.disable_fallback_var).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         
         # VRChat检测超时
         row += 1
-        ttk.Label(modes_frame, text="VRChat检测超时 (秒):").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Label(modes_frame, text=self.main_app.get_text("vrchat_detection_timeout")).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         timeout_frame = ttk.Frame(modes_frame)
         timeout_frame.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
         
@@ -409,7 +417,7 @@ class SettingsWindow:
     def create_llm_tab(self):
         """创建LLM设置选项卡"""
         llm_frame = ttk.Frame(self.notebook)
-        self.notebook.add(llm_frame, text="LLM设置")
+        self.notebook.add(llm_frame, text=self.main_app.get_text("llm_settings"))
         
         # 创建滚动框架
         canvas = tk.Canvas(llm_frame)
@@ -429,13 +437,13 @@ class SettingsWindow:
         
         # 启用LLM功能
         row = 0
-        ttk.Label(scrollable_frame, text="启用LLM功能:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Label(scrollable_frame, text=self.main_app.get_text("enable_llm")).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         self.enable_llm_var = tk.BooleanVar(value=self.config.enable_llm)
         ttk.Checkbutton(scrollable_frame, variable=self.enable_llm_var).grid(row=row, column=1, sticky=tk.W, padx=10, pady=5)
         
         # API Key设置
         row += 1
-        ttk.Label(scrollable_frame, text="Gemini API Key:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Label(scrollable_frame, text=self.main_app.get_text("gemini_api_key")).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         self.gemini_api_key_var = tk.StringVar(value=self.config.gemini_api_key)
         api_key_entry = ttk.Entry(scrollable_frame, textvariable=self.gemini_api_key_var, width=40, show="*")
         api_key_entry.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5, columnspan=2)
@@ -445,17 +453,17 @@ class SettingsWindow:
         def toggle_api_key_visibility():
             if api_key_entry.cget('show') == '*':
                 api_key_entry.config(show='')
-                show_hide_btn.config(text="隐藏")
+                show_hide_btn.config(text=self._get_text("hide"))
             else:
                 api_key_entry.config(show='*')
-                show_hide_btn.config(text="显示")
+                show_hide_btn.config(text=self._get_text("show"))
         
-        show_hide_btn = ttk.Button(scrollable_frame, text="显示", command=toggle_api_key_visibility)
+        show_hide_btn = ttk.Button(scrollable_frame, text=self._get_text("show"), command=toggle_api_key_visibility)
         show_hide_btn.grid(row=row, column=1, sticky=tk.W, padx=10, pady=2)
         
         # 模型选择
         row += 1
-        ttk.Label(scrollable_frame, text="Gemini模型:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Label(scrollable_frame, text=self.main_app.get_text("gemini_model")).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         self.gemini_model_var = tk.StringVar(value=self.config.gemini_model)
         model_combo = ttk.Combobox(scrollable_frame, textvariable=self.gemini_model_var, width=25, state="readonly")
         model_combo['values'] = [
@@ -470,7 +478,7 @@ class SettingsWindow:
         
         # 温度参数
         row += 1
-        ttk.Label(scrollable_frame, text="Temperature (0.0-1.0):").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Label(scrollable_frame, text=self.main_app.get_text("temperature")).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         self.temperature_var = tk.DoubleVar(value=self.config.llm_temperature)
         temp_scale = tk.Scale(scrollable_frame, from_=0.0, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, 
                              variable=self.temperature_var, length=200)

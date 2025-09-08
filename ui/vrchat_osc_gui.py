@@ -492,7 +492,7 @@ class VRChatOSCGUI:
     
     def open_settings(self):
         """打开高级设置窗口"""
-        SettingsWindow(self.root, callback=self.on_settings_changed)
+        SettingsWindow(self.root, callback=self.on_settings_changed, main_app=self)
     
     def on_settings_changed(self, apply_only=False):
         """设置更改后的回调"""
@@ -552,7 +552,7 @@ class VRChatOSCGUI:
             from ui.settings_window import SettingsWindow
             
             # 创建设置窗口，传入回调函数
-            settings_window = SettingsWindow(self.root, self.on_settings_saved)
+            settings_window = SettingsWindow(self.root, self.on_settings_saved, self)
             
         except ImportError as e:
             messagebox.showerror("错误", f"无法加载设置窗口: {e}")
@@ -733,7 +733,7 @@ class VRChatOSCGUI:
         if hasattr(self, 'save_expression_btn'):
             self.save_expression_btn.config(text=self.get_text("save_expression"))
         if hasattr(self, 'voicevox_control_frame'):
-            self.voicevox_control_frame.config(text="VOICEVOX")
+            self.voicevox_control_frame.config(text=self.get_text("voicevox"))
         if hasattr(self, 'voicevox_test_btn'):
             self.voicevox_test_btn.config(text=self.get_text("voice_test"))
         
@@ -796,8 +796,54 @@ class VRChatOSCGUI:
         # 更新AI角色移动控制区域
         self.refresh_ai_movement_control_labels()
         
+        # 更新子组件的多语言内容
+        self._update_child_components_language()
+        
+        # 保存语言设置到配置文件
+        self.config.ui_language = selected_lang
+        self.config.save()
+        
         # 记录语言切换
         self.log(f"界面语言已切换为: {selected_display}")
+    
+    def _update_child_components_language(self):
+        """更新子组件的多语言内容"""
+        try:
+            # 更新VOICEVOX组件
+            if hasattr(self, 'voicevox_area') and self.voicevox_area:
+                self._update_voicevox_language()
+            
+            # 更新AI角色管理组件
+            if hasattr(self, 'ai_vrchat_manager') and self.ai_vrchat_manager:
+                self._update_ai_manager_language()
+                
+            # 更新摄像头控制组件
+            if hasattr(self, 'camera_control') and self.camera_control:
+                self._update_camera_control_language()
+                
+        except Exception as e:
+            self.log(f"更新子组件语言时出错: {e}")
+    
+    def _update_voicevox_language(self):
+        """更新VOICEVOX组件的语言"""
+        if hasattr(self, 'voicevox_enabled_check'):
+            self.voicevox_enabled_check.config(text=self.get_text("enable_voicevox"))
+        if hasattr(self, 'llm_enabled_check'):
+            self.llm_enabled_check.config(text=self.get_text("enable_ai_dialogue"))
+    
+    def _update_ai_manager_language(self):
+        """更新AI管理器的语言"""
+        # AI管理器相关的组件语言更新
+        if hasattr(self, 'ai_osc_connect_btn'):
+            if hasattr(self.ai_vrchat_manager, 'ai_is_connected') and self.ai_vrchat_manager.ai_is_connected:
+                self.ai_osc_connect_btn.config(text=self.get_text("disconnect_ai_vrc"))
+            else:
+                self.ai_osc_connect_btn.config(text=self.get_text("connect_ai_vrc"))
+    
+    def _update_camera_control_language(self):
+        """更新摄像头控制的语言"""  
+        if hasattr(self, 'emotion_interval_label'):
+            self.emotion_interval_label.config(text=self.get_text("emotion_interval"))
     
     def refresh_expression_labels(self):
         """刷新表情数据标签的文本"""

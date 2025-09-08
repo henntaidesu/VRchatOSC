@@ -339,7 +339,7 @@ class CameraControl:
                                                 command=self._on_emotion_interval_changed)
         self.main_app.emotion_interval_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         
-        self.main_app.emotion_interval_label = ttk.Label(interval_frame, text="3.0s")
+        self.main_app.emotion_interval_label = ttk.Label(interval_frame, text=self.main_app.get_text("emotion_interval"))
         self.main_app.emotion_interval_label.pack(side=tk.LEFT)
         
         # 摄像头显示区域 - 调整到更上方位置

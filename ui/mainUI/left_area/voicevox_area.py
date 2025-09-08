@@ -13,7 +13,7 @@ class VoicevoxArea:
     def setup_voicevox_area(self, parent_frame):
         """设置VOICEVOX控制区域"""
         # VOICEVOX控制面板 - 占用整个左侧区域
-        self.main_app.voicevox_control_frame = ttk.LabelFrame(parent_frame, text="VOICEVOX", padding="5")
+        self.main_app.voicevox_control_frame = ttk.LabelFrame(parent_frame, text=self.main_app.get_text("voicevox"), padding="5")
         self.main_app.voicevox_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
         self.main_app.voicevox_control_frame.columnconfigure(0, weight=1)
         self.main_app.voicevox_control_frame.rowconfigure(2, weight=1)  # 为未来扩展留出空间
@@ -23,7 +23,7 @@ class VoicevoxArea:
         server_frame.pack(fill=tk.X, pady=(0, 5))
         
         # IP地址输入
-        ttk.Label(server_frame, text="IP:", width=4).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(server_frame, text=self.main_app.get_text("ip"), width=4).pack(side=tk.LEFT, padx=(0, 2))
         saved_host = self.main_app.config.voicevox_host
         self.main_app.voicevox_host_var = tk.StringVar(value=saved_host)
         self.main_app.voicevox_host_entry = ttk.Entry(server_frame, textvariable=self.main_app.voicevox_host_var, width=12)
@@ -92,13 +92,13 @@ class VoicevoxArea:
         
         # VOICEVOX启用开关
         self.main_app.voicevox_enabled_var = tk.BooleanVar(value=True)
-        self.main_app.voicevox_enabled_check = ttk.Checkbutton(control_frame, text="启用VOICEVOX", 
+        self.main_app.voicevox_enabled_check = ttk.Checkbutton(control_frame, text=self.main_app.get_text("enable_voicevox"), 
                                                     variable=self.main_app.voicevox_enabled_var)
         self.main_app.voicevox_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
         # LLM启用开关
         self.main_app.llm_enabled_var = tk.BooleanVar(value=True)
-        self.main_app.llm_enabled_check = ttk.Checkbutton(control_frame, text="启用AI对话", 
+        self.main_app.llm_enabled_check = ttk.Checkbutton(control_frame, text=self.main_app.get_text("enable_ai_dialogue"), 
                                                variable=self.main_app.llm_enabled_var, 
                                                command=self._toggle_llm_enabled)
         self.main_app.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))

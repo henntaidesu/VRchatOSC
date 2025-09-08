@@ -205,5 +205,22 @@
   "ai_vrc_connection_status": "AI_VRC接続:",
   "connect_ai_vrc": "AI_VRCに接続",
   "disconnect_ai_vrc": "AI_VRCを切断",
-  "ai_vrc_message_control": "AI_VRCメッセージ制御"
+  "ai_vrc_message_control": "AI_VRCメッセージ制御",
+  "advanced_settings_title": "高級設定",
+  "show": "表示",
+  "hide": "非表示",
+  "save_config": "配置保存",
+  "connect_audio": "オーディオ接続",
+  "apply_scenario": "シナリオ適用",
+  "current_scenario": "現在のシナリオ:",
+  "mode": "モード:",
+  "host": "ホスト:",
+  "send": "送信:",
+  "receive": "受信:",
+  "audio_service": "オーディオサービス:",
+  "not_checked": "未確認",
+  "control_panel": "コントロールパネル",
+  "start": "開始",
+  "stop": "停止",
+  "port": "ポート:"
 }
