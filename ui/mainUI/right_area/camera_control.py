@@ -605,6 +605,14 @@ class CameraControl:
             # 更新整体状态
             self._update_overall_status(expressions)
             
+            # 将表情数据传递给LLM处理器（用于情感感知）
+            if hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
+                try:
+                    self.main_app.llm_processor.update_emotion_state(expressions)
+                except Exception as llm_e:
+                    # 不影响正常表情显示功能
+                    print(f"更新LLM情感状态失败: {llm_e}")
+            
         except Exception as e:
             self.main_app.log(f"更新表情显示失败: {e}")
     

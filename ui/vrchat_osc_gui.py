@@ -115,7 +115,12 @@ class VRChatOSCGUI:
     @property
     def llm_handler(self):
         """获取LLM处理器实例"""
-        return self.llm_processor.llm_handler if self.llm_processor else None
+        if self.llm_processor:
+            if self.llm_processor.streaming_mode and self.llm_processor.streaming_processor:
+                return self.llm_processor.streaming_processor
+            else:
+                return self.llm_processor.llm_handler
+        return None
     
     def setup_ui(self):
         """设置用户界面"""

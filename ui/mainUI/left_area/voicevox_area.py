@@ -103,6 +103,20 @@ class VoicevoxArea:
                                                command=self._toggle_llm_enabled)
         self.main_app.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
+        # 流式模式开关
+        self.main_app.streaming_mode_var = tk.BooleanVar(value=True)
+        self.main_app.streaming_mode_check = ttk.Checkbutton(control_frame, text="流式模式", 
+                                                   variable=self.main_app.streaming_mode_var, 
+                                                   command=self._toggle_streaming_mode)
+        self.main_app.streaming_mode_check.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 情感感知模式开关
+        self.main_app.emotion_awareness_var = tk.BooleanVar(value=True)
+        self.main_app.emotion_awareness_check = ttk.Checkbutton(control_frame, text="情感感知", 
+                                                      variable=self.main_app.emotion_awareness_var, 
+                                                      command=self._toggle_emotion_awareness)
+        self.main_app.emotion_awareness_check.pack(side=tk.LEFT, padx=(10, 0))
+        
         # 第四行：语音参数控制
         params_frame = ttk.LabelFrame(self.main_app.voicevox_control_frame, text=self.main_app.get_text("voice_params"), padding="5")
         params_frame.pack(fill=tk.X, pady=(10, 0))
@@ -975,6 +989,26 @@ class VoicevoxArea:
         """切换LLM启用状态的包装方法"""
         enabled = self.main_app.llm_enabled_var.get()
         self.main_app.llm_processor.toggle_llm_enabled(enabled)
+    
+    def _toggle_streaming_mode(self):
+        """切换流式模式"""
+        enabled = self.main_app.streaming_mode_var.get()
+        if hasattr(self.main_app.llm_processor, 'set_streaming_mode'):
+            self.main_app.llm_processor.set_streaming_mode(enabled)
+            mode = "流式" if enabled else "传统"
+            self.main_app.log(f"[设置] 已切换到{mode}LLM模式")
+        else:
+            self.main_app.log("[警告] LLM处理器不支持流式模式切换")
+    
+    def _toggle_emotion_awareness(self):
+        """切换情感感知模式"""
+        enabled = self.main_app.emotion_awareness_var.get()
+        if hasattr(self.main_app.llm_processor, 'set_emotion_awareness_enabled'):
+            self.main_app.llm_processor.set_emotion_awareness_enabled(enabled)
+            mode = "情感感知" if enabled else "普通流式"
+            self.main_app.log(f"[设置] 已切换到{mode}模式")
+        else:
+            self.main_app.log("[警告] LLM处理器不支持情感感知模式切换")
     
     def on_voice_preset_changed(self, event=None):
         """语音预设变化回调"""
