@@ -171,6 +171,7 @@
   "move_backward": "↓ Backward",
   "move_backward_right": "↘ Backward Right",
   "jump": "Jump",
+  "walk": "Walk",
 
   "look_up_left": "↖ Look Up Left",
   "look_up": "↑ Look Up",

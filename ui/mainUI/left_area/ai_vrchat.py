@@ -19,6 +19,7 @@ class AIVRChatManager:
         self.ai_is_connected = False
         self.ai_selected_voice_file = None
         self.movement_speed = 1.0
+        self.is_walking_mode = False  # 走路模式状态（False=跑步模式，True=走路模式）
         
         # 读取AI_CHARACTER_VRC配置
         self.ai_host = main_app.config.ai_character_host
@@ -102,16 +103,11 @@ class AIVRChatManager:
         self.main_app.move_forward_right_btn.bind("<ButtonPress-1>", lambda e: self.move_forward_right())
         self.main_app.move_forward_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        # 左移、蹲下、右移按钮
+        # 左移、右移按钮（中间留空）
         self.main_app.strafe_left_btn = ttk.Button(movement_grid, text=self.main_app.get_text("strafe_left"), width=6)
         self.main_app.strafe_left_btn.grid(row=2, column=0, padx=2, pady=2)
         self.main_app.strafe_left_btn.bind("<ButtonPress-1>", lambda e: self.strafe_left())
         self.main_app.strafe_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
-
-        self.main_app.crouch_btn = ttk.Button(movement_grid, text=self.main_app.get_text("crouch"), width=6)
-        self.main_app.crouch_btn.grid(row=2, column=1, padx=2, pady=2)
-        self.main_app.crouch_btn.bind("<ButtonPress-1>", lambda e: self.crouch())
-        self.main_app.crouch_btn.bind("<ButtonRelease-1>", lambda e: self.stop_crouch())
 
         self.main_app.strafe_right_btn = ttk.Button(movement_grid, text=self.main_app.get_text("strafe_right"), width=6)
         self.main_app.strafe_right_btn.grid(row=2, column=2, padx=2, pady=2)
@@ -134,17 +130,17 @@ class AIVRChatManager:
         self.main_app.move_backward_right_btn.bind("<ButtonPress-1>", lambda e: self.move_backward_right())
         self.main_app.move_backward_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_movement())
 
-        # 跳跃按钮
+        # 蹲下、跳跃、走路按钮
+        self.main_app.crouch_btn = ttk.Button(movement_grid, text=self.main_app.get_text("crouch"), width=6)
+        self.main_app.crouch_btn.grid(row=4, column=0, padx=2, pady=2)
+        self.main_app.crouch_btn.bind("<ButtonPress-1>", lambda e: self.crouch())
+        self.main_app.crouch_btn.bind("<ButtonRelease-1>", lambda e: self.stop_crouch())
+
         self.main_app.jump_btn = ttk.Button(movement_grid, text=self.main_app.get_text("jump"), command=self.jump, width=6)
         self.main_app.jump_btn.grid(row=4, column=1, padx=2, pady=2)
-        
-        # OSC连接测试按钮
-        self.main_app.osc_test_btn = ttk.Button(movement_grid, text="测试连接", command=self.test_osc_connection, width=6)
-        self.main_app.osc_test_btn.grid(row=4, column=0, padx=2, pady=2)
-        
-        # AI角色连接按钮
-        self.main_app.ai_connect_btn = ttk.Button(movement_grid, text="AI连接", command=self.connect_ai_vrchat, width=6)
-        self.main_app.ai_connect_btn.grid(row=4, column=2, padx=2, pady=2)
+
+        self.main_app.walk_btn = ttk.Button(movement_grid, text=self.main_app.get_text("walk"), command=self.toggle_walk_mode, width=6)
+        self.main_app.walk_btn.grid(row=4, column=2, padx=2, pady=2)
 
         # 右侧: 镜头控制
         camera_grid = ttk.Frame(control_container)
@@ -168,15 +164,11 @@ class AIVRChatManager:
         self.main_app.look_up_right_btn.bind("<ButtonPress-1>", lambda e: self.look_up_right())
         self.main_app.look_up_right_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
 
-        # 左转、停止、右转按钮
+        # 左转、右转按钮（中间留空）
         self.main_app.turn_left_btn = ttk.Button(camera_grid, text=self.main_app.get_text("turn_left"), width=6)
         self.main_app.turn_left_btn.grid(row=2, column=0, padx=2, pady=2)
         self.main_app.turn_left_btn.bind("<ButtonPress-1>", lambda e: self.turn_left())
         self.main_app.turn_left_btn.bind("<ButtonRelease-1>", lambda e: self.stop_look())
-
-        self.main_app.stop_look_btn = ttk.Button(camera_grid, text=self.main_app.get_text("stop_look"), width=6)
-        self.main_app.stop_look_btn.grid(row=2, column=1, padx=2, pady=2)
-        self.main_app.stop_look_btn.bind("<Button-1>", lambda e: self.stop_look())
 
         self.main_app.turn_right_btn = ttk.Button(camera_grid, text=self.main_app.get_text("turn_right"), width=6)
         self.main_app.turn_right_btn.grid(row=2, column=2, padx=2, pady=2)
@@ -537,19 +529,21 @@ class AIVRChatManager:
     
     def turn_left(self):
         """左转"""
-        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "左转")
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed, "左转")
     
     def turn_right(self):
         """右转"""
-        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "右转")
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed, "右转")
     
     def look_up(self):
-        """上看（VRChat OSC不支持垂直视角，改为右转）"""
-        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "上转（右转）")
+        """上看"""
+        # 尝试使用VRChat OSC的垂直视角控制
+        self.send_osc_command("/input/LookVertical", self.movement_speed, "上看")
     
     def look_down(self):
-        """下看（VRChat OSC不支持垂直视角，改为左转）"""  
-        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "下转（左转）")
+        """下看"""
+        # 尝试使用VRChat OSC的垂直视角控制  
+        self.send_osc_command("/input/LookVertical", -self.movement_speed, "下看")
     
     # 停止控制方法
     def stop_movement(self):
@@ -559,27 +553,33 @@ class AIVRChatManager:
     
     def stop_look(self):
         """停止镜头移动"""
-        # 只停止水平视角，因为VRChat OSC不支持垂直视角控制
-        self.send_osc_command("/input/LookHorizontal", 0.0, "停止镜头移动")
+        # 停止水平和垂直视角控制
+        self.send_osc_command("/input/LookHorizontal", 0.0, "停止水平镜头移动")
+        self.send_osc_command("/input/LookVertical", 0.0, "停止垂直镜头移动")
     
     # 跑步控制（VRChat OSC没有专门的蹲下参数，使用跑步控制代替）
     def crouch(self):
         """切换为走路模式（取消跑步）"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_message("/input/Run", 0)  # 取消跑步，使用走路模式
-                self.main_app.log("切换为走路模式")
-        except Exception as e:
-            self.main_app.log(f"切换走路模式异常: {e}")
+        self.send_osc_command("/input/Run", 0, "切换为走路模式")
     
     def stop_crouch(self):
         """恢复跑步模式"""
-        try:
-            if self.ai_osc_client:
-                self.ai_osc_client.send_message("/input/Run", 1)  # 恢复跑步模式
-                self.main_app.log("恢复跑步模式")
-        except Exception as e:
-            self.main_app.log(f"恢复跑步模式异常: {e}")
+        self.send_osc_command("/input/Run", 1, "恢复跑步模式")
+    
+    def toggle_walk_mode(self):
+        """切换走路/跑步模式"""
+        self.is_walking_mode = not self.is_walking_mode
+        
+        if self.is_walking_mode:
+            # 切换到走路模式
+            self.send_osc_command("/input/Run", 0, "切换到走路模式")
+            if hasattr(self.main_app, 'walk_btn'):
+                self.main_app.walk_btn.config(text="跑步")  # 按钮显示相反的状态
+        else:
+            # 切换到跑步模式
+            self.send_osc_command("/input/Run", 1, "切换到跑步模式")
+            if hasattr(self.main_app, 'walk_btn'):
+                self.main_app.walk_btn.config(text="走路")  # 按钮显示相反的状态
     
     # 斜着移动方法
     def move_forward_left(self):
@@ -622,22 +622,26 @@ class AIVRChatManager:
         except Exception as e:
             self.main_app.log(f"右后移动异常: {e}")
     
-    # 斜向镜头控制方法（VRChat OSC只支持水平转向）
+    # 斜向镜头控制方法
     def look_up_left(self):
-        """左上看（实际为左转）"""
-        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "左上转")
+        """左上看"""
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.7, "左上转")
+        self.send_osc_command("/input/LookVertical", self.movement_speed * 0.7, "左上看")
     
     def look_up_right(self):
-        """右上看（实际为右转）"""
-        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "右上转")
+        """右上看"""
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.7, "右上转")
+        self.send_osc_command("/input/LookVertical", self.movement_speed * 0.7, "右上看")
     
     def look_down_left(self):
-        """左下看（实际为左转）"""
-        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.5, "左下转")
+        """左下看"""
+        self.send_osc_command("/input/LookHorizontal", -self.movement_speed * 0.7, "左下转")
+        self.send_osc_command("/input/LookVertical", -self.movement_speed * 0.7, "左下看")
     
     def look_down_right(self):
-        """右下看（实际为右转）"""
-        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.5, "右下转")
+        """右下看"""
+        self.send_osc_command("/input/LookHorizontal", self.movement_speed * 0.7, "右下转")
+        self.send_osc_command("/input/LookVertical", -self.movement_speed * 0.7, "右下看")
 
     
     def init_scenario_system(self):

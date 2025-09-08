@@ -171,6 +171,7 @@
   "move_backward": "↓ 後退",
   "move_backward_right": "↘ 右後",
   "jump": "ジャンプ",
+  "walk": "歩行",
 
   "look_up_left": "↖ 左上",
   "look_up": "↑ 上視",
