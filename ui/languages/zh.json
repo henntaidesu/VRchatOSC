@@ -78,9 +78,6 @@
   "loading": "加载中...",
   "processing": "处理中...",
   
-  "advanced_settings": "高级设置",
-  "force_fallback_mode": "强制备用模式",
-  "disable_fallback_mode": "禁用备用模式",
   "character": "角色",
   "voice_test": "测试语音",
   "voice_params": "语音参数",

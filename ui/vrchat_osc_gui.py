@@ -88,6 +88,9 @@ class VRChatOSCGUI:
         # 初始化LLM处理器
         self.llm_processor = LLMProcessor(self)
         
+        # LLM相关属性
+        self.llm_enabled = True  # 默认启用LLM
+        
         # 初始化摄像头控制（必须在setup_ui之前）
         self.camera_control = CameraControl(self)
         
@@ -108,6 +111,11 @@ class VRChatOSCGUI:
     def get_text(self, key):
         """获取当前语言的文本"""
         return get_text(self.ui_language.get(), key, key)
+    
+    @property
+    def llm_handler(self):
+        """获取LLM处理器实例"""
+        return self.llm_processor.llm_handler if self.llm_processor else None
     
     def setup_ui(self):
         """设置用户界面"""
