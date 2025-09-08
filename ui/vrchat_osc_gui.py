@@ -410,7 +410,7 @@ class VRChatOSCGUI:
         
         # AI角色管理选项卡
         ai_frame = ttk.Frame(character_notebook)
-        character_notebook.add(ai_frame, text="AI角色")
+        character_notebook.add(ai_frame, text=self.get_text("ai_character"))
         
         # 设置AI角色管理界面
         self.ai_vrchat_manager.setup_ai_character_interface(ai_frame)

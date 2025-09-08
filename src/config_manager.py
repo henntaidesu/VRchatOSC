@@ -62,12 +62,12 @@ class ConfigManager:
             },
             'LLM': {
                 'gemini_api_key': '',
-                'gemini_model': 'gemini-1.5-flash',
+                'gemini_model': '',
                 'enable_llm': 'false',
                 'temperature': '0.7',
                 'max_output_tokens': '2048',
                 'conversation_history_length': '10',
-                'system_prompt': '你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。'
+                'system_prompt': ''
             },
             'AI_CHARACTER_VRC': {
                 'ai_host': '127.0.0.1',

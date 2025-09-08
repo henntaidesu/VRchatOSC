@@ -55,7 +55,7 @@ class CameraWindow:
         control_frame.pack(fill=tk.X, pady=(0, 10))
         
         # 摄像头控制
-        ttk.Label(control_frame, text="摄像头ID:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        ttk.Label(control_frame, text=self.parent.get_text("camera_id")).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.camera_id_var = tk.StringVar(value="0")
         camera_combo = ttk.Combobox(control_frame, textvariable=self.camera_id_var, 
                                    values=["0", "1", "2"], width=5, state="readonly")
