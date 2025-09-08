@@ -294,9 +294,7 @@ class VoicevoxArea:
                     if speakers_list:
                         speaker_names = [speaker['display'] for speaker in speakers_list]
                         
-                        # 保存成功连接的配置
-                        self.main_app.config.set_voicevox_server(host, port)
-                        self.main_app.config.save_config()
+                        # 连接成功，不自动保存服务器配置（避免不必要的文件写入）
                         
                         # 更新全局客户端实例
                         self.main_app.voicevox_client = voicevox_client
@@ -536,21 +534,24 @@ class VoicevoxArea:
                 self.main_app.voicevox_style_combo['values'] = []
                 self.main_app.voicevox_style_var.set("")
                 
-                # 如果有角色，选择第一个
+                # 尝试恢复用户之前的角色选择
                 if character_list:
-                    self.main_app.voicevox_character_var.set(character_list[0])
+                    saved_character = self.main_app.config.voicevox_last_character
+                    if saved_character and saved_character in character_list:
+                        # 恢复用户之前的选择
+                        self.main_app.voicevox_character_var.set(saved_character)
+                        self.main_app.log(f"[VOICEVOX] 恢复用户配置: {saved_character}")
+                    else:
+                        # 没有有效的历史选择，选择第一个角色
+                        self.main_app.voicevox_character_var.set(character_list[0])
+                        self.main_app.log(f"[VOICEVOX] 使用默认角色: {character_list[0]}")
+                    
                     self.on_voicevox_character_name_changed()
                 else:
                     self.main_app.voicevox_character_var.set("")
                 
-                # 保存到配置
-                self.main_app.config.set_voicevox_last_selection(
-                    period=new_period,
-                    character=self.main_app.voicevox_character_var.get(),
-                    speaker_name=self.main_app.voicevox_character_var.get(),
-                    speaker_style=self.main_app.voicevox_style_var.get()
-                )
-                self.main_app.config.save_config()
+                # 只在需要时才保存配置（避免覆盖用户设置）
+                # 这里不自动保存，让用户主动确认角色选择后再保存
             else:
                 self.main_app.log(f"期数 {new_period} 没有可用角色")
                 

@@ -80,12 +80,7 @@ class ConfigManager:
             },
             'VOICEVOX': {
                 'host': 'localhost',
-                'port': '50021',
-                'last_period': '1期',
-                'last_character': 'ずんだもん - ノーマル',
-                'last_speaker_id': '',
-                'last_speaker_name': '',
-                'last_speaker_style': ''
+                'port': '50021'
             },
             'Runtime': {
                 'mode': 'user',  # 固定用户模式，始终支持语音识别
@@ -119,7 +114,7 @@ class ConfigManager:
         self.save_config()
     
     def _validate_config(self):
-        """验证配置完整性"""
+        """验证配置完整性，只添加缺失项，不覆盖现有配置"""
         modified = False
         
         for section, options in self.default_config.items():
@@ -128,13 +123,15 @@ class ConfigManager:
                 modified = True
             
             for key, default_value in options.items():
+                # 只有当配置项完全不存在时才添加默认值
                 if not self.config.has_option(section, key):
                     self.config.set(section, key, default_value)
                     modified = True
+                    print(f"[配置] 添加缺失配置项: [{section}] {key} = {default_value}")
         
         if modified:
             self.save_config()
-            print("[更新] 配置文件已更新至最新版本")
+            print("[更新] 配置文件已添加缺失项，用户配置保持不变")
     
     def save_config(self):
         """保存配置文件"""
