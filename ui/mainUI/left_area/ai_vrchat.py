@@ -31,12 +31,12 @@ class AIVRChatManager:
         self.last_character_personality = main_app.config.ai_character_last_personality
         
         # 调试配置加载
-        self.main_app.log(f"AI_CHARACTER_VRC配置已加载:")
-        self.main_app.log(f"  主机: {self.ai_host}")  
-        self.main_app.log(f"  发送端口: {self.ai_send_port}")
-        self.main_app.log(f"  接收端口: {self.ai_receive_port}")
-        self.main_app.log(f"  自动连接: {self.auto_connect}")
-        self.main_app.log(f"  角色: {self.last_character_name or '未设置'}")
+        # self.main_app.log(f"AI_CHARACTER_VRC配置已加载:")
+        # self.main_app.log(f"  主机: {self.ai_host}")  
+        # self.main_app.log(f"  发送端口: {self.ai_send_port}")
+        # self.main_app.log(f"  接收端口: {self.ai_receive_port}")
+        # self.main_app.log(f"  自动连接: {self.auto_connect}")
+        # self.main_app.log(f"  角色: {self.last_character_name or '未设置'}")
     
     def setup_ai_character_interface(self, parent_frame):
         """设置AI角色管理界面"""
@@ -219,8 +219,8 @@ class AIVRChatManager:
         self.main_app.ai_config_label = ttk.Label(ai_config_frame, text=ai_info_text, font=("", 8))
         self.main_app.ai_config_label.pack()
 
-        # VRC OSC连接控制区域
-        vrc_control_frame = ttk.LabelFrame(parent_frame, text="VRC连接配置", padding="5")
+        # AI_VRC OSC连接控制区域
+        vrc_control_frame = ttk.LabelFrame(parent_frame, text="AI_VRC连接配置", padding="5")
         vrc_control_frame.pack(fill=tk.X, pady=(5, 5))
 
         # 使用grid布局优化空间利用
@@ -250,7 +250,7 @@ class AIVRChatManager:
         self.main_app.ai_audio_status_label = ttk.Label(status_frame, text="未检查", foreground="gray", width=10)
         self.main_app.ai_audio_status_label.pack(side=tk.LEFT, padx=(0, 15))
 
-        ttk.Label(status_frame, text="VRC连接:", width=10).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(status_frame, text="AI_VRC连接:", width=10).pack(side=tk.LEFT, padx=(0, 2))
         self.main_app.ai_osc_status_label = ttk.Label(status_frame, text="未连接", foreground="red", width=20)
         self.main_app.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 5))
 
@@ -261,7 +261,7 @@ class AIVRChatManager:
         self.main_app.save_ai_config_btn = ttk.Button(button_frame, text="保存配置", command=self.save_ai_vrc_config, width=10)
         self.main_app.save_ai_config_btn.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.main_app.ai_osc_connect_btn = ttk.Button(button_frame, text="连接VRC", command=self.toggle_ai_osc_connection, width=10)
+        self.main_app.ai_osc_connect_btn = ttk.Button(button_frame, text="连接AI_VRC", command=self.toggle_ai_osc_connection, width=10)
         self.main_app.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         self.main_app.refresh_audio_btn = ttk.Button(button_frame, text="刷新音频", command=self.refresh_audio_service_status, width=10)
@@ -269,8 +269,8 @@ class AIVRChatManager:
 
         self.load_ai_vrc_config_from_file()
 
-        # VRC消息发送区域
-        vrc_message_frame = ttk.LabelFrame(parent_frame, text="VRC消息控制", padding="5")
+        # AI_VRC消息发送区域
+        vrc_message_frame = ttk.LabelFrame(parent_frame, text="AI_VRC消息控制", padding="5")
         vrc_message_frame.pack(fill=tk.X, pady=(5, 5))
 
         text_message_row = ttk.Frame(vrc_message_frame)
@@ -697,9 +697,10 @@ class AIVRChatManager:
         """加载AI VRC配置"""
         try:
             if hasattr(self.main_app, 'config'):
-                ai_host = self.main_app.config.get('AI_VRC', 'host', '127.0.0.1')
-                ai_send_port = self.main_app.config.get('AI_VRC', 'send_port', '9000')
-                ai_receive_port = self.main_app.config.get('AI_VRC', 'receive_port', '9001')
+                # 使用统一的配置节名称和属性
+                ai_host = self.main_app.config.ai_character_host
+                ai_send_port = self.main_app.config.ai_character_send_port  
+                ai_receive_port = self.main_app.config.ai_character_receive_port
                 if hasattr(self.main_app, 'ai_host_entry'):
                     self.main_app.ai_host_entry.delete(0, tk.END)
                     self.main_app.ai_host_entry.insert(0, ai_host)
@@ -719,11 +720,22 @@ class AIVRChatManager:
                 ai_host = self.main_app.ai_host_entry.get().strip() if hasattr(self.main_app, 'ai_host_entry') else '127.0.0.1'
                 ai_send_port = self.main_app.ai_send_port_entry.get().strip() if hasattr(self.main_app, 'ai_send_port_entry') else '9000'
                 ai_receive_port = self.main_app.ai_receive_port_entry.get().strip() if hasattr(self.main_app, 'ai_receive_port_entry') else '9001'
-                self.main_app.config.set('AI_VRC', 'host', ai_host)
-                self.main_app.config.set('AI_VRC', 'send_port', ai_send_port)
-                self.main_app.config.set('AI_VRC', 'receive_port', ai_receive_port)
+                
+                # 使用正确的配置节名称和键名
+                self.main_app.config.set('AI_CHARACTER_VRC', 'ai_host', ai_host)
+                self.main_app.config.set('AI_CHARACTER_VRC', 'ai_send_port', int(ai_send_port))
+                self.main_app.config.set('AI_CHARACTER_VRC', 'ai_receive_port', int(ai_receive_port))
+                
+                # 同步更新类属性
+                self.ai_host = ai_host
+                self.ai_send_port = int(ai_send_port)  
+                self.ai_receive_port = int(ai_receive_port)
+                
+                # 更新配置显示
+                self.update_ai_config_display()
+                
                 messagebox.showinfo("保存成功", "AI VRC配置已保存")
-                self.main_app.log("AI VRC配置已保存")
+                self.main_app.log(f"AI VRC配置已保存: {ai_host}:{ai_send_port}")
         except Exception as e:
             messagebox.showerror("保存失败", f"保存AI VRC配置失败: {e}")
             self.main_app.log(f"保存AI VRC配置异常: {e}")
@@ -747,7 +759,7 @@ class AIVRChatManager:
                 if hasattr(self.main_app, 'ai_osc_status_label'):
                     self.main_app.ai_osc_status_label.config(text="已连接", foreground="green")
                 if hasattr(self.main_app, 'ai_osc_connect_btn'):
-                    self.main_app.ai_osc_connect_btn.config(text="断开VRC")
+                    self.main_app.ai_osc_connect_btn.config(text="断开AI_VRC")
                 self.main_app.log("AI OSC已连接")
                 return True
             else:
@@ -774,7 +786,7 @@ class AIVRChatManager:
             if hasattr(self.main_app, 'ai_osc_status_label'):
                 self.main_app.ai_osc_status_label.config(text="未连接", foreground="red")
             if hasattr(self.main_app, 'ai_osc_connect_btn'):
-                self.main_app.ai_osc_connect_btn.config(text="连接VRC")
+                self.main_app.ai_osc_connect_btn.config(text="连接AI_VRC")
             self.main_app.log("AI OSC已断开")
         except Exception as e:
             self.main_app.log(f"断开AI OSC异常: {e}")
@@ -790,20 +802,29 @@ class AIVRChatManager:
 
     
     def ai_send_text_message(self):
-        """AI发送文本消息"""
+        """AI发送文本消息到AI端"""
         try:
             if not hasattr(self.main_app, 'ai_text_entry'):
                 return
             message = self.main_app.ai_text_entry.get().strip()
             if not message:
                 return
-            if not self.ai_is_connected:
-                messagebox.showwarning("提示", "请先连接VRC")
+            if not self.ai_is_connected or not self.ai_osc_client:
+                messagebox.showwarning("提示", "请先连接AI_VRC")
                 return
-            self.main_app.log(f"[AI文本] {message}")
-            self.main_app.ai_text_entry.delete(0, tk.END)
+            
+            # 发送文本消息到AI端
+            success = self.ai_osc_client.send_chatbox_message(message, send_immediately=True)
+            if success:
+                self.main_app.log(f"[AI文本→AI端] {message}")
+                self.main_app.ai_text_entry.delete(0, tk.END)
+            else:
+                self.main_app.log(f"[AI文本发送失败] {message}")
+                messagebox.showerror("发送失败", "发送文本消息到AI端失败")
+                
         except Exception as e:
             self.main_app.log(f"AI发送文本消息异常: {e}")
+            messagebox.showerror("发送异常", f"发送文本消息异常: {e}")
     
     def ai_upload_voice_file(self):
         """AI上传语音文件"""

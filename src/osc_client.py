@@ -132,6 +132,7 @@ class OSCClient:
             if parameter_name in self.voice_parameter_names:
                 # 记录收到的语音参数
                 self.voice_parameters_received.add(parameter_name)
+                print(f"[OSC收到] {parameter_name} = {value}")
                 
                 # 更新语音状态和强度
                 old_speaking = self.vrc_is_speaking
@@ -153,11 +154,17 @@ class OSCClient:
                 
                 # 更新说话状态 (使用更灵活的阈值)
                 if parameter_name not in ["IsSpeaking", "Talking", "VoiceActivity", "Speech"]:
-                    self.vrc_is_speaking = self.vrc_voice_level > 0.005  # 降低阈值
+                    # 如果有语音强度参数，使用阈值判断
+                    if parameter_name in ["Voice", "VoiceLevel", "MicLevel", "VRC_VoiceLevel"]:
+                        self.vrc_is_speaking = self.vrc_voice_level > 0.005
+                    # 如果是嘴部动作参数，使用更宽松的条件
+                    elif parameter_name in ["Viseme", "MouthOpen", "MouthMove"]:
+                        self.vrc_is_speaking = self.vrc_is_speaking or (float(value) if value else 0.0) > 0.02
                 
                 # 调试输出语音状态变化
                 if self.debug_mode or (self.vrc_is_speaking != old_speaking):
                     status_text = "开始说话" if self.vrc_is_speaking else "停止说话"
+                    print(f"[OSC] {parameter_name}={value} -> {status_text} (强度:{self.vrc_voice_level:.3f})")
                     print(f"VRChat语音状态: {status_text} (参数: {parameter_name}, 值: {value}, Level: {self.vrc_voice_level:.4f})")
                 
                 # 通知状态变化
