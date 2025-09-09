@@ -93,10 +93,24 @@ class LLMProcessor:
                 # 显示LLM回复在语音识别框中
                 self.main_app.add_speech_output(response.llm_response, "AI回复")
                 
-                # 如果VRChat已连接，发送消息到VRChat
-                if self.main_app.client:
-                    self.main_app.client.send_text_message(f"[AI] {response.llm_response}")
-                    self.main_app.log(f"[VRChat] 已发送消息: {response.llm_response[:50]}...")
+                # 发送AI回复到AI端VRChat (而不是用户VRChat端)
+                if (hasattr(self.main_app, 'ai_vrchat_area') and 
+                    self.main_app.ai_vrchat_area and 
+                    hasattr(self.main_app.ai_vrchat_area, 'ai_osc_client') and
+                    self.main_app.ai_vrchat_area.ai_osc_client):
+                    try:
+                        success = self.main_app.ai_vrchat_area.ai_osc_client.send_chatbox_message(
+                            f"[AI] {response.llm_response}", 
+                            send_immediately=True
+                        )
+                        if success:
+                            self.main_app.log(f"[AI回复→AI端] 文本已发送: {response.llm_response[:50]}...")
+                        else:
+                            self.main_app.log(f"[AI回复→AI端] 文本发送失败: {response.llm_response[:50]}...")
+                    except Exception as e:
+                        self.main_app.log(f"[AI回复→AI端] 发送异常: {e}")
+                else:
+                    self.main_app.log("[AI回复] AI端未连接，无法发送文本消息")
                 
                 # 按句子结束标点分割文本并逐句处理
                 self.main_app.log(f"[语音合成] 按句子分割（支持中日英标点）: {response.llm_response}")

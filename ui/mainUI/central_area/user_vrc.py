@@ -290,16 +290,16 @@ class VRChatConnection:
                         # 记录到日志
                         self.main_app.log(f"[实时语音{reason_text}] {text}")
                     else:
-                        # 完整识别结果（短语音或传统模式）
+                        # 完整识别结果 - 统一处理逻辑
                         if not self.main_app.is_segmented_recognition:
-                            self.main_app.add_speech_output(text, "持续监听")
-                            self.main_app.client.send_text_message(f"[语音] {text}")
-                            self.main_app.log(f"[持续语音] {text}")
-                            
-                            # 发送到LLM和语音生成（只调用一次，避免重复处理）
+                            # 单次完整识别，直接发送到LLM
+                            self.main_app.add_speech_output(text, "完整识别")
+                            self.main_app.log(f"[完整语音] {text} - 立即发送到LLM")
                             self._send_to_llm_and_voice(text)
-                    
-                    # 注意：不再重复调用 on_voice_result，因为 _send_to_llm_and_voice 已经处理了LLM相关逻辑
+                        else:
+                            # 如果已经在分段模式中，这个完整结果会被分段逻辑处理
+                            self.main_app.log(f"[分段模式] 完整结果已在分段逻辑中处理: {text}")
+                        # 注意：现在确保每个完整识别结果都会被发送到LLM，无论是单次还是分段
             
             # 设置语音结果回调
             self.main_app.client.set_voice_result_callback(voice_callback)

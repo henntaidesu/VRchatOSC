@@ -215,9 +215,24 @@ class StreamingLLMProcessor:
         if hasattr(self.main_app, 'add_speech_output'):
             self.main_app.add_speech_output(response.llm_response, "AI回复")
         
-        # 发送完整回复到VRChat
-        if hasattr(self.main_app, 'client') and self.main_app.client:
-            self.main_app.client.send_text_message(f"[AI] {response.llm_response}")
+        # 发送完整回复到AI端VRChat (而不是用户VRChat端)
+        if (hasattr(self.main_app, 'ai_vrchat_area') and 
+            self.main_app.ai_vrchat_area and 
+            hasattr(self.main_app.ai_vrchat_area, 'ai_osc_client') and
+            self.main_app.ai_vrchat_area.ai_osc_client):
+            try:
+                success = self.main_app.ai_vrchat_area.ai_osc_client.send_chatbox_message(
+                    f"[AI] {response.llm_response}", 
+                    send_immediately=True
+                )
+                if success:
+                    self.main_app.log(f"[AI回复→AI端] 文本已发送: {response.llm_response[:50]}...")
+                else:
+                    self.main_app.log(f"[AI回复→AI端] 文本发送失败: {response.llm_response[:50]}...")
+            except Exception as e:
+                self.main_app.log(f"[AI回复→AI端] 发送异常: {e}")
+        else:
+            self.main_app.log("[AI回复] AI端未连接，无法发送文本消息")
     
     def _detect_complete_sentences(self) -> List[str]:
         """
