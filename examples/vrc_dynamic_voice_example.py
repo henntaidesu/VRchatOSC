@@ -38,7 +38,7 @@ class VRCDynamicVoiceExample:
         )
         
         if not self.speech_engine.is_model_loaded():
-            print("❌ 语音识别引擎初始化失败")
+            print("语音识别引擎初始化失败")
             return False
         
         print("✓ 语音识别引擎初始化完成")
@@ -58,7 +58,7 @@ class VRCDynamicVoiceExample:
         )
         
         if not success:
-            print("❌ VRC语音集成初始化失败")
+            print("VRC语音集成初始化失败")
             return False
         
         # 设置回调
@@ -74,14 +74,14 @@ class VRCDynamicVoiceExample:
         self.osc_client.set_parameter_callback(self.on_osc_parameter)
         
         if not self.osc_client.start_server():
-            print("❌ OSC服务器启动失败")
+            print("OSC服务器启动失败")
             return False
         
         print("✓ OSC客户端初始化完成")
         
         # 启动VRC语音处理
         if not self.vrc_integration.start_processing():
-            print("❌ VRC语音处理启动失败")
+            print("VRC语音处理启动失败")
             return False
         
         print("✓ VRC语音处理已启动")
@@ -125,23 +125,23 @@ class VRCDynamicVoiceExample:
         if status_type == "vrc_voice_dynamic":
             event_type = data.get('event_type', '')
             if event_type == "mic_opened":
-                print("🎙️ [状态] VRC麦克风开启，开始录音...")
+                print("[状态] VRC麦克风开启，开始录音...")
             elif event_type == "mic_closed":
-                print("⏹️ [状态] VRC麦克风关闭，停止录音并处理...")
+                print("[状态] VRC麦克风关闭，停止录音并处理...")
     
     def on_log(self, message: str):
         """处理日志消息"""
-        print(f"📋 {message}")
+        print(f"[日志] {message}")
     
     def run(self):
         """运行示例"""
         if not self.setup():
-            print("❌ 初始化失败，退出")
+            print("初始化失败，退出")
             return
         
         try:
-            print("\n🚀 系统运行中...")
-            print("💡 使用说明:")
+            print("\n系统运行中...")
+            print("使用说明:")
             print("   1. 确保VRChat已启动并启用OSC")
             print("   2. 在VRChat中按住麦克风按键开始说话")
             print("   3. 释放麦克风按键停止说话")
@@ -165,12 +165,12 @@ class VRCDynamicVoiceExample:
                     status = self.vrc_integration.get_status()
                     if status.get('is_recording', False):
                         duration = status.get('recording_duration', 0)
-                        print(f"🔴 正在录音中... ({duration:.1f}秒)")
+                        print(f"正在录音中... ({duration:.1f}秒)")
                 
         except KeyboardInterrupt:
-            print("\n⏹️ 用户中断，正在退出...")
+            print("\n用户中断，正在退出...")
         except Exception as e:
-            print(f"\n❌ 运行时错误: {e}")
+            print(f"\n运行时错误: {e}")
             import traceback
             traceback.print_exc()
         finally:
@@ -189,7 +189,7 @@ class VRCDynamicVoiceExample:
         if self.osc_client:
             self.osc_client.stop_server()
         
-        print("✅ 清理完成")
+        print("清理完成")
 
 
 def main():
