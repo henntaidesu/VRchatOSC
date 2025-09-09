@@ -206,7 +206,7 @@ class VoicevoxArea:
             
             for attempt in range(retry_count):
                 try:
-                    self.main_app.log(f"正在尝试连接VOICEVOX Engine {host}:{port}... (第{attempt + 1}次)")
+                    self.main_app.root.after(0, lambda: self.main_app.log(f"正在尝试连接VOICEVOX Engine {host}:{port}... (第{attempt + 1}次)"))
                     
                     # 使用配置的主机和端口创建客户端实例
                     from src.VOICEVOX.voicevox_tts import VOICEVOXClient
@@ -223,21 +223,21 @@ class VoicevoxArea:
                                 
                                 # 更新UI（必须在主线程中执行）
                                 self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
-                                self.main_app.log(f"VOICEVOX连接成功！已加载{len(speaker_names)}个角色")
+                                self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX连接成功！已加载{len(speaker_names)}个角色"))
                                 return
                             else:
-                                self.main_app.log("VOICEVOX连接成功但未获取到角色列表")
+                                self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX连接成功但未获取到角色列表"))
                         except Exception as e:
-                            self.main_app.log(f"获取VOICEVOX角色列表失败: {e}")
+                            self.main_app.root.after(0, lambda: self.main_app.log(f"获取VOICEVOX角色列表失败: {e}"))
                     else:
-                        self.main_app.log(f"VOICEVOX Engine连接测试失败 (第{attempt + 1}次)")
+                        self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX Engine连接测试失败 (第{attempt + 1}次)"))
                         
                 except Exception as e:
-                    self.main_app.log(f"VOICEVOX连接尝试失败 (第{attempt + 1}次): {e}")
+                    self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX连接尝试失败 (第{attempt + 1}次): {e}"))
                 
                 # 如果不是最后一次尝试，等待后重试
                 if attempt < retry_count - 1:
-                    self.main_app.log("等待3秒后重试...")
+                    self.main_app.root.after(0, lambda: self.main_app.log("等待3秒后重试..."))
                     time.sleep(3)
             
             # 所有尝试都失败了
@@ -246,7 +246,7 @@ class VoicevoxArea:
                        f"1. VOICEVOX Engine是否已启动\n" \
                        f"2. 端口50021是否被占用\n" \
                        f"3. 防火墙设置是否正确"
-            self.main_app.log(error_msg)
+            self.main_app.root.after(0, lambda: self.main_app.log(error_msg))
             self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
         
         # 在后台线程中初始化，避免阻塞UI

@@ -29,6 +29,15 @@ class ConfigManager:
                 'receive_port': '9001',
                 'debug_mode': 'false'
             },
+            'AI_CHARACTER_VRC': {
+                'ai_host': '127.0.0.1',
+                'ai_send_port': '9000',
+                'ai_receive_port': '9001',
+                'auto_connect': 'false',
+                'connection_timeout': '10',
+                'last_character_name': '',
+                'last_character_personality': 'friendly'
+            },
             'Voice': {
                 'language': 'ja-JP',
                 'device': 'auto',
@@ -63,22 +72,14 @@ class ConfigManager:
             },
             'LLM': {
                 'gemini_api_key': '',
-                'gemini_model': '',
+                'gemini_model': 'gemini-2.5-flash',
                 'enable_llm': 'false',
                 'temperature': '0.7',
                 'max_output_tokens': '2048',
                 'conversation_history_length': '10',
                 'system_prompt': ''
             },
-            'AI_CHARACTER_VRC': {
-                'ai_host': '127.0.0.1',
-                'ai_send_port': '9000',
-                'ai_receive_port': '9001',
-                'auto_connect': 'false',
-                'connection_timeout': '10',
-                'last_character_name': '',
-                'last_character_personality': 'friendly'
-            },
+
             'VOICEVOX': {
                 'host': 'localhost',
                 'port': '50021'

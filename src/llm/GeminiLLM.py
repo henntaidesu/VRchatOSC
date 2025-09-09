@@ -64,14 +64,18 @@ class GeminiClient:
         Returns:
             API响应数据或None
         """
-        url = f"{self.base_url}/{endpoint}?key={self.api_key}"
+        url = f"{self.base_url}/{endpoint}"
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "X-goog-api-key": self.api_key
         }
         
         for attempt in range(self.max_retries):
             try:
-                print(f"[网络] 发送请求到Gemini API (尝试 {attempt + 1}/{self.max_retries})")
+                # print(f"[网络] 发送请求到Gemini API (尝试 {attempt + 1}/{self.max_retries})")
+                # print(f"[调试] URL: {url}")
+                # print(f"[调试] Headers: {headers}")
+                # print(f"[调试] Data: {json.dumps(data, ensure_ascii=False, indent=2)}")
                 
                 response = requests.post(
                     url,
@@ -102,10 +106,13 @@ class GeminiClient:
                     return {"error": "API密钥无效或权限不足"}
                 else:
                     print(f"[错误] API请求失败: HTTP {response.status_code}")
+                    print(f"[错误] 请求URL: {url}")
+                    print(f"[错误] 响应内容: {response.text}")
+                    print(f"[错误] 响应头: {dict(response.headers)}")
                     if attempt < self.max_retries - 1:
                         time.sleep(self.retry_delay)
                         continue
-                    return {"error": f"API请求失败: HTTP {response.status_code}"}
+                    return {"error": f"API请求失败: HTTP {response.status_code} - {response.text}"}
                     
             except requests.exceptions.Timeout:
                 print(f"[时间] 请求超时 (尝试 {attempt + 1}/{self.max_retries})")
