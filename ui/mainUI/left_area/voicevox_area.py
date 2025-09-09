@@ -676,8 +676,13 @@ class VoicevoxArea:
             self.main_app.log(f"VOICEVOX测试失败: {e}")
             messagebox.showerror("错误", f"测试失败: {e}")
 
-    def synthesize_with_voicevox(self, text):
-        """使用VOICEVOX合成语音"""
+    def synthesize_with_voicevox(self, text, return_format="numpy"):
+        """使用VOICEVOX合成语音
+        
+        Args:
+            text: 要合成的文本
+            return_format: 返回格式 ("bytes" 或 "numpy")，默认为numpy用于流式处理
+        """
         try:
             if not self.main_app.voicevox_connected or not self.main_app.voicevox_client:
                 self.main_app.log("VOICEVOX未连接，跳过语音合成")
@@ -700,9 +705,28 @@ class VoicevoxArea:
             
             if audio_data:
                 self.main_app.log(f"VOICEVOX语音合成成功: {text[:20]}...")
-                # 播放音频
-                self.main_app.voicevox_client.play_audio(audio_data)
-                return audio_data
+                
+                # 如果需要转换为numpy数组格式（用于流式处理）
+                if return_format == "numpy":
+                    try:
+                        import soundfile as sf
+                        import io
+                        import numpy as np
+                        
+                        # 将bytes数据转换为numpy数组
+                        audio_file = io.BytesIO(audio_data)
+                        numpy_audio, sample_rate = sf.read(audio_file)
+                        
+                        self.main_app.log(f"音频格式转换成功: numpy数组 (采样率: {sample_rate}Hz)")
+                        return numpy_audio
+                        
+                    except Exception as convert_e:
+                        self.main_app.log(f"音频格式转换失败: {convert_e}")
+                        # 转换失败时返回原始bytes数据
+                        return audio_data
+                else:
+                    # 返回原始bytes格式
+                    return audio_data
             else:
                 self.main_app.log("VOICEVOX语音合成失败")
                 return None
