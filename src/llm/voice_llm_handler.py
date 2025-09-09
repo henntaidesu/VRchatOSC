@@ -6,10 +6,13 @@
 import threading
 import queue
 import time
+import numpy as np
+import sounddevice as sd
 from typing import Optional, Callable, Dict, Any, List
 from dataclasses import dataclass
 
 from .GeminiLLM import GeminiClient, GeminiResponse
+from ..voice.engine import SpeechEngine
 
 
 @dataclass
