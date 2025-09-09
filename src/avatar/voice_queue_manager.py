@@ -529,7 +529,7 @@ class VoiceQueueManager:
                 
             except ImportError:
                 # 回退到线性插值
-                print("   ⚠️ scipy未安装，使用线性插值重采样")
+                print("   scipy未安装，使用线性插值重采样")
                 ratio = target_sample_rate / original_sample_rate
                 new_length = int(len(data) * ratio)
                 

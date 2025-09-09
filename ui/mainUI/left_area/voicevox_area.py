@@ -104,11 +104,7 @@ class VoicevoxArea:
         self.main_app.llm_enabled_check.pack(side=tk.LEFT, padx=(10, 0))
         
         # 流式模式开关
-        self.main_app.streaming_mode_var = tk.BooleanVar(value=True)
-        self.main_app.streaming_mode_check = ttk.Checkbutton(control_frame, text="流式模式", 
-                                                   variable=self.main_app.streaming_mode_var, 
-                                                   command=self._toggle_streaming_mode)
-        self.main_app.streaming_mode_check.pack(side=tk.LEFT, padx=(10, 0))
+        # 已移除流式模式切换按钮，因为强制使用流式模式
         
         # 情感感知模式开关
         self.main_app.emotion_awareness_var = tk.BooleanVar(value=True)
@@ -1024,15 +1020,7 @@ class VoicevoxArea:
         enabled = self.main_app.llm_enabled_var.get()
         self.main_app.llm_processor.toggle_llm_enabled(enabled)
     
-    def _toggle_streaming_mode(self):
-        """切换流式模式"""
-        enabled = self.main_app.streaming_mode_var.get()
-        if hasattr(self.main_app.llm_processor, 'set_streaming_mode'):
-            self.main_app.llm_processor.set_streaming_mode(enabled)
-            mode = "流式" if enabled else "传统"
-            self.main_app.log(f"[设置] 已切换到{mode}LLM模式")
-        else:
-            self.main_app.log("[警告] LLM处理器不支持流式模式切换")
+    # 已移除 _toggle_streaming_mode 方法，因为强制使用流式模式
     
     def _toggle_emotion_awareness(self):
         """切换情感感知模式"""

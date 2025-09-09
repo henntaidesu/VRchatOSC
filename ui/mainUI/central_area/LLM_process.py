@@ -17,7 +17,7 @@ class LLMProcessor:
         self.streaming_processor = None  # 流式处理器
         self.emotion_aware_processor = None  # 情感感知处理器
         self.llm_enabled = True
-        self.streaming_mode = True  # 是否使用流式模式
+        self.streaming_mode = True  # 强制使用流式模式（已移除传统模式）
         self.emotion_awareness_enabled = True  # 是否启用情感感知
         
         # 对话记录相关
@@ -57,19 +57,7 @@ class LLMProcessor:
                             self.main_app.log("流式LLM处理器初始化成功")
                         else:
                             self.main_app.log("流式LLM处理器初始化失败：客户端未就绪")
-                else:
-                    # 初始化传统处理器
-                    self.llm_handler = VoiceLLMHandler(config=self.main_app.config)
-                    
-                    # 设置LLM响应回调
-                    self.llm_handler.set_response_callback(self.on_llm_response)
-                    
-                    if self.llm_handler.is_client_ready():
-                        # 启动处理器
-                        self.llm_handler.start_processing()
-                        self.main_app.log("LLM处理器初始化成功")
-                    else:
-                        self.main_app.log("LLM处理器初始化失败：客户端未就绪")
+                # 已移除传统模式处理器初始化
                     
         except Exception as e:
             self.main_app.log(f"初始化LLM处理器失败: {e}")
@@ -147,50 +135,38 @@ class LLMProcessor:
             # 存储用户输入以便后续记录对话
             self.current_user_input = text.strip()
             
-            # 根据模式选择处理器
-            if self.streaming_mode:
-                if self.emotion_awareness_enabled and self.emotion_aware_processor:
-                    # 使用情感感知流式处理器
-                    if self.emotion_aware_processor.is_client_ready():
-                        self.main_app.log(f"[语音识别] 提交到情感感知LLM: {text}")
-                        request_id = self.emotion_aware_processor.submit_voice_text(text)
-                        if request_id:
-                            self.main_app.log(f"[情感感知LLM] ✅ 已提交语音到AI处理 (ID: {request_id})")
-                            return True
-                        else:
-                            self.main_app.log("[情感感知LLM] ❌ 提交语音到AI失败")
-                            return False
-                    else:
-                        self.main_app.log("[情感感知LLM] ⚠️ 情感感知处理器未就绪")
-                        return False
-                elif self.streaming_processor:
-                    # 使用普通流式处理器
-                    if self.streaming_processor.is_client_ready():
-                        self.main_app.log(f"[语音识别] 提交到流式LLM: {text}")
-                        request_id = self.streaming_processor.submit_voice_text(text)
-                        if request_id:
-                            self.main_app.log(f"[流式LLM] ✅ 已提交语音到AI处理 (ID: {request_id})")
-                            return True
-                        else:
-                            self.main_app.log("[流式LLM] ❌ 提交语音到AI失败")
-                            return False
-                    else:
-                        self.main_app.log("[流式LLM] ⚠️ 流式处理器未就绪")
-                        return False
-            else:
-                # 使用传统处理器
-                if self.llm_handler and self.llm_handler.is_client_ready():
-                    self.main_app.log(f"[语音识别] 提交到传统LLM: {text}")
-                    request_id = self.llm_handler.submit_voice_text(text)
+            # 只使用流式处理器（已移除传统模式）
+            if self.emotion_awareness_enabled and self.emotion_aware_processor:
+                # 使用情感感知流式处理器
+                if self.emotion_aware_processor.is_client_ready():
+                    self.main_app.log(f"[语音识别] 提交到情感感知LLM: {text}")
+                    request_id = self.emotion_aware_processor.submit_voice_text(text)
                     if request_id:
-                        self.main_app.log(f"[传统LLM] ✅ 已提交语音到AI处理 (ID: {request_id})")
+                        self.main_app.log(f"[情感感知LLM] 已提交语音到AI处理 (ID: {request_id})")
                         return True
                     else:
-                        self.main_app.log("[传统LLM] ❌ 提交语音到AI失败")
+                        self.main_app.log("[情感感知LLM] 提交语音到AI失败")
                         return False
                 else:
-                    self.main_app.log("[传统LLM] ⚠️ LLM处理器未就绪")
+                    self.main_app.log("[情感感知LLM] 情感感知处理器未就绪")
                     return False
+            elif self.streaming_processor:
+                # 使用普通流式处理器
+                if self.streaming_processor.is_client_ready():
+                    self.main_app.log(f"[语音识别] 提交到流式LLM: {text}")
+                    request_id = self.streaming_processor.submit_voice_text(text)
+                    if request_id:
+                        self.main_app.log(f"[流式LLM] 已提交语音到AI处理 (ID: {request_id})")
+                        return True
+                    else:
+                        self.main_app.log("[流式LLM] 提交语音到AI失败")
+                        return False
+                else:
+                    self.main_app.log("[流式LLM] 流式处理器未就绪")
+                    return False
+            else:
+                self.main_app.log("[流式LLM] 没有可用的流式处理器")
+                return False
         except Exception as e:
             self.main_app.log(f"处理语音文本时出错: {e}")
             return False
@@ -240,19 +216,7 @@ class LLMProcessor:
         except Exception as e:
             self.main_app.log(f"关闭LLM处理器时出错: {e}")
             
-    def set_streaming_mode(self, enabled: bool):
-        """设置流式模式开关"""
-        if self.streaming_mode != enabled:
-            # 关闭当前处理器
-            self.shutdown()
-            
-            self.streaming_mode = enabled
-            
-            # 重新初始化
-            self.init_llm_handler()
-            
-            mode = "流式" if enabled else "传统"
-            self.main_app.log(f"已切换到{mode}LLM处理模式")
+    # 已移除 set_streaming_mode 方法，因为强制使用流式模式
     
     def set_emotion_awareness_enabled(self, enabled: bool):
         """设置情感感知开关"""

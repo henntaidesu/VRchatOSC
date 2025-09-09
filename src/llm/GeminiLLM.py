@@ -271,6 +271,181 @@ class GeminiClient:
                 error=f"内容生成异常: {str(e)}"
             )
     
+    def generate_content_stream(self, prompt: str, system_prompt: Optional[str] = None, callback=None):
+        """
+        流式生成内容
+        
+        Args:
+            prompt: 用户输入的提示词
+            system_prompt: 系统提示词（可选）
+            callback: 回调函数，接收每个流式片段 callback(chunk_text, is_final)
+            
+        Returns:
+            完整的文本响应
+        """
+        try:
+            print(f"[AI流式] 处理Gemini流式请求: {prompt[:50]}...")
+            
+            # 构建消息内容
+            contents = []
+            
+            # 如果有系统提示词，先添加
+            if system_prompt:
+                contents.append({
+                    "role": "user",
+                    "parts": [{"text": f"System: {system_prompt}"}]
+                })
+            
+            # 添加用户消息
+            contents.append({
+                "role": "user", 
+                "parts": [{"text": prompt}]
+            })
+            
+            # 构建请求数据
+            request_data = {
+                "contents": contents,
+                "generationConfig": self.generation_config,
+                "safetySettings": [
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    }
+                ]
+            }
+            
+            # 使用流式端点
+            endpoint = f"models/{self.model}:streamGenerateContent"
+            full_response = self._make_streaming_request(endpoint, request_data, callback)
+            
+            return full_response
+            
+        except Exception as e:
+            print(f"[错误] Gemini流式内容生成失败: {e}")
+            import traceback
+            traceback.print_exc()
+            if callback:
+                callback("", True)  # 标记结束
+            return ""
+    
+    def _make_streaming_request(self, endpoint: str, data: Dict[str, Any], callback=None) -> str:
+        """
+        发送流式请求到Gemini API
+        
+        Args:
+            endpoint: API端点
+            data: 请求数据
+            callback: 流式回调函数
+            
+        Returns:
+            完整响应文本
+        """
+        try:
+            url = f"{self.base_url}/{endpoint}?key={self.api_key}"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            
+            print(f"[流式请求] 发送到: {url}")
+            
+            # 发送流式请求
+            response = requests.post(
+                url, 
+                json=data, 
+                headers=headers, 
+                stream=True,  # 启用流式响应
+                timeout=60
+            )
+            
+            if response.status_code != 200:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                print(f"[错误] API请求失败: {error_msg}")
+                if callback:
+                    callback("", True)
+                return ""
+            
+            full_text = ""
+            chunk_count = 0
+            
+            print("[流式响应] 开始接收数据流...")
+            
+            # 逐行处理流式响应
+            for line in response.iter_lines(decode_unicode=True):
+                if not line or not line.strip():
+                    continue
+                
+                try:
+                    # Gemini流式API返回的每行都是一个JSON对象
+                    chunk_data = json.loads(line)
+                    chunk_count += 1
+                    
+                    # 解析流式数据
+                    candidates = chunk_data.get("candidates", [])
+                    if not candidates:
+                        continue
+                    
+                    candidate = candidates[0]
+                    content = candidate.get("content", {})
+                    parts = content.get("parts", [])
+                    
+                    if not parts:
+                        continue
+                    
+                    # 提取文本内容
+                    chunk_text = ""
+                    for part in parts:
+                        if "text" in part:
+                            chunk_text += part["text"]
+                    
+                    if chunk_text:
+                        full_text += chunk_text
+                        print(f"[流式片段 #{chunk_count}] 收到: {len(chunk_text)} 字符")
+                        
+                        # 调用回调函数传递流式片段
+                        if callback:
+                            is_final = candidate.get("finishReason") is not None
+                            callback(chunk_text, is_final)
+                    
+                    # 检查是否完成
+                    if candidate.get("finishReason"):
+                        print(f"[流式完成] 原因: {candidate.get('finishReason')}")
+                        break
+                        
+                except json.JSONDecodeError as e:
+                    print(f"[警告] 跳过无效JSON行: {line[:100]}")
+                    continue
+                except Exception as e:
+                    print(f"[警告] 处理流式片段时出错: {e}")
+                    continue
+            
+            print(f"[流式结束] 总共接收 {chunk_count} 个片段，文本长度: {len(full_text)}")
+            
+            # 发送最终完成信号
+            if callback:
+                callback("", True)
+            
+            return full_text
+            
+        except Exception as e:
+            print(f"[错误] 流式请求失败: {e}")
+            if callback:
+                callback("", True)
+            return ""
+    
     def chat(self, message: str, conversation_history: Optional[List[Dict[str, str]]] = None) -> GeminiResponse:
         """
         进行对话

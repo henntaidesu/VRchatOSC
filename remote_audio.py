@@ -146,8 +146,8 @@ class RemoteAudioService:
             self.show_device_selection_prompt()
                 
         except ImportError:
-            print("❌ sounddevice未安装")
-            print("💡 请运行: pip install sounddevice soundfile scipy")
+            print("sounddevice未安装")
+            print("请运行: pip install sounddevice soundfile scipy")
         except Exception as e:
             print(f"检测音频设备失败: {e}")
     

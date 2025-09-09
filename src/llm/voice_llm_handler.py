@@ -196,20 +196,42 @@ class VoiceLLMHandler:
                     error="LLM客户端未初始化"
                 )
             
-            # 决定使用哪种处理方式
-            if len(self.conversation_history) == 0:
-                # 首次对话，使用generate_content
-                system_prompt = request.system_prompt or self.default_system_prompt
-                llm_response = self.gemini_client.generate_content(
-                    prompt=request.text,
-                    system_prompt=system_prompt
-                )
-            else:
-                # 多轮对话，使用chat
-                llm_response = self.gemini_client.chat(
-                    message=request.text,
-                    conversation_history=self.conversation_history
-                )
+            # 强制使用流式处理（已移除传统模式）
+            system_prompt = request.system_prompt or self.default_system_prompt
+            
+            # 创建流式回调函数
+            current_response_text = ""
+            def stream_callback(chunk_text, is_final):
+                nonlocal current_response_text
+                if chunk_text:  # 如果有内容
+                    current_response_text += chunk_text
+                    # 触发流式回调，传递部分响应
+                    partial_response = VoiceLLMResponse(
+                        request_id=request.request_id,
+                        original_text=request.text,
+                        llm_response=current_response_text,
+                        timestamp=time.time(),
+                        processing_time=time.time() - start_time,
+                        success=True,
+                        error=None
+                    )
+                    # 调用回调函数传递流式结果
+                    if self.response_callback:
+                        self.response_callback(partial_response)
+            
+            # 只使用流式生成内容
+            print("[流式] 使用Gemini流式API")
+            full_response_text = self.gemini_client.generate_content_stream(
+                prompt=request.text,
+                system_prompt=system_prompt,
+                callback=stream_callback
+            )
+            
+            # 创建模拟的GeminiResponse对象
+            llm_response = type('GeminiResponse', (), {
+                'text': full_response_text,
+                'error': None if full_response_text else "流式响应为空"
+            })()
             
             # 处理响应
             if llm_response.error:

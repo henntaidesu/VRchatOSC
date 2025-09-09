@@ -445,11 +445,11 @@ class StreamingLLMProcessor:
                                     priority=0
                                 )
                                 if success:
-                                    print(f"[9003] ✅ 音频发送成功: {sentence_text}")
+                                    print(f"[9003] 音频发送成功: {sentence_text}")
                                     if hasattr(self.main_app, 'log'):
                                         self.main_app.log(f"[9003] 音频发送成功: {sentence_text[:30]}...")
                                 else:
-                                    print(f"[9003] ❌ 音频发送失败: {sentence_text}")
+                                    print(f"[9003] 音频发送失败: {sentence_text}")
                                     if hasattr(self.main_app, 'log'):
                                         self.main_app.log(f"[9003] 音频发送失败: {sentence_text[:30]}...")
                             except Exception as e:
