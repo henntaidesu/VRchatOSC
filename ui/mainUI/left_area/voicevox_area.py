@@ -700,8 +700,9 @@ class VoicevoxArea:
                 volume_scale=self.main_app.volume_var.get()
             )
             
-            # 合成语音
-            audio_data = self.main_app.voicevox_client.synthesize_speech(text)
+            # 合成语音（流式处理时等待上一个合成完成，确保顺序）
+            wait_for_previous = (return_format == "numpy")  # 流式处理需要等待
+            audio_data = self.main_app.voicevox_client.synthesize_speech(text, wait_for_previous=wait_for_previous)
             
             if audio_data:
                 self.main_app.log(f"VOICEVOX语音合成成功: {text[:20]}...")

@@ -284,9 +284,10 @@ class StreamingLLMProcessor:
                 if hasattr(self.main_app, 'log'):
                     self.main_app.log(f"[语音合成] 开始合成: {sentence_text}")
                 
-                audio_data = self.main_app.voicevox_area.synthesize_with_voicevox(sentence_text)
+                # 调用VOICEVOX合成，指定返回numpy格式
+                audio_data = self.main_app.voicevox_area.synthesize_with_voicevox(sentence_text, return_format="numpy")
                 
-                if audio_data and isinstance(audio_data, np.ndarray):
+                if audio_data is not None:
                     print(f"[VOICEVOX] 语音合成成功 - 文本: {sentence_text}")
                     if hasattr(self.main_app, 'log'):
                         self.main_app.log(f"[VOICEVOX] 语音合成成功: {sentence_text[:30]}...")
@@ -296,9 +297,20 @@ class StreamingLLMProcessor:
                         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
                             temp_audio_path = tmp_file.name
                         
+                        # 确定采样率和音频数据格式
+                        if isinstance(audio_data, np.ndarray):
+                            # numpy数组格式 - 来自新的转换
+                            sample_rate = 24000  # VOICEVOX Engine实际输出采样率
+                            print(f"[音频] numpy数组格式，形状: {audio_data.shape}")
+                        else:
+                            # 其他格式的兜底处理
+                            print(f"[音频] 其他格式: {type(audio_data)}")
+                            # 尝试获取VOICEVOX客户端信息来推断采样率
+                            sample_rate = 24000
+                        
                         # 保存音频数据为WAV文件
-                        sf.write(temp_audio_path, audio_data, 22050)  # VOICEVOX通常使用22050Hz
-                        print(f"[临时文件] 已保存音频: {temp_audio_path}")
+                        sf.write(temp_audio_path, audio_data, sample_rate)
+                        print(f"[临时文件] 已保存音频: {temp_audio_path} (采样率: {sample_rate}Hz)")
                         
                         # 3. 发送音频文件到9003端口
                         if self.remote_audio_client:
@@ -340,11 +352,13 @@ class StreamingLLMProcessor:
                     
                     except Exception as file_e:
                         print(f"[错误] 保存临时音频文件失败: {file_e}")
+                        import traceback
+                        traceback.print_exc()
                         
-                elif audio_data:
-                    print(f"[警告] VOICEVOX返回的音频数据格式不支持: {type(audio_data)}")
                 else:
                     print(f"[警告] VOICEVOX合成失败: {sentence_text}")
+                    if hasattr(self.main_app, 'log'):
+                        self.main_app.log(f"[VOICEVOX] 合成失败: {sentence_text[:30]}...")
             
             # 4. 调用句子回调（如果有）
             if self.sentence_callback:

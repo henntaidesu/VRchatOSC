@@ -299,8 +299,8 @@ class LLMProcessor:
                     if sentence.strip():
                         self.main_app.log(f"[顺序播放] 处理句子 {i+1}/{len(sentences)}: {sentence}")
                         
-                        # 同步合成音频
-                        audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip())
+                        # 同步合成音频，指定返回bytes格式（用于传统处理）
+                        audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip(), return_format="bytes")
                         
                         if audio_result is not None:
                             self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()} (大小: {len(audio_result)} bytes)")

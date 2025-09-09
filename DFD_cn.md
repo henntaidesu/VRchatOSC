@@ -2,7 +2,7 @@
 graph TB
     
 
-    N1[Camera] --> N2[EmoNeXt] -- |获取用户情感| --> N7[VOICEVOX语音合成]
+    N1[Camera] --> N2[EmoNeXt] -- |获取用户情感| --> N7[VOICEVOX语音合成] 
 
     N3[USER_VRC_OSC] -- |获取语音| --> N4[Whisper 语音转文字]
     N4 -- |提交文本| --> N5[Gemini API 流式返回]
