@@ -341,37 +341,201 @@ class SettingsWindow:
         
         # OSC参数过滤设置
         row += 1
-        ttk.Label(advanced_frame, text="过滤OSC参数:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Label(advanced_frame, text=self._get_text("filter_osc_parameters", "过滤OSC参数:")).grid(row=row, column=0, sticky=tk.NW, padx=10, pady=5)
         
-        # 创建Text组件用于输入参数列表
+        # 创建可滚动的参数勾选框列表
         row += 1
-        filter_frame = ttk.LabelFrame(advanced_frame, text="需要过滤的参数（一行一个）", padding="5")
+        filter_frame = ttk.LabelFrame(advanced_frame, text=self._get_text("parameter_filter_list", "参数过滤列表"), padding="5")
         filter_frame.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=5)
         
-        # 创建滚动Text组件
-        text_frame = ttk.Frame(filter_frame)
-        text_frame.pack(fill=tk.BOTH, expand=True)
+        # 创建Canvas和Scrollbar用于滚动
+        canvas = tk.Canvas(filter_frame, height=200)
+        scrollbar_params = ttk.Scrollbar(filter_frame, orient="vertical", command=canvas.yview)
+        scrollable_params_frame = ttk.Frame(canvas)
         
-        self.filtered_params_text = tk.Text(text_frame, height=6, width=50)
-        scrollbar_filter = ttk.Scrollbar(text_frame, orient="vertical", command=self.filtered_params_text.yview)
-        self.filtered_params_text.configure(yscrollcommand=scrollbar_filter.set)
+        scrollable_params_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
         
-        self.filtered_params_text.pack(side="left", fill="both", expand=True)
-        scrollbar_filter.pack(side="right", fill="y")
+        canvas.create_window((0, 0), window=scrollable_params_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_params.set)
         
-        # 加载当前过滤参数
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_params.pack(side="right", fill="y")
+        
+        # 定义OSC参数分类和列表
+        self.osc_parameter_categories = {
+            "基本状态参数": [
+                ("AvatarVersion", "Avatar版本信息"),
+                ("Grounded", "是否接地状态"),
+                ("InStation", "是否在Station中"),
+                ("Seated", "是否坐着"),
+                ("AFK", "是否挂机"),
+                ("MuteSelf", "是否静音"),
+                ("Earmuffs", "是否戴耳机"),
+                ("AFKTimer", "挂机计时器"),
+            ],
+            "手势控制参数": [
+                ("GestureLeft", "左手手势"),
+                ("GestureRight", "右手手势"),
+                ("GestureLeftWeight", "左手手势权重"),
+                ("GestureRightWeight", "右手手势权重"),
+            ],
+            "身体部位参数": [
+                ("Hips_SwimsuitGrab_Angle", "臀部泳装抓取角度"),
+                ("Chest_SwimsuitGrab_Angle", "胸部泳装抓取角度"),
+                ("Thigh_L_SwimsuitGrab_Angle", "左大腿泳装抓取角度"),
+                ("Thigh_R_SwimsuitGrab_Angle", "右大腿泳装抓取角度"),
+            ],
+            "表情控制参数": [
+                ("FaceEmoHappy", "开心表情"),
+                ("FaceEmoSad", "悲伤表情"),
+                ("FaceEmoAngry", "愤怒表情"),
+                ("FaceEmoSurprised", "惊讶表情"),
+            ],
+            "跟踪系统参数": [
+                ("TrackingType", "跟踪类型"),
+                ("UpRight", "直立状态"),
+                ("VRMode", "VR模式"),
+            ],
+            # 保留扩展空间 - 可以在这里添加更多分类
+            "自定义参数": [
+                # 未来可以添加更多参数
+            ]
+        }
+        
+        # 创建参数勾选框
+        self.param_checkboxes = {}
         current_filtered = self.config.filtered_osc_parameters
-        if current_filtered:
-            self.filtered_params_text.insert(tk.END, '\n'.join(current_filtered))
         
-        # 添加说明标签
+        # 使用循环创建分类和参数
+        for category_name, params in self.osc_parameter_categories.items():
+            if not params:  # 跳过空分类
+                continue
+                
+            # 创建分类标题
+            category_label = ttk.Label(scrollable_params_frame, 
+                                     text=f"▼ {category_name}", 
+                                     font=("", 9, "bold"),
+                                     foreground="#0066CC")
+            category_label.pack(anchor=tk.W, padx=5, pady=(10, 2))
+            
+            # 创建该分类下的参数勾选框
+            for param_name, description in params:
+                self._create_parameter_checkbox(scrollable_params_frame, 
+                                              param_name, description, 
+                                              param_name in current_filtered)
+        
+        # 添加全选/全不选按钮
         row += 1
-        help_text = "常见可过滤参数：Hips_SwimsuitGrab_Angle, AvatarVersion, MuteSelf, Grounded, InStation, Seated"
-        help_label = ttk.Label(advanced_frame, text=help_text, foreground="gray", font=("", 8))
-        help_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=10, pady=2)
+        button_frame = ttk.Frame(advanced_frame)
+        button_frame.grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
+        
+        ttk.Button(button_frame, text=self._get_text("select_all", "全选"), 
+                  command=self._select_all_params).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text=self._get_text("select_none", "全不选"), 
+                  command=self._select_no_params).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text=self._get_text("select_recommended", "推荐设置"), 
+                  command=self._select_recommended_params).pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 添加自定义参数按钮
+        ttk.Button(button_frame, text=self._get_text("add_custom_param", "添加自定义"), 
+                  command=self._add_custom_parameter).pack(side=tk.LEFT)
         
         advanced_frame.columnconfigure(1, weight=1)
         advanced_frame.rowconfigure(row-1, weight=1)  # 让过滤参数框可以扩展
+    
+    def _create_parameter_checkbox(self, parent, param_name, description, is_checked=False):
+        """创建单个参数的勾选框
+        
+        Args:
+            parent: 父组件
+            param_name: 参数名
+            description: 参数描述
+            is_checked: 是否默认选中
+        """
+        checkbox_frame = ttk.Frame(parent)
+        checkbox_frame.pack(fill=tk.X, padx=15, pady=1)  # 缩进显示分类下的参数
+        
+        # 创建勾选框变量
+        var = tk.BooleanVar(value=is_checked)
+        self.param_checkboxes[param_name] = var
+        
+        # 创建勾选框
+        checkbox = ttk.Checkbutton(checkbox_frame, variable=var)
+        checkbox.pack(side=tk.LEFT)
+        
+        # 参数名标签 - 使用等宽字体便于对齐
+        param_label = ttk.Label(checkbox_frame, text=param_name, 
+                               font=("Consolas", 9), width=25)
+        param_label.pack(side=tk.LEFT, padx=(5, 5))
+        
+        # 描述标签
+        desc_label = ttk.Label(checkbox_frame, text=f"- {description}", 
+                             foreground="gray", font=("", 8))
+        desc_label.pack(side=tk.LEFT)
+    
+    def _select_all_params(self):
+        """全选所有参数进行过滤"""
+        for var in self.param_checkboxes.values():
+            var.set(True)
+    
+    def _select_no_params(self):
+        """全不选，不过滤任何参数"""
+        for var in self.param_checkboxes.values():
+            var.set(False)
+    
+    def _select_recommended_params(self):
+        """选择推荐的过滤参数"""
+        # 推荐过滤的参数（通常是不重要的参数）
+        recommended_params = {
+            "Hips_SwimsuitGrab_Angle", "Chest_SwimsuitGrab_Angle",
+            "Thigh_L_SwimsuitGrab_Angle", "Thigh_R_SwimsuitGrab_Angle",
+            "AvatarVersion", "MuteSelf", "Grounded", "InStation", 
+            "Seated", "AFK", "Earmuffs", "AFKTimer"
+        }
+        
+        for param_name, var in self.param_checkboxes.items():
+            var.set(param_name in recommended_params)
+    
+    def _add_custom_parameter(self):
+        """添加自定义参数"""
+        from tkinter import simpledialog
+        
+        # 弹出对话框让用户输入参数名
+        param_name = simpledialog.askstring(
+            self._get_text("add_custom_param", "添加自定义参数"), 
+            self._get_text("enter_param_name", "请输入参数名称:")
+        )
+        
+        if param_name and param_name.strip():
+            param_name = param_name.strip()
+            
+            # 检查是否已存在
+            if param_name in self.param_checkboxes:
+                messagebox.showwarning(
+                    self._get_text("warning", "警告"), 
+                    self._get_text("param_already_exists", "参数已存在!")
+                )
+                return
+            
+            # 添加到自定义分类中
+            if "自定义参数" not in self.osc_parameter_categories:
+                self.osc_parameter_categories["自定义参数"] = []
+            
+            # 添加新参数
+            self.osc_parameter_categories["自定义参数"].append((param_name, "用户自定义参数"))
+            
+            # 需要重新创建界面来显示新参数
+            # 这里为简化，直接添加到现有的勾选框字典中
+            var = tk.BooleanVar(value=True)  # 新添加的参数默认选中过滤
+            self.param_checkboxes[param_name] = var
+            
+            messagebox.showinfo(
+                self._get_text("success", "成功"), 
+                self._get_text("param_added_success", f"参数 '{param_name}' 已添加，保存设置后生效")
+            )
     
     def apply_settings(self):
         """应用设置（不保存到文件）"""
@@ -430,10 +594,10 @@ class SettingsWindow:
         self.config.set('Advanced', 'recognition_interval', self.recognition_interval_var.get())
         
         # OSC参数过滤设置
-        if hasattr(self, 'filtered_params_text'):
-            # 从Text组件获取参数列表
-            params_text = self.filtered_params_text.get(1.0, tk.END).strip()
-            filtered_params = [param.strip() for param in params_text.split('\n') if param.strip()]
+        if hasattr(self, 'param_checkboxes'):
+            # 从勾选框获取选中的参数列表
+            filtered_params = [param_name for param_name, var in self.param_checkboxes.items() 
+                             if var.get()]
             # 保存到配置
             self.config.filtered_osc_parameters = filtered_params
         

@@ -219,5 +219,14 @@
   "control_panel": "控制面板",
   "start": "开始",
   "stop": "停止",
-  "port": "端口:"
+  "port": "端口:",
+  "filter_osc_parameters": "过滤OSC参数:",
+  "parameter_filter_list": "参数过滤列表",
+  "select_all": "全选",
+  "select_none": "全不选",
+  "select_recommended": "推荐设置",
+  "add_custom_param": "添加自定义",
+  "enter_param_name": "请输入参数名称:",
+  "param_already_exists": "参数已存在!",
+  "param_added_success": "参数已添加，保存设置后生效"
 }

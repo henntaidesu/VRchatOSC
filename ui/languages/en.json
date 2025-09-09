@@ -222,5 +222,14 @@
   "control_panel": "Control Panel",
   "start": "Start",
   "stop": "Stop",
-  "port": "Port:"
+  "port": "Port:",
+  "filter_osc_parameters": "Filter OSC Parameters:",
+  "parameter_filter_list": "Parameter Filter List",
+  "select_all": "Select All",
+  "select_none": "Select None",
+  "select_recommended": "Recommended Settings",
+  "add_custom_param": "Add Custom",
+  "enter_param_name": "Please enter parameter name:",
+  "param_already_exists": "Parameter already exists!",
+  "param_added_success": "Parameter added, will take effect after saving settings"
 }
