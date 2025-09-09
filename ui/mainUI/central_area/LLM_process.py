@@ -329,8 +329,10 @@ class LLMProcessor:
     def _send_audio_to_port9003(self, audio_data):
         """发送音频数据到9003端口"""
         try:
-            import socket
             import threading
+            import tempfile
+            import os
+            from remote_audio import RemoteAudioClient
             
             # 检查音频数据格式
             if not isinstance(audio_data, bytes):
@@ -338,18 +340,37 @@ class LLMProcessor:
                 return
                 
             audio_size = len(audio_data)
-            self.main_app.log(f"[端口9003] 准备发送音频数据，大小: {audio_size} bytes")
+            
+            # 获取AI主机地址
+            ai_host = self.main_app.config.ai_character_host if self.main_app.config else "127.0.0.1"
+            self.main_app.log(f"[端口9003] 准备发送音频数据到 {ai_host}:9003，大小: {audio_size} bytes")
             
             def send_audio_thread():
                 try:
-                    # 直接发送整个音频，不分块
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    sock.sendto(audio_data, ('127.0.0.1', 9003))
-                    sock.close()
-                    self.main_app.log(f"[端口9003] 音频数据发送成功 ({audio_size} bytes)")
+                    # 使用RemoteAudioClient发送音频
+                    client = RemoteAudioClient(host=ai_host, port=9003)
+                    
+                    # 保存临时音频文件
+                    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                        temp_file.write(audio_data)
+                        temp_audio_path = temp_file.name
+                    
+                    # 发送音频文件
+                    success = client.play_audio_file(temp_audio_path, use_queue=True, priority=0)
+                    
+                    # 清理临时文件
+                    try:
+                        os.unlink(temp_audio_path)
+                    except:
+                        pass
+                    
+                    if success:
+                        self.main_app.log(f"[端口9003] 音频数据发送成功到 {ai_host}:9003 ({audio_size} bytes)")
+                    else:
+                        self.main_app.log(f"[端口9003] 音频发送失败到 {ai_host}:9003")
                     
                 except Exception as e:
-                    self.main_app.log(f"[端口9003] 音频发送失败: {e}")
+                    self.main_app.log(f"[端口9003] 音频发送失败到 {ai_host}:9003: {e}")
             
             # 在后台线程中发送，避免阻塞UI
             thread = threading.Thread(target=send_audio_thread, daemon=True)
@@ -361,7 +382,9 @@ class LLMProcessor:
     def _send_audio_to_port9003_sync(self, audio_data, sentence_index, total_sentences):
         """同步发送音频数据到9003端口（用于顺序播放）"""
         try:
-            import socket
+            import tempfile
+            import os
+            from remote_audio import RemoteAudioClient
             
             # 检查音频数据格式
             if not isinstance(audio_data, bytes):
@@ -369,20 +392,43 @@ class LLMProcessor:
                 return
                 
             audio_size = len(audio_data)
-            self.main_app.log(f"[端口9003] 发送句子 {sentence_index}/{total_sentences}，大小: {audio_size} bytes")
             
-            # 直接发送整个音频，不分块
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # 获取AI主机地址
+            ai_host = self.main_app.config.ai_character_host if self.main_app.config else "127.0.0.1"
+            self.main_app.log(f"[端口9003] 发送句子 {sentence_index}/{total_sentences} 到 {ai_host}:9003，大小: {audio_size} bytes")
             
             try:
-                sock.sendto(audio_data, ('127.0.0.1', 9003))
-                self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送成功 ({audio_size} bytes)")
+                # 使用RemoteAudioClient发送音频
+                client = RemoteAudioClient(host=ai_host, port=9003)
                 
-            finally:
-                sock.close()
+                # 保存临时音频文件
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    temp_file.write(audio_data)
+                    temp_audio_path = temp_file.name
+                
+                # 发送音频文件（使用队列确保顺序播放）
+                success = client.play_audio_file(
+                    temp_audio_path, 
+                    use_queue=True, 
+                    priority=sentence_index  # 使用句子索引作为优先级确保顺序
+                )
+                
+                # 清理临时文件
+                try:
+                    os.unlink(temp_audio_path)
+                except:
+                    pass
+                
+                if success:
+                    self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送成功到 {ai_host}:9003 ({audio_size} bytes)")
+                else:
+                    self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败到 {ai_host}:9003")
+                
+            except Exception as e:
+                self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败到 {ai_host}:9003: {e}")
                 
         except Exception as e:
-            self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败: {e}")
+            self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送异常: {e}")
     
     def _init_conversation_recording(self):
         """初始化对话记录功能"""

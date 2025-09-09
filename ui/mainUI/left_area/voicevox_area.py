@@ -718,6 +718,9 @@ class VoicevoxArea:
                         audio_file = io.BytesIO(audio_data)
                         numpy_audio, sample_rate = sf.read(audio_file)
                         
+                        # 记录实际采样率供其他模块使用
+                        self._last_sample_rate = sample_rate
+                        
                         self.main_app.log(f"音频格式转换成功: numpy数组 (采样率: {sample_rate}Hz)")
                         return numpy_audio
                         

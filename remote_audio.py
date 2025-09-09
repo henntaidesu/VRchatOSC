@@ -653,6 +653,15 @@ class RemoteAudioService:
                 data, sample_rate = sf.read(temp_audio_path)
                 audio_duration = len(data) / sample_rate
                 print(f"[信息] 音频参数: {len(data)} samples, {sample_rate} Hz, 预计播放时长: {audio_duration:.2f}秒")
+                
+                # 验证采样率是否合理
+                if sample_rate < 8000 or sample_rate > 192000:
+                    print(f"[警告] 采样率可能不正常: {sample_rate} Hz")
+                elif sample_rate == 24000:
+                    print(f"[VOICEVOX] 检测到VOICEVOX标准采样率: {sample_rate} Hz")
+                elif sample_rate == 22050:
+                    print(f"[VOICEVOX] 检测到VOICEVOX兼容采样率: {sample_rate} Hz")
+                    
             except Exception as e:
                 print(f"[错误] 读取音频文件失败: {e}")
                 return False
@@ -854,13 +863,20 @@ class RemoteAudioClient:
     def _send_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """发送请求到服务器"""
         try:
+            print(f"客户端：尝试连接 {self.host}:{self.port}")
+            
             # 连接服务器
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.settimeout(10)  # 设置10秒连接超时
             client_socket.connect((self.host, self.port))
+            
+            print(f"客户端：成功连接到 {self.host}:{self.port}")
             
             # 发送请求
             request_json = json.dumps(request, ensure_ascii=False).encode('utf-8')
             client_socket.send(request_json)
+            
+            print(f"客户端：已发送请求，等待响应...")
             
             # 接收响应
             response_data = b""
@@ -873,6 +889,7 @@ class RemoteAudioClient:
                 # 尝试解析JSON
                 try:
                     response = json.loads(response_data.decode('utf-8'))
+                    print(f"客户端：收到完整响应")
                     break
                 except json.JSONDecodeError:
                     continue
@@ -880,8 +897,17 @@ class RemoteAudioClient:
             client_socket.close()
             return response
             
+        except socket.timeout:
+            error_msg = f"连接超时: {self.host}:{self.port}"
+            print(f"客户端：{error_msg}")
+            return {"status": "error", "message": error_msg}
+        except ConnectionRefusedError:
+            error_msg = f"连接被拒绝: {self.host}:{self.port} (服务未运行)"
+            print(f"客户端：{error_msg}")
+            return {"status": "error", "message": error_msg}
         except Exception as e:
-            print(f"发送请求失败: {e}")
+            error_msg = f"发送请求失败: {e}"
+            print(f"客户端：{error_msg}")
             return {"status": "error", "message": str(e)}
 
 

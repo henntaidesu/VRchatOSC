@@ -299,14 +299,15 @@ class StreamingLLMProcessor:
                         
                         # 确定采样率和音频数据格式
                         if isinstance(audio_data, np.ndarray):
-                            # numpy数组格式 - 来自新的转换
-                            sample_rate = 24000  # VOICEVOX Engine实际输出采样率
-                            print(f"[音频] numpy数组格式，形状: {audio_data.shape}")
+                            # numpy数组格式 - 来自新的转换，采样率已在转换时确定
+                            # 从VOICEVOX area获取实际采样率
+                            sample_rate = getattr(self.main_app.voicevox_area, '_last_sample_rate', 24000)
+                            print(f"[音频] numpy数组格式，形状: {audio_data.shape}, 采样率: {sample_rate}Hz")
                         else:
                             # 其他格式的兜底处理
                             print(f"[音频] 其他格式: {type(audio_data)}")
                             # 尝试获取VOICEVOX客户端信息来推断采样率
-                            sample_rate = 24000
+                            sample_rate = getattr(self.main_app.voicevox_area, '_last_sample_rate', 24000)
                         
                         # 保存音频数据为WAV文件
                         sf.write(temp_audio_path, audio_data, sample_rate)
