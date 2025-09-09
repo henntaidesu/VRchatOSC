@@ -10,6 +10,7 @@ from typing import Optional, Callable
 from .osc_client import OSCClient
 from .voice import SpeechEngine
 from .config_manager import config_manager
+from .llm.vrc_voice_integration import VRCVoiceIntegration
 
 
 class VRChatController:
@@ -51,6 +52,10 @@ class VRChatController:
         self.vrc_detection_timeout = self.config.vrc_detection_timeout
         self.fallback_mode_active = False
         
+        # VRC动态语音集成
+        self.vrc_voice_integration: Optional[VRCVoiceIntegration] = None
+        self.use_vrc_dynamic_voice = True  # 默认启用VRC动态语音处理
+        
         # 回调函数
         self.voice_result_callback: Optional[Callable] = None
         self.status_change_callback: Optional[Callable] = None
@@ -60,10 +65,45 @@ class VRChatController:
         self.osc_client.set_message_callback(self._on_message_received)
         self.osc_client.set_speech_recognition_callback(self._on_speech_recognition)
         
+        # 初始化VRC动态语音集成
+        self._initialize_vrc_voice_integration()
+        
         # 打印默认设置信息
         if self.disable_fallback_mode:
             print("[成功] 备用模式已默认禁用 - 系统将只使用VRChat OSC数据")
     
+    def _initialize_vrc_voice_integration(self):
+        """初始化VRC动态语音集成"""
+        try:
+            if self.use_vrc_dynamic_voice and self.speech_engine and self.speech_engine.is_model_loaded():
+                self.vrc_voice_integration = VRCVoiceIntegration(config=self.config)
+                
+                # 暂时不设置LLM处理器 - 将在需要时通过外部设置
+                success = self.vrc_voice_integration.initialize(self.speech_engine, llm_handler=None)
+                
+                if success:
+                    # 设置回调
+                    self.vrc_voice_integration.set_voice_result_callback(self._on_vrc_voice_result)
+                    self.vrc_voice_integration.set_status_change_callback(self._on_vrc_status_change)
+                    print("[VRC动态语音] 初始化成功 (LLM处理器待设置)")
+                else:
+                    print("[VRC动态语音] 初始化失败")
+                    self.vrc_voice_integration = None
+            else:
+                print("[VRC动态语音] 跳过初始化 - 语音引擎未就绪或功能已禁用")
+        except Exception as e:
+            print(f"[VRC动态语音] 初始化错误: {e}")
+            self.vrc_voice_integration = None
+    
+    def _on_vrc_voice_result(self, text: str, is_realtime: bool = False, trigger_reason: str = "", audio_duration: float = 0.0):
+        """处理VRC动态语音识别结果"""
+        if self.voice_result_callback:
+            self.voice_result_callback(text, is_realtime, trigger_reason, audio_duration)
+    
+    def _on_vrc_status_change(self, status_type: str, status_data: dict):
+        """处理VRC动态语音状态变化"""
+        if self.status_change_callback:
+            self.status_change_callback(status_type, status_data)
     
     def _on_parameter_change(self, param_name: str, value):
         """处理OSC参数变化"""
@@ -71,6 +111,12 @@ class VRChatController:
             # VRChat说话状态变化
             if self.status_change_callback:
                 self.status_change_callback("vrc_speaking", value)
+            
+            # 如果启用了VRC动态语音处理，传递状态变化
+            if self.vrc_voice_integration and self.use_vrc_dynamic_voice:
+                # 获取语音强度级别（如果有的话）
+                voice_level = self.osc_client.get_vrc_voice_level() if hasattr(self.osc_client, 'get_vrc_voice_level') else 0.0
+                self.vrc_voice_integration.on_vrc_speaking_state_changed(bool(value), voice_level)
         
         # 通知外部状态变化
         if self.status_change_callback:
@@ -171,6 +217,21 @@ class VRChatController:
             print("语音引擎未就绪")
             return False
         
+        # 优先使用VRC动态语音处理器
+        if self.vrc_voice_integration and self.use_vrc_dynamic_voice:
+            try:
+                success = self.vrc_voice_integration.start_processing()
+                if success:
+                    self.is_voice_listening = True
+                    print("[VRC动态语音] 已启动动态语音处理")
+                    return True
+                else:
+                    print("[VRC动态语音] 启动失败，回退到传统模式")
+            except Exception as e:
+                print(f"[VRC动态语音] 启动错误: {e}，回退到传统模式")
+        
+        # 回退到传统语音监听模式
+        print("[传统模式] 启动传统语音监听")
         self.is_voice_listening = True
         self.voice_thread = threading.Thread(
             target=self._voice_listening_loop, 
@@ -183,6 +244,16 @@ class VRChatController:
     def stop_voice_listening(self):
         """停止语音监听"""
         self.is_voice_listening = False
+        
+        # 如果使用VRC动态语音处理器，停止它
+        if self.vrc_voice_integration and self.use_vrc_dynamic_voice:
+            try:
+                self.vrc_voice_integration.stop_processing()
+                print("[VRC动态语音] 已停止动态语音处理")
+            except Exception as e:
+                print(f"[VRC动态语音] 停止错误: {e}")
+        
+        # 停止传统语音监听线程
         if self.voice_thread:
             self.voice_thread.join(timeout=1)
     
@@ -319,6 +390,21 @@ class VRChatController:
         """设置状态变化回调"""
         self.status_change_callback = callback
     
+    def set_llm_handler(self, llm_handler):
+        """设置LLM处理器到VRC动态语音集成"""
+        if self.vrc_voice_integration:
+            try:
+                # 获取VRC处理器并设置LLM处理器
+                if hasattr(self.vrc_voice_integration, 'vrc_processor') and self.vrc_voice_integration.vrc_processor:
+                    self.vrc_voice_integration.vrc_processor.set_llm_handler(llm_handler)
+                    print("[VRC动态语音] LLM处理器已设置")
+                else:
+                    print("[VRC动态语音] 无法设置LLM处理器 - VRC处理器未初始化")
+            except Exception as e:
+                print(f"[VRC动态语音] 设置LLM处理器错误: {e}")
+        else:
+            print("[VRC动态语音] 无法设置LLM处理器 - 集成未初始化")
+    
     def set_position_callback(self, callback: Callable):
         """设置位置更新回调"""
         self.osc_client.set_position_callback(callback)
@@ -335,12 +421,22 @@ class VRChatController:
     
     def stop_current_recording(self):
         """停止当前录制"""
+        # 如果使用VRC动态语音处理器，通过它停止录制
+        if self.vrc_voice_integration and self.use_vrc_dynamic_voice:
+            try:
+                self.vrc_voice_integration.force_stop_recording()
+                print("[VRC动态语音] 强制停止录制")
+                return
+            except Exception as e:
+                print(f"[VRC动态语音] 强制停止错误: {e}")
+        
+        # 传统方式停止录制
         if self.speech_engine:
             self.speech_engine.stop_recording()
     
     def get_status(self) -> dict:
         """获取当前状态"""
-        return {
+        status = {
             "osc_connected": self.osc_client.is_running,
             "vrc_speaking": self.osc_client.get_vrc_speaking_state(),
             "vrc_voice_level": self.osc_client.get_vrc_voice_level(),
@@ -349,8 +445,18 @@ class VRChatController:
             "speech_recognition_enabled": self.speech_recognition_enabled,
             "fallback_mode_active": self.fallback_mode_active,
             "use_fallback_mode": self.use_fallback_mode,
-            "received_voice_parameters": list(self.osc_client.get_received_voice_parameters())
+            "received_voice_parameters": list(self.osc_client.get_received_voice_parameters()),
+            "use_vrc_dynamic_voice": self.use_vrc_dynamic_voice
         }
+        
+        # 添加VRC动态语音处理器状态
+        if self.vrc_voice_integration:
+            vrc_status = self.vrc_voice_integration.get_status()
+            status["vrc_dynamic_voice"] = vrc_status
+        else:
+            status["vrc_dynamic_voice"] = {"integration_ready": False}
+        
+        return status
     
     def set_debug_mode(self, enabled: bool):
         """设置调试模式"""
@@ -407,4 +513,14 @@ class VRChatController:
     def cleanup(self):
         """清理资源"""
         self.stop_voice_listening()
+        
+        # 清理VRC动态语音集成
+        if self.vrc_voice_integration:
+            try:
+                self.vrc_voice_integration.cleanup()
+                print("[VRC动态语音] 资源清理完成")
+            except Exception as e:
+                print(f"[VRC动态语音] 清理错误: {e}")
+            self.vrc_voice_integration = None
+        
         self.stop_osc_server()
