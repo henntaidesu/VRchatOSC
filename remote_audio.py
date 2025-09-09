@@ -257,51 +257,78 @@ class RemoteAudioService:
         print("音频队列处理已停止")
     
     def _queue_processing_loop(self):
-        """音频队列处理主循环"""
-        print("音频队列处理主循环已启动")
+        """音频队列处理主循环 - 确保按顺序播放音频，前一个播放完毕后才播放下一个"""
+        print("音频队列处理主循环已启动 - 严格按顺序播放")
         while self.queue_processing:
             try:
                 # 从FIFO队列获取项目，确保按发送顺序播放
                 try:
                     item = self.audio_queue.get(timeout=1)
-                    print(f"从队列获取音频项目: {item.item_id} ({item.filename})")
+                    print(f"[队列] 获取音频项目: {item.item_id} ({item.filename})")
+                    print(f"[队列] 当前队列剩余: {self.audio_queue.qsize()} 个音频")
                 except queue.Empty:
                     continue
                 
                 self.current_item = item
                 item.status = "processing"
                 
-                print(f"开始播放音频: {item.filename}")
+                print(f"[播放] 开始播放音频: {item.filename}")
+                start_time = time.time()
                 
-                # 播放音频
+                # 播放音频 - 这里会阻塞直到播放完成
                 success = self._play_queued_audio(item)
                 
-                # 更新状态
+                # 计算播放时长
+                play_duration = time.time() - start_time
+                
+                # 更新状态并立即释放内存
                 if success:
                     item.status = "completed"
+                    print(f"[完成] 音频播放完成: {item.filename} (耗时: {play_duration:.2f}秒)")
+                    # 播放成功后立即清理音频数据，释放内存
+                    item.audio_data = b""  # 清空音频数据
                     self.completed_items.append(item)
-                    print(f"音频播放完成: {item.filename}")
                 else:
                     item.status = "error"
+                    print(f"[错误] 音频播放失败: {item.filename} (耗时: {play_duration:.2f}秒)")
+                    # 播放失败也清理音频数据，释放内存
+                    item.audio_data = b""  # 清空音频数据
                     self.failed_items.append(item)
-                    print(f"音频播放失败: {item.filename}")
                 
+                # 清除当前播放项
                 self.current_item = None
                 self.audio_queue.task_done()
                 
-                # 处理完成后稍等，避免过于频繁
-                time.sleep(0.1)
+                # 定期清理历史记录，避免内存泄漏
+                self._cleanup_history()
+                
+                # 确保音频播放完毕后再处理下一个
+                # 添加短暂延迟避免音频设备切换问题
+                time.sleep(0.2)
+                
+                # 如果还有队列中的音频，显示进度信息
+                remaining = self.audio_queue.qsize()
+                if remaining > 0:
+                    print(f"[队列] 准备播放下一个音频，队列剩余: {remaining} 个")
                 
             except Exception as e:
-                print(f"音频队列处理错误: {e}")
+                print(f"[错误] 音频队列处理异常: {e}")
+                import traceback
+                traceback.print_exc()
+                
                 if self.current_item:
                     self.current_item.status = "error"
+                    # 异常情况下也释放音频数据内存
+                    self.current_item.audio_data = b""
                     self.failed_items.append(self.current_item)
                     self.current_item = None
-                time.sleep(1)
+                    self.audio_queue.task_done()
+                
+                # 发生错误后等待更长时间再继续
+                time.sleep(2)
     
     def add_audio_to_queue(self, audio_data: bytes, filename: str = "audio.wav", priority: int = 0) -> str:
-        """添加音频到队列
+        """添加音频到队列 - 严格按照接收顺序排队播放
         
         Args:
             audio_data: 音频数据
@@ -323,45 +350,90 @@ class RemoteAudioService:
         )
         
         # 直接添加到FIFO队列，确保按发送顺序播放
+        queue_size_before = self.audio_queue.qsize()
         self.audio_queue.put(item)
+        queue_size_after = self.audio_queue.qsize()
         
-        print(f"音频已添加到播放队列: {filename} (序号: {self.queue_counter}, ID: {item_id})")
+        print(f"[队列] 音频已添加到播放队列: {filename}")
+        print(f"       序号: {self.queue_counter}, ID: {item_id}")
+        print(f"       队列状态: {queue_size_before} -> {queue_size_after} 个音频")
+        print(f"       数据大小: {len(audio_data)} bytes")
+        
+        # 如果这是队列中的第一个音频，提示即将开始播放
+        if queue_size_before == 0:
+            print(f"[队列] 队列空闲，即将开始播放: {filename}")
+        else:
+            print(f"[队列] 当前位置: 第 {queue_size_after} 位，需等待 {queue_size_before} 个音频播放完毕")
+        
         return item_id
+    
+    def _cleanup_history(self):
+        """清理历史记录，释放内存"""
+        try:
+            # 保留最近50个完成记录
+            if len(self.completed_items) > 50:
+                removed_count = len(self.completed_items) - 50
+                self.completed_items = self.completed_items[-50:]
+                print(f"[清理] 已清理 {removed_count} 个已完成的历史记录")
+            
+            # 保留最近20个失败记录
+            if len(self.failed_items) > 20:
+                removed_count = len(self.failed_items) - 20
+                self.failed_items = self.failed_items[-20:]
+                print(f"[清理] 已清理 {removed_count} 个失败的历史记录")
+                
+        except Exception as e:
+            print(f"[错误] 清理历史记录失败: {e}")
     
     def get_queue_status(self) -> Dict[str, Any]:
         """获取队列状态"""
+        current_item_info = None
+        if self.current_item:
+            current_item_info = {
+                "id": self.current_item.item_id,
+                "filename": self.current_item.filename,
+                "status": self.current_item.status,
+                "created_time": self.current_item.created_time
+            }
+        
         return {
             "queue_size": self.audio_queue.qsize(),
             "is_processing": self.queue_processing,
-            "current_item": self.current_item.filename if self.current_item else None,
+            "current_item": current_item_info,
             "completed_count": len(self.completed_items),
-            "failed_count": len(self.failed_items)
+            "failed_count": len(self.failed_items),
+            "total_processed": self.queue_counter,
+            "queue_processing_active": self.queue_processing,
+            "virtual_device_id": self.virtual_device_id
         }
     
     def _play_queued_audio(self, item: AudioQueueItem) -> bool:
         """播放队列中的音频"""
+        temp_audio_path = None
         try:
             # 保存到临时文件
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                 temp_file.write(item.audio_data)
                 temp_audio_path = temp_file.name
             
-            print(f"临时音频文件: {temp_audio_path}")
+            print(f"[临时文件] 创建临时音频文件: {temp_audio_path}")
             
             # 播放音频
             success = self._play_audio_to_virtual_microphone(temp_audio_path)
             
-            # 清理临时文件
-            try:
-                os.unlink(temp_audio_path)
-            except:
-                pass
-            
             return success
             
         except Exception as e:
-            print(f"播放队列音频失败: {e}")
+            print(f"[错误] 播放队列音频失败: {e}")
             return False
+        finally:
+            # 确保临时文件被清理
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                try:
+                    os.unlink(temp_audio_path)
+                    print(f"[清理] 已删除临时文件: {temp_audio_path}")
+                except Exception as e:
+                    print(f"[警告] 清理临时文件失败: {e}")
     
     def _server_loop(self):
         """服务器主循环"""
@@ -559,18 +631,18 @@ class RemoteAudioService:
             return {"status": "error", "message": "缺少device_id参数"}
     
     def _play_audio_to_virtual_microphone(self, temp_audio_path: str) -> bool:
-        """播放音频到虚拟麦克风"""
+        """播放音频到虚拟麦克风 - 阻塞式播放，确保完全播放完毕后才返回"""
         try:
-            print(f"开始播放音频文件: {temp_audio_path}")
+            print(f"[播放] 开始播放音频文件: {temp_audio_path}")
             
             # 检查文件是否存在
             import os
             if not os.path.exists(temp_audio_path):
-                print(f"音频文件不存在: {temp_audio_path}")
+                print(f"[错误] 音频文件不存在: {temp_audio_path}")
                 return False
             
             file_size = os.path.getsize(temp_audio_path)
-            print(f"音频文件大小: {file_size} bytes")
+            print(f"[信息] 音频文件大小: {file_size} bytes")
             
             import sounddevice as sd
             import soundfile as sf
@@ -579,78 +651,71 @@ class RemoteAudioService:
             # 检查soundfile是否能读取文件
             try:
                 data, sample_rate = sf.read(temp_audio_path)
-                print(f"音频参数: {len(data)} samples, {sample_rate} Hz, 时长: {len(data)/sample_rate:.2f}秒")
+                audio_duration = len(data) / sample_rate
+                print(f"[信息] 音频参数: {len(data)} samples, {sample_rate} Hz, 预计播放时长: {audio_duration:.2f}秒")
             except Exception as e:
-                print(f"读取音频文件失败: {e}")
+                print(f"[错误] 读取音频文件失败: {e}")
                 return False
             
-            # 检查音频设备列表和支持的采样率
-            print("当前可用音频设备:")
-            try:
-                devices = sd.query_devices()
-                target_device_info = None
-                
-                for i, device in enumerate(devices):
-                    if device['max_output_channels'] > 0:
-                        is_target = '✓' if i == self.virtual_device_id else ' '
-                        print(f"   {i:2d}: {device['name']} ({is_target}) 默认采样率: {device['default_samplerate']}")
-                        
-                        # 获取目标设备信息
-                        if i == self.virtual_device_id:
-                            target_device_info = device
-                            
-            except Exception as e:
-                print(f"查询音频设备失败: {e}")
+            # 检查是否有有效的音频数据
+            if len(data) == 0:
+                print(f"[错误] 音频文件为空")
                 return False
             
             # 选择播放设备
             device_id = self.virtual_device_id
             if device_id is None:
-                print("未找到虚拟麦克风，使用默认音频设备")
-                target_sample_rate = 44100  # 默认采样率
+                print("[警告] 未设置虚拟麦克风设备，使用系统默认音频设备")
             else:
-                print(f"使用虚拟麦克风设备 {device_id}")
-                target_sample_rate = int(target_device_info['default_samplerate']) if target_device_info else 44100
+                print(f"[设备] 使用音频设备 ID {device_id}")
             
-            # 检查采样率兼容性
-            if sample_rate != target_sample_rate:
-                print(f"接收到的音频采样率 {sample_rate} Hz 与目标设备 {target_sample_rate} Hz 不匹配")
-                print(f"建议在发送端预处理音频为 {target_sample_rate} Hz")
-                # 继续使用原始采样率播放，让设备自己处理
-                print(f"尝试使用原始采样率 {sample_rate} Hz 播放...")
-            
-            # 播放音频并等待完成
+            # 播放音频并等待完成 - 关键：使用阻塞式播放
             try:
-                print(f"开始播放音频 (采样率: {sample_rate} Hz)...")
+                print(f"[播放] 开始播放音频... (时长: {audio_duration:.2f}秒)")
+                play_start_time = time.time()
+                
+                # 播放音频
                 sd.play(data, sample_rate, device=device_id)
-                sd.wait()  # 等待播放完成
-                print("音频播放完成")
+                
+                # 等待播放完成 - 这里会阻塞直到音频播放完毕
+                sd.wait()
+                
+                actual_play_time = time.time() - play_start_time
+                print(f"[完成] 音频播放完成 (实际播放时长: {actual_play_time:.2f}秒)")
+                
+                # 额外等待一小段时间，确保音频设备完全释放
+                time.sleep(0.1)
+                
                 return True
+                
             except Exception as e:
-                print(f"   音频播放失败: {e}")
-                print(f"   设备ID: {device_id}")
-                print(f"   采样率: {sample_rate}")
-                print(f"   数据长度: {len(data)}")
+                print(f"[错误] 音频播放失败: {e}")
+                print(f"       设备ID: {device_id}")
+                print(f"       采样率: {sample_rate}")
+                print(f"       数据长度: {len(data)}")
                 
                 # 如果指定设备播放失败，尝试使用默认设备
                 if device_id is not None:
-                    print("尝试使用默认音频设备播放...")
+                    print("[重试] 尝试使用默认音频设备播放...")
                     try:
-                        sd.play(data, sample_rate)
-                        sd.wait()
-                        print("默认设备播放成功")
+                        play_start_time = time.time()
+                        sd.play(data, sample_rate)  # 使用默认设备
+                        sd.wait()  # 等待播放完成
+                        actual_play_time = time.time() - play_start_time
+                        print(f"[成功] 默认设备播放完成 (播放时长: {actual_play_time:.2f}秒)")
+                        time.sleep(0.1)  # 额外等待
                         return True
                     except Exception as e2:
-                        print(f"默认设备也播放失败: {e2}")
+                        print(f"[错误] 默认设备也播放失败: {e2}")
                 
                 return False
             
         except ImportError as e:
-            print(f" 导入模块失败: {e}")
-            print("请运行: pip install sounddevice soundfile scipy")
+            print(f"[错误] 导入模块失败: {e}")
+            print("[建议] 请运行: pip install sounddevice soundfile scipy")
             return False
         except Exception as e:
-            print(f"播放音频时发生未知错误: {e}")
+            print(f"[错误] 播放音频时发生未知错误: {e}")
             import traceback
             traceback.print_exc()
             return False
