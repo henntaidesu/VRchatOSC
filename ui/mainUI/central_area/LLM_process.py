@@ -456,9 +456,9 @@ class LLMProcessor:
             # 确保目录存在
             self._ensure_record_directory()
             
-            # 生成文件名：启动时间
+            # 生成文件名：启动时间 + 处理器标识
             start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"conversation_{start_time}.vsc"
+            filename = f"conversation_traditional_{start_time}.vsc"
             self.conversation_file_path = os.path.join(self.record_dir, filename)
             
             # 创建文件并写入头部信息

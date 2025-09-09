@@ -72,11 +72,97 @@ class StreamingLLMProcessor:
         # 回调函数
         self.sentence_callback: Optional[Callable[[str], None]] = None
         
+        # 对话记录相关
+        self.conversation_file_path = None
+        self.current_user_input = None
+        self._init_conversation_recording()
+        
         # 初始化
         self._init_audio_client()
         self._setup_llm_handler()
         
         print("[成功] 流式LLM处理器初始化完成")
+    
+    def _init_conversation_recording(self):
+        """初始化对话记录功能"""
+        try:
+            import os
+            from datetime import datetime
+            
+            # 设置记录目录路径
+            self.record_dir = os.path.join(os.getcwd(), "Record", "text")
+            
+            # 确保目录存在
+            self._ensure_record_directory()
+            
+            # 生成文件名：启动时间 + 处理器标识
+            start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"conversation_streaming_{start_time}.vsc"
+            self.conversation_file_path = os.path.join(self.record_dir, filename)
+            
+            # 创建文件并写入头部信息
+            with open(self.conversation_file_path, 'w', encoding='utf-8') as f:
+                f.write(f"# VRChat OSC 对话记录\n")
+                f.write(f"# 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 文件格式: VSCode对话记录格式\n")
+                f.write(f"# 处理器: 流式LLM处理器\n")
+                f.write(f"# ==========================================\n\n")
+            
+            print(f"[对话记录] 已创建记录文件: {filename}")
+            
+        except Exception as e:
+            print(f"[对话记录] 初始化失败: {e}")
+            self.conversation_file_path = None
+    
+    def _ensure_record_directory(self):
+        """确保记录目录存在，不存在则创建"""
+        try:
+            import os
+            
+            if not os.path.exists(self.record_dir):
+                os.makedirs(self.record_dir, exist_ok=True)
+                print(f"[对话记录] 已创建目录: {self.record_dir}")
+            else:
+                print(f"[对话记录] 目录已存在: {self.record_dir}")
+        except Exception as e:
+            print(f"[对话记录] 创建目录失败: {e}")
+    
+    def _record_conversation(self, user_input: str, ai_response: str):
+        """记录对话到文件"""
+        try:
+            if not self.conversation_file_path:
+                return
+            
+            # 确保目录存在（防止目录被删除）
+            if hasattr(self, 'record_dir'):
+                self._ensure_record_directory()
+            
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            with open(self.conversation_file_path, 'a', encoding='utf-8') as f:
+                f.write(f"[{timestamp}] 用户: {user_input}\n")
+                f.write(f"[{timestamp}] AI: {ai_response}\n")
+                f.write(f"---\n\n")
+            
+            print(f"[对话记录] 已记录对话")
+            
+        except Exception as e:
+            print(f"[对话记录] 记录失败: {e}")
+            # 如果记录失败，尝试重新初始化
+            try:
+                self._init_conversation_recording()
+                print(f"[对话记录] 重新初始化完成，尝试再次记录")
+                # 重新尝试记录
+                with open(self.conversation_file_path, 'a', encoding='utf-8') as f:
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"[{timestamp}] 用户: {user_input}\n")
+                    f.write(f"[{timestamp}] AI: {ai_response}\n")
+                    f.write(f"---\n\n")
+                print(f"[对话记录] 重新记录成功")
+            except Exception as retry_e:
+                print(f"[对话记录] 重新记录也失败: {retry_e}")
     
     def _init_audio_client(self):
         """初始化音频客户端"""
@@ -161,6 +247,9 @@ class StreamingLLMProcessor:
             print("[警告] 空文本，跳过处理")
             return ""
         
+        # 存储用户输入以便后续记录对话
+        self.current_user_input = text.strip()
+        
         # 清空之前的响应状态
         self.current_response = ""
         self.processed_sentences.clear()
@@ -214,6 +303,12 @@ class StreamingLLMProcessor:
         # 显示完整回复到界面
         if hasattr(self.main_app, 'add_speech_output'):
             self.main_app.add_speech_output(response.llm_response, "AI回复")
+        
+        # 记录对话
+        if hasattr(self, 'current_user_input') and self.current_user_input:
+            self._record_conversation(self.current_user_input, response.llm_response)
+            # 清空当前用户输入
+            self.current_user_input = None
         
         # 发送完整回复到AI端VRChat (而不是用户VRChat端)
         if (hasattr(self.main_app, 'ai_vrchat_area') and 
