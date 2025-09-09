@@ -564,10 +564,14 @@ class VRChatOSCGUI:
         try:
             # 重新加载配置
             self.load_settings()
-            self.log("高级设置已保存并应用")
             
-            # 如果需要，可以在这里更新UI或重启某些功能
-            # 例如重新初始化某些组件
+            # 更新OSC参数过滤列表
+            if hasattr(self, 'vrchat_connection') and hasattr(self.vrchat_connection, 'osc_client'):
+                filtered_params = self.config.filtered_osc_parameters
+                self.vrchat_connection.osc_client.update_filtered_parameters(filtered_params)
+                self.log(f"OSC参数过滤列表已更新: {len(filtered_params)}个参数")
+            
+            self.log("高级设置已保存并应用")
             
         except Exception as e:
             self.log(f"应用高级设置时出错: {e}")

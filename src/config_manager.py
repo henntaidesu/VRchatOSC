@@ -58,7 +58,8 @@ class ConfigManager:
                 'recent_energy_window': '10',
                 'zero_crossing_threshold': '0.3',
                 'recognition_interval': '1.0',
-                'max_failures': '5'
+                'max_failures': '5',
+                'filtered_osc_parameters': 'Hips_SwimsuitGrab_Angle,AvatarVersion,MuteSelf,Grounded,InStation,Seated,AFK,Earmuffs,AFKTimer'
             },
             'LLM': {
                 'gemini_api_key': '',
@@ -270,6 +271,10 @@ class ConfigManager:
     def ui_language(self) -> str:
         return self.get('Interface', 'ui_language')
     
+    @ui_language.setter
+    def ui_language(self, value: str):
+        self.set('Interface', 'ui_language', value)
+    
     @property
     def window_width(self) -> int:
         return self.get('Interface', 'window_width')
@@ -433,6 +438,21 @@ class ConfigManager:
     def voicevox_last_speaker_name(self, value: str):
         """设置上次选择的说话人名称"""
         self.set('VOICEVOX', 'last_speaker_name', value)
+    
+    # OSC参数过滤配置
+    @property
+    def filtered_osc_parameters(self) -> list:
+        """获取需要过滤的OSC参数列表"""
+        param_string = self.get('Advanced', 'filtered_osc_parameters', '')
+        if param_string.strip():
+            return [param.strip() for param in param_string.split(',') if param.strip()]
+        return []
+    
+    @filtered_osc_parameters.setter
+    def filtered_osc_parameters(self, value: list):
+        """设置需要过滤的OSC参数列表"""
+        param_string = ','.join(value) if value else ''
+        self.set('Advanced', 'filtered_osc_parameters', param_string)
         
     @voicevox_last_speaker_style.setter
     def voicevox_last_speaker_style(self, value: str):

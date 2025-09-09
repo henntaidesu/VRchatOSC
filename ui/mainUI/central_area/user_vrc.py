@@ -96,6 +96,9 @@ class VRChatConnection:
         
         # 设置Avatar控制器
         if self.main_app.client:
+            # 存储OSC客户端引用
+            self.osc_client = self.main_app.client.osc_client
+            
             # 设置Avatar控制器的OSC客户端（VRChatController）
             self.main_app.avatar_controller.set_osc_client(self.main_app.client)
             
@@ -105,6 +108,11 @@ class VRChatConnection:
             
             # 通过VRChatController设置位置回调
             self.main_app.client.set_position_callback(self.update_player_position)
+            
+            # 初始化OSC参数过滤列表
+            filtered_params = self.main_app.config.filtered_osc_parameters
+            if hasattr(self.osc_client, 'update_filtered_parameters'):
+                self.osc_client.update_filtered_parameters(filtered_params)
         
         self.update_ui_state(True)
         self.main_app.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
@@ -370,7 +378,9 @@ class VRChatConnection:
         """处理状态变化"""
         if status_type == "parameter":
             param_name, value = data
-            self.main_app.log(f"[收到参数] {param_name} = {value}")
+            # 检查是否需要过滤此参数
+            if hasattr(self.osc_client, 'filtered_parameter_names') and param_name not in self.osc_client.filtered_parameter_names:
+                self.main_app.log(f"[收到参数] {param_name} = {value}")
         elif status_type == "message":
             msg_type, content = data
             self.main_app.log(f"[收到消息] {msg_type}: {content}")

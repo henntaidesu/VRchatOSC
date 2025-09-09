@@ -63,6 +63,14 @@ class OSCClient:
             "Talking", "MouthMove", "VoiceActivity"
         ]
         
+        # 过滤不需要显示的参数（避免UI日志污染）
+        # 默认过滤列表，可通过配置文件动态更新
+        self.filtered_parameter_names = [
+            "Hips_SwimsuitGrab_Angle", "AvatarVersion", "MuteSelf", "Grounded",
+            "InStation", "Seated", "AFK", "Earmuffs", "AFKTimer",
+            "GestureLeft", "GestureRight", "GestureLeftWeight", "GestureRightWeight"
+        ]
+        
         # 音频传输相关
         self.audio_chunks = {}  # 存储接收到的音频块
         self.audio_total_chunks = 0
@@ -124,8 +132,8 @@ class OSCClient:
             parameter_name = address.split("/")[-1]
             value = args[0]
             
-            # 调试模式：记录所有参数
-            if self.debug_mode:
+            # 调试模式：记录所有参数（但过滤掉不需要的参数）
+            if self.debug_mode and parameter_name not in self.filtered_parameter_names:
                 print(f"[OSC调试] 参数: {parameter_name} = {value} (地址: {address})")
             
             # 处理语音相关参数
@@ -173,8 +181,8 @@ class OSCClient:
                     if self.vrc_is_speaking != old_speaking:
                         self.parameter_callback("vrc_speaking_state", self.vrc_is_speaking)
             
-            # 通知所有参数变化
-            elif self.parameter_callback:
+            # 通知所有参数变化（但过滤掉不需要的参数）
+            elif self.parameter_callback and parameter_name not in self.filtered_parameter_names:
                 self.parameter_callback(parameter_name, value)
     
     def _handle_default_message(self, address: str, *args):
@@ -306,6 +314,11 @@ class OSCClient:
             print("OSC调试模式已启用")
         else:
             print("OSC调试模式已禁用")
+    
+    def update_filtered_parameters(self, filtered_params: list):
+        """更新参数过滤列表"""
+        self.filtered_parameter_names = filtered_params.copy() if filtered_params else []
+        print(f"OSC参数过滤列表已更新: {len(self.filtered_parameter_names)}个参数")
     
     def _handle_position_update(self, address: str, *args):
         """处理位置更新"""

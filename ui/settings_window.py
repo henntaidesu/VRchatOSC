@@ -339,7 +339,39 @@ class SettingsWindow:
         self.interval_label.pack(side=tk.RIGHT, padx=(10, 0))
         interval_scale.config(command=lambda v: self.interval_label.config(text=f"{float(v):.1f}s"))
         
+        # OSC参数过滤设置
+        row += 1
+        ttk.Label(advanced_frame, text="过滤OSC参数:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        
+        # 创建Text组件用于输入参数列表
+        row += 1
+        filter_frame = ttk.LabelFrame(advanced_frame, text="需要过滤的参数（一行一个）", padding="5")
+        filter_frame.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=5)
+        
+        # 创建滚动Text组件
+        text_frame = ttk.Frame(filter_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.filtered_params_text = tk.Text(text_frame, height=6, width=50)
+        scrollbar_filter = ttk.Scrollbar(text_frame, orient="vertical", command=self.filtered_params_text.yview)
+        self.filtered_params_text.configure(yscrollcommand=scrollbar_filter.set)
+        
+        self.filtered_params_text.pack(side="left", fill="both", expand=True)
+        scrollbar_filter.pack(side="right", fill="y")
+        
+        # 加载当前过滤参数
+        current_filtered = self.config.filtered_osc_parameters
+        if current_filtered:
+            self.filtered_params_text.insert(tk.END, '\n'.join(current_filtered))
+        
+        # 添加说明标签
+        row += 1
+        help_text = "常见可过滤参数：Hips_SwimsuitGrab_Angle, AvatarVersion, MuteSelf, Grounded, InStation, Seated"
+        help_label = ttk.Label(advanced_frame, text=help_text, foreground="gray", font=("", 8))
+        help_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=10, pady=2)
+        
         advanced_frame.columnconfigure(1, weight=1)
+        advanced_frame.rowconfigure(row-1, weight=1)  # 让过滤参数框可以扩展
     
     def apply_settings(self):
         """应用设置（不保存到文件）"""
@@ -396,6 +428,14 @@ class SettingsWindow:
         # 高级设置
         self.config.set('Advanced', 'energy_drop_ratio', self.energy_drop_var.get())
         self.config.set('Advanced', 'recognition_interval', self.recognition_interval_var.get())
+        
+        # OSC参数过滤设置
+        if hasattr(self, 'filtered_params_text'):
+            # 从Text组件获取参数列表
+            params_text = self.filtered_params_text.get(1.0, tk.END).strip()
+            filtered_params = [param.strip() for param in params_text.split('\n') if param.strip()]
+            # 保存到配置
+            self.config.filtered_osc_parameters = filtered_params
         
         # LLM设置
         self.config.set('LLM', 'gemini_api_key', self.gemini_api_key_var.get())
