@@ -8,6 +8,7 @@ import requests
 import json
 import io
 import logging
+import threading
 from typing import Dict, List, Optional, Tuple
 import pygame
 from pathlib import Path
@@ -36,6 +37,10 @@ class VOICEVOXClient:
         self.pitch_scale = 0.0      # 音高偏移 (-0.15 - 0.15) 
         self.intonation_scale = 1.0 # 抑扬顿挫 (0.0 - 2.0)
         self.volume_scale = 1.0     # 音量倍率 (0.0 - 2.0)
+        
+        # 合成状态管理
+        self.is_synthesizing = False  # 是否正在合成语音
+        self.synthesis_lock = threading.Lock()  # 合成锁，防止并发合成
         
         # 初始化pygame音频
         pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
@@ -389,17 +394,56 @@ class VOICEVOXClient:
             "volume_scale": self.volume_scale
         }
     
-    def synthesize_speech(self, text: str) -> Optional[bytes]:
+    def synthesize_speech(self, text: str, wait_for_previous: bool = True) -> Optional[bytes]:
         """
         合成语音
         
         Args:
             text: 要合成的文本
+            wait_for_previous: 是否等待上一个合成完成
             
         Returns:
             音频数据（bytes）或None
         """
+        # 检查是否需要等待上一个合成完成
+        if wait_for_previous:
+            # 如果当前正在合成，等待完成
+            with self.synthesis_lock:
+                if self.is_synthesizing:
+                    self.logger.info(f"等待上一个语音合成完成...")
+                    # 等待合成完成的逻辑已通过锁机制实现
+                
+                # 开始新的合成
+                self.is_synthesizing = True
+                
+            try:
+                result = self._do_synthesis(text)
+                return result
+            finally:
+                with self.synthesis_lock:
+                    self.is_synthesizing = False
+                    self.logger.info(f"语音合成完成，释放合成锁")
+        else:
+            # 非阻塞模式，直接检查状态
+            if self.is_synthesizing:
+                self.logger.warning(f"跳过语音合成，上一个合成尚未完成: {text[:20]}...")
+                return None
+            
+            with self.synthesis_lock:
+                self.is_synthesizing = True
+                
+            try:
+                result = self._do_synthesis(text)
+                return result
+            finally:
+                with self.synthesis_lock:
+                    self.is_synthesizing = False
+    
+    def _do_synthesis(self, text: str) -> Optional[bytes]:
+        """执行实际的语音合成"""
         try:
+            self.logger.info(f"开始合成语音: {text[:20]}... (角色: {self.current_speaker_name})")
+            
             # 第一步：获取音频查询
             query_response = requests.post(
                 f"{self.base_url}/audio_query",
@@ -455,37 +499,46 @@ class VOICEVOXClient:
             self.logger.error(f"播放音频失败: {e}")
             return False
     
-    def synthesize_and_play(self, text: str) -> bool:
+    def synthesize_and_play(self, text: str, wait_for_previous: bool = True) -> bool:
         """
         合成并播放语音（一体化操作）
         
         Args:
             text: 要合成的文本
+            wait_for_previous: 是否等待上一个合成和播放完成
             
         Returns:
             是否成功
         """
         if not text.strip():
             return False
+        
+        # 如果需要等待，则等待播放完成
+        if wait_for_previous:
+            # 等待播放完成
+            while self.is_playing():
+                import time
+                time.sleep(0.1)
             
-        audio_data = self.synthesize_speech(text)
+        audio_data = self.synthesize_speech(text, wait_for_previous)
         if audio_data:
             return self.play_audio(audio_data)
         return False
     
-    def save_audio(self, text: str, output_path: str) -> bool:
+    def save_audio(self, text: str, output_path: str, wait_for_previous: bool = True) -> bool:
         """
         合成语音并保存到文件
         
         Args:
             text: 要合成的文本
             output_path: 输出文件路径
+            wait_for_previous: 是否等待上一个合成完成
             
         Returns:
             是否保存成功
         """
         try:
-            audio_data = self.synthesize_speech(text)
+            audio_data = self.synthesize_speech(text, wait_for_previous)
             if not audio_data:
                 return False
             
@@ -505,6 +558,10 @@ class VOICEVOXClient:
     def is_playing(self) -> bool:
         """检查是否正在播放音频"""
         return pygame.mixer.music.get_busy()
+    
+    def is_busy(self) -> bool:
+        """检查是否正在合成或播放"""
+        return self.is_synthesizing or self.is_playing()
     
     def stop_playback(self):
         """停止音频播放"""
