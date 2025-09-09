@@ -206,7 +206,8 @@ class VoicevoxArea:
             
             for attempt in range(retry_count):
                 try:
-                    self.main_app.root.after(0, lambda: self.main_app.log(f"正在尝试连接VOICEVOX Engine {host}:{port}... (第{attempt + 1}次)"))
+                    log_msg = f"正在尝试连接VOICEVOX Engine {host}:{port}... (第{attempt + 1}次)"
+                    self.main_app.root.after(0, lambda msg=log_msg: self.main_app.log(msg))
                     
                     # 使用配置的主机和端口创建客户端实例
                     from src.VOICEVOX.voicevox_tts import VOICEVOXClient
@@ -223,17 +224,21 @@ class VoicevoxArea:
                                 
                                 # 更新UI（必须在主线程中执行）
                                 self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
-                                self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX连接成功！已加载{len(speaker_names)}个角色"))
+                                success_msg = f"VOICEVOX连接成功！已加载{len(speaker_names)}个角色"
+                                self.main_app.root.after(0, lambda msg=success_msg: self.main_app.log(msg))
                                 return
                             else:
                                 self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX连接成功但未获取到角色列表"))
                         except Exception as e:
-                            self.main_app.root.after(0, lambda: self.main_app.log(f"获取VOICEVOX角色列表失败: {e}"))
+                            error_msg = f"获取VOICEVOX角色列表失败: {e}"
+                            self.main_app.root.after(0, lambda msg=error_msg: self.main_app.log(msg))
                     else:
-                        self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX Engine连接测试失败 (第{attempt + 1}次)"))
+                        fail_msg = f"VOICEVOX Engine连接测试失败 (第{attempt + 1}次)"
+                        self.main_app.root.after(0, lambda msg=fail_msg: self.main_app.log(msg))
                         
                 except Exception as e:
-                    self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX连接尝试失败 (第{attempt + 1}次): {e}"))
+                    error_msg = f"VOICEVOX连接尝试失败 (第{attempt + 1}次): {e}"
+                    self.main_app.root.after(0, lambda msg=error_msg: self.main_app.log(msg))
                 
                 # 如果不是最后一次尝试，等待后重试
                 if attempt < retry_count - 1:

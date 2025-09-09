@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-配置管理器 - 处理配置文件的读取、保存和验证
+配置管理器 - JSON格式配置文件的读取、保存和验证
 """
 
-import configparser
+import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 
 class ConfigManager:
-    """配置管理器类"""
+    """配置管理器类 - 使用JSON格式"""
     
-    def __init__(self, config_file: str = "conf.ini"):
+    def __init__(self, config_file: str = "config.json"):
         """
         初始化配置管理器
         
@@ -19,74 +19,124 @@ class ConfigManager:
             config_file: 配置文件路径
         """
         self.config_file = os.path.abspath(config_file)
-        self.config = configparser.ConfigParser()
+        self.config = {}
         
         # 默认配置
         self.default_config = {
-            'OSC': {
-                'host': '127.0.0.1',
-                'send_port': '9000',
-                'receive_port': '9001',
-                'debug_mode': 'false'
+            "osc": {
+                "host": "127.0.0.1",
+                "send_port": 9000,
+                "receive_port": 9001,
+                "debug_mode": False,
+                "enable_parameter_filtering": True,
+                "filtered_parameters": {
+                    "AvatarVersion": {
+                        "enabled": True,
+                        "description": "Avatar版本信息"
+                    },
+                    "Grounded": {
+                        "enabled": True,
+                        "description": "是否接地状态"
+                    },
+                    "InStation": {
+                        "enabled": True,
+                        "description": "是否在Station中"
+                    },
+                    "Seated": {
+                        "enabled": True,
+                        "description": "是否坐着"
+                    },
+                    "AFK": {
+                        "enabled": True,
+                        "description": "是否挂机"
+                    },
+                    "MuteSelf": {
+                        "enabled": True,
+                        "description": "是否静音"
+                    },
+                    "Earmuffs": {
+                        "enabled": True,
+                        "description": "是否戴耳机"
+                    },
+                    "AFKTimer": {
+                        "enabled": True,
+                        "description": "挂机计时器"
+                    },
+                    "Hips_SwimsuitGrab_Angle": {
+                        "enabled": True,
+                        "description": "臀部泳装抓取角度"
+                    },
+                    "GestureLeft": {
+                        "enabled": False,
+                        "description": "左手手势"
+                    },
+                    "GestureRight": {
+                        "enabled": False,
+                        "description": "右手手势"
+                    }
+                }
             },
-            'AI_CHARACTER_VRC': {
-                'ai_host': '127.0.0.1',
-                'ai_send_port': '9000',
-                'ai_receive_port': '9001',
-                'auto_connect': 'false',
-                'connection_timeout': '10',
-                'last_character_name': '',
-                'last_character_personality': 'friendly'
+            "voice": {
+                "language": "ja-JP",
+                "device": "auto",
+                "voice_threshold": 0.015,
+                "energy_threshold": 0.01
             },
-            'Voice': {
-                'language': 'ja-JP',
-                'device': 'auto',
-                'voice_threshold': '0.015',
-                'energy_threshold': '0.01'
+            "recording": {
+                "max_speech_duration": 8.0,
+                "min_speech_duration": 0.3,
+                "silence_duration": 0.8,
+                "sentence_pause_threshold": 0.5,
+                "phrase_pause_threshold": 0.3,
+                "chunk_size_ms": 100
             },
-            'Recording': {
-                'max_speech_duration': '8.0',
-                'min_speech_duration': '0.3',
-                'silence_duration': '0.8',
-                'sentence_pause_threshold': '0.5',
-                'phrase_pause_threshold': '0.3',
-                'chunk_size_ms': '100'
+            "modes": {
+                "use_fallback_mode": False,
+                "disable_fallback_mode": True,
+                "vrc_detection_timeout": 30.0
             },
-            'Modes': {
-                'use_fallback_mode': 'false',
-                'disable_fallback_mode': 'true',
-                'vrc_detection_timeout': '30.0'
+            "interface": {
+                "ui_language": "zh",
+                "window_width": 800,
+                "window_height": 1000
             },
-            'Interface': {
-                'ui_language': 'zh',
-                'window_width': '800',
-                'window_height': '1000'
+            "advanced": {
+                "energy_drop_ratio": 0.3,
+                "recent_energy_window": 10,
+                "zero_crossing_threshold": 0.3,
+                "recognition_interval": 1.0,
+                "max_failures": 5
             },
-            'Advanced': {
-                'energy_drop_ratio': '0.3',
-                'recent_energy_window': '10',
-                'zero_crossing_threshold': '0.3',
-                'recognition_interval': '1.0',
-                'max_failures': '5',
-                'filtered_osc_parameters': 'Hips_SwimsuitGrab_Angle,AvatarVersion,MuteSelf,Grounded,InStation,Seated,AFK,Earmuffs,AFKTimer'
+            "llm": {
+                "gemini_api_key": "",
+                "gemini_model": "gemini-2.5-flash",
+                "enable_llm": False,
+                "temperature": 0.7,
+                "max_output_tokens": 2048,
+                "conversation_history_length": 10,
+                "system_prompt": ""
             },
-            'LLM': {
-                'gemini_api_key': '',
-                'gemini_model': 'gemini-2.5-flash',
-                'enable_llm': 'false',
-                'temperature': '0.7',
-                'max_output_tokens': '2048',
-                'conversation_history_length': '10',
-                'system_prompt': ''
+            "ai_character_vrc": {
+                "ai_host": "127.0.0.1",
+                "ai_send_port": 9000,
+                "ai_receive_port": 9001,
+                "auto_connect": False,
+                "connection_timeout": 10,
+                "last_character_name": "",
+                "last_character_personality": "friendly"
             },
-
-            'VOICEVOX': {
-                'host': 'localhost',
-                'port': '50021'
+            "voicevox": {
+                "host": "localhost",
+                "port": 50021,
+                "last_period": "1期",
+                "last_character": "春日部つむぎ",
+                "last_speaker_id": "8",
+                "last_speaker_name": "春日部つむぎ",
+                "last_speaker_style": "ノーマル"
             },
-            'Runtime': {
-                'mode': 'user',  # 固定用户模式，始终支持语音识别
-                'disable_speech_recognition': 'false'  # 语音识别始终启用
+            "runtime": {
+                "mode": "user",
+                "disable_speech_recognition": False
             }
         }
         
@@ -96,7 +146,8 @@ class ConfigManager:
         """加载配置文件"""
         if os.path.exists(self.config_file):
             try:
-                self.config.read(self.config_file, encoding='utf-8')
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    self.config = json.load(f)
                 print(f"[OK] 已加载配置文件: {self.config_file}")
                 self._validate_config()
             except Exception as e:
@@ -108,28 +159,25 @@ class ConfigManager:
     
     def _create_default_config(self):
         """创建默认配置"""
-        self.config.clear()
-        for section, options in self.default_config.items():
-            self.config.add_section(section)
-            for key, value in options.items():
-                self.config.set(section, key, value)
+        self.config = self.default_config.copy()
         self.save_config()
     
     def _validate_config(self):
-        """验证配置完整性，只添加缺失项，不覆盖现有配置"""
+        """验证配置完整性，添加缺失项"""
         modified = False
         
-        for section, options in self.default_config.items():
-            if not self.config.has_section(section):
-                self.config.add_section(section)
-                modified = True
-            
-            for key, default_value in options.items():
-                # 只有当配置项完全不存在时才添加默认值
-                if not self.config.has_option(section, key):
-                    self.config.set(section, key, default_value)
+        def merge_dict(target, source, path=""):
+            nonlocal modified
+            for key, value in source.items():
+                current_path = f"{path}.{key}" if path else key
+                if key not in target:
+                    target[key] = value
                     modified = True
-                    print(f"[配置] 添加缺失配置项: [{section}] {key} = {default_value}")
+                    print(f"[配置] 添加缺失配置项: {current_path}")
+                elif isinstance(value, dict) and isinstance(target[key], dict):
+                    merge_dict(target[key], value, current_path)
+        
+        merge_dict(self.config, self.default_config)
         
         if modified:
             self.save_config()
@@ -139,331 +187,342 @@ class ConfigManager:
         """保存配置文件"""
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                self.config.write(f)
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
             print(f"[保存] 配置已保存: {self.config_file}")
         except Exception as e:
             print(f"[错误] 保存配置失败: {e}")
     
-    def get(self, section: str, key: str, fallback: Any = None) -> Any:
+    def get(self, section: str, key: str = None, fallback: Any = None) -> Any:
         """获取配置值"""
         try:
-            value = self.config.get(section, key)
-            return self._convert_value(value)
-        except (configparser.NoSectionError, configparser.NoOptionError):
-            if fallback is not None:
-                return fallback
-            # 从默认配置获取
-            if section in self.default_config and key in self.default_config[section]:
-                return self._convert_value(self.default_config[section][key])
-            return None
+            section_data = self.config.get(section.lower(), {})
+            if key is None:
+                return section_data
+            return section_data.get(key, fallback)
+        except Exception:
+            return fallback
     
     def set(self, section: str, key: str, value: Any):
         """设置配置值"""
-        if not self.config.has_section(section):
-            self.config.add_section(section)
-        
-        # 将值转换为字符串
-        str_value = str(value).lower() if isinstance(value, bool) else str(value)
-        self.config.set(section, key, str_value)
-    
-    def _convert_value(self, value: str) -> Any:
-        """转换配置值类型"""
-        if value.lower() in ('true', 'false'):
-            return value.lower() == 'true'
-        
-        try:
-            # 尝试转换为整数
-            if '.' not in value:
-                return int(value)
-        except ValueError:
-            pass
-        
-        try:
-            # 尝试转换为浮点数
-            return float(value)
-        except ValueError:
-            pass
-        
-        # 返回字符串
-        return value
+        section_lower = section.lower()
+        if section_lower not in self.config:
+            self.config[section_lower] = {}
+        self.config[section_lower][key] = value
     
     def get_section(self, section: str) -> Dict[str, Any]:
         """获取整个配置节"""
-        if not self.config.has_section(section):
-            return {}
-        
-        return {key: self.get(section, key) for key in self.config.options(section)}
+        return self.get(section, fallback={})
     
     def update_section(self, section: str, values: Dict[str, Any]):
         """更新配置节"""
         for key, value in values.items():
             self.set(section, key, value)
     
-    # 便捷方法：OSC配置
+    # OSC配置便捷方法
     @property
     def osc_host(self) -> str:
-        return self.get('OSC', 'host')
+        return self.get('osc', 'host', '127.0.0.1')
     
     @property
     def osc_send_port(self) -> int:
-        return self.get('OSC', 'send_port')
+        return self.get('osc', 'send_port', 9000)
     
     @property
     def osc_receive_port(self) -> int:
-        return self.get('OSC', 'receive_port')
+        return self.get('osc', 'receive_port', 9001)
     
     @property
     def osc_debug_mode(self) -> bool:
-        return self.get('OSC', 'debug_mode')
-    
-    # 便捷方法：语音配置
-    @property
-    def voice_language(self) -> str:
-        return self.get('Voice', 'language')
+        return self.get('osc', 'debug_mode', False)
     
     @property
-    def voice_device(self) -> str:
-        return self.get('Voice', 'device')
+    def enable_parameter_filtering(self) -> bool:
+        return self.get('osc', 'enable_parameter_filtering', True)
     
-    @property
-    def voice_threshold(self) -> float:
-        return self.get('Voice', 'voice_threshold')
-    
-    @property
-    def energy_threshold(self) -> float:
-        return self.get('Voice', 'energy_threshold')
-    
-    # 便捷方法：录制配置
-    @property
-    def max_speech_duration(self) -> float:
-        return self.get('Recording', 'max_speech_duration')
-    
-    @property
-    def min_speech_duration(self) -> float:
-        return self.get('Recording', 'min_speech_duration')
-    
-    @property
-    def silence_duration(self) -> float:
-        return self.get('Recording', 'silence_duration')
-    
-    @property
-    def sentence_pause_threshold(self) -> float:
-        return self.get('Recording', 'sentence_pause_threshold')
-    
-    @property
-    def phrase_pause_threshold(self) -> float:
-        return self.get('Recording', 'phrase_pause_threshold')
-    
-    # 便捷方法：模式配置
-    @property
-    def use_fallback_mode(self) -> bool:
-        return self.get('Modes', 'use_fallback_mode')
-    
-    @property
-    def disable_fallback_mode(self) -> bool:
-        return self.get('Modes', 'disable_fallback_mode')
-    
-    @property
-    def vrc_detection_timeout(self) -> float:
-        return self.get('Modes', 'vrc_detection_timeout')
-    
-    # 便捷方法：界面配置
-    @property
-    def ui_language(self) -> str:
-        return self.get('Interface', 'ui_language')
-    
-    @ui_language.setter
-    def ui_language(self, value: str):
-        self.set('Interface', 'ui_language', value)
-    
-    @property
-    def window_width(self) -> int:
-        return self.get('Interface', 'window_width')
-    
-    @property
-    def window_height(self) -> int:
-        return self.get('Interface', 'window_height')
-    
-    # 便捷方法：LLM配置
-    @property
-    def gemini_api_key(self) -> str:
-        return self.get('LLM', 'gemini_api_key', '')
-    
-    @property
-    def gemini_model(self) -> str:
-        return self.get('LLM', 'gemini_model', 'gemini-1.5-flash')
-    
-    @property
-    def enable_llm(self) -> bool:
-        return self.get('LLM', 'enable_llm', False)
-    
-    @property
-    def llm_temperature(self) -> float:
-        return self.get('LLM', 'temperature', 0.7)
-    
-    @property
-    def llm_max_output_tokens(self) -> int:
-        return self.get('LLM', 'max_output_tokens', 2048)
-    
-    @property
-    def llm_conversation_history_length(self) -> int:
-        return self.get('LLM', 'conversation_history_length', 10)
-    
-    @property
-    def llm_system_prompt(self) -> str:
-        return self.get('LLM', 'system_prompt', '你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。')
-    
-    # 便捷方法：AI角色VRC配置
-    @property
-    def ai_character_host(self) -> str:
-        return self.get('AI_CHARACTER_VRC', 'ai_host')
-    
-    @property
-    def ai_character_send_port(self) -> int:
-        return self.get('AI_CHARACTER_VRC', 'ai_send_port')
-    
-    @property
-    def ai_character_receive_port(self) -> int:
-        return self.get('AI_CHARACTER_VRC', 'ai_receive_port')
-    
-    @property
-    def ai_character_auto_connect(self) -> bool:
-        return self.get('AI_CHARACTER_VRC', 'auto_connect')
-    
-    @property
-    def ai_character_connection_timeout(self) -> int:
-        return self.get('AI_CHARACTER_VRC', 'connection_timeout')
-    
-    @property
-    def ai_character_last_name(self) -> str:
-        return self.get('AI_CHARACTER_VRC', 'last_character_name')
-    
-    @property
-    def ai_character_last_personality(self) -> str:
-        return self.get('AI_CHARACTER_VRC', 'last_character_personality')
-    
-    def set_ai_character_host(self, host: str):
-        """设置AI角色主机地址"""
-        self.set('AI_CHARACTER_VRC', 'ai_host', host)
-    
-    def set_ai_character_ports(self, send_port: int, receive_port: int):
-        """设置AI角色OSC端口"""
-        self.set('AI_CHARACTER_VRC', 'ai_send_port', send_port)
-        self.set('AI_CHARACTER_VRC', 'ai_receive_port', receive_port)
-    
-    def set_ai_character_last_info(self, name: str, personality: str):
-        """保存最后使用的AI角色信息"""
-        self.set('AI_CHARACTER_VRC', 'last_character_name', name)
-        self.set('AI_CHARACTER_VRC', 'last_character_personality', personality)
-    
-    def set_ai_character_auto_connect(self, auto_connect: bool):
-        """设置是否自动连接"""
-        self.set('AI_CHARACTER_VRC', 'auto_connect', auto_connect)
-    
-    # 便捷方法：运行时配置
-    @property
-    def runtime_mode(self) -> str:
-        """运行模式: user=用户端, ai_remote=AI远端"""
-        return self.get('Runtime', 'mode', 'user')
-    
-    @property 
-    def disable_speech_recognition(self) -> bool:
-        """是否禁用语音识别"""
-        return self.get('Runtime', 'disable_speech_recognition', False)
-    
-    def set_runtime_mode(self, mode: str):
-        """设置运行模式"""
-        self.set('Runtime', 'mode', mode)
-    
-    def set_disable_speech_recognition(self, disable: bool):
-        """设置是否禁用语音识别"""
-        self.set('Runtime', 'disable_speech_recognition', disable)
-    
-    # 便捷方法：VOICEVOX配置
-    @property
-    def voicevox_host(self) -> str:
-        """获取VOICEVOX服务器地址"""
-        return self.get('VOICEVOX', 'host', 'localhost')
-    
-    @property
-    def voicevox_port(self) -> int:
-        """获取VOICEVOX服务器端口"""
-        return self.get('VOICEVOX', 'port', 50021)
-    
-    def set_voicevox_server(self, host: str, port: int):
-        """设置VOICEVOX服务器地址和端口"""
-        self.set('VOICEVOX', 'host', host)
-        self.set('VOICEVOX', 'port', port)
-    
-    @property
-    def voicevox_last_period(self) -> str:
-        """获取上次选择的期数"""
-        return self.get('VOICEVOX', 'last_period', '1期')
-    
-    @property
-    def voicevox_last_character(self) -> str:
-        """获取上次选择的角色"""
-        return self.get('VOICEVOX', 'last_character', 'ずんだもん - ノーマル')
-    
-    @property
-    def voicevox_last_speaker_id(self) -> str:
-        """获取上次选择的说话人ID"""
-        return self.get('VOICEVOX', 'last_speaker_id', '')
-    
-    @property
-    def voicevox_last_speaker_name(self) -> str:
-        """获取上次选择的说话人名称"""
-        return self.get('VOICEVOX', 'last_speaker_name', '')
-    
-    @property
-    def voicevox_last_speaker_style(self) -> str:
-        """获取上次选择的说话人风格"""
-        return self.get('VOICEVOX', 'last_speaker_style', '')
-    
-    def set_voicevox_last_selection(self, period: str, character: str, speaker_id: str = '', 
-                                  speaker_name: str = '', speaker_style: str = ''):
-        """保存VOICEVOX最后的选择"""
-        self.set('VOICEVOX', 'last_period', period)
-        self.set('VOICEVOX', 'last_character', character)
-        self.set('VOICEVOX', 'last_speaker_id', speaker_id)
-        self.set('VOICEVOX', 'last_speaker_name', speaker_name)
-        self.set('VOICEVOX', 'last_speaker_style', speaker_style)
-    
-    # 单独的setter属性用于兼容性
-    @voicevox_last_period.setter
-    def voicevox_last_period(self, value: str):
-        """设置上次选择的期数"""
-        self.set('VOICEVOX', 'last_period', value)
-    
-    @voicevox_last_speaker_name.setter
-    def voicevox_last_speaker_name(self, value: str):
-        """设置上次选择的说话人名称"""
-        self.set('VOICEVOX', 'last_speaker_name', value)
+    @enable_parameter_filtering.setter
+    def enable_parameter_filtering(self, value: bool):
+        self.set('osc', 'enable_parameter_filtering', value)
     
     # OSC参数过滤配置
     @property
-    def filtered_osc_parameters(self) -> list:
-        """获取需要过滤的OSC参数列表"""
-        param_string = self.get('Advanced', 'filtered_osc_parameters', '')
-        if param_string.strip():
-            return [param.strip() for param in param_string.split(',') if param.strip()]
-        return []
+    def filtered_osc_parameters(self) -> List[str]:
+        """获取需要过滤的OSC参数列表（启用状态的参数）"""
+        filtered_params = self.get('osc', 'filtered_parameters', {})
+        if not self.enable_parameter_filtering:
+            return []
+        return [param for param, config in filtered_params.items() 
+                if config.get('enabled', False)]
     
-    @filtered_osc_parameters.setter
-    def filtered_osc_parameters(self, value: list):
-        """设置需要过滤的OSC参数列表"""
-        param_string = ','.join(value) if value else ''
-        self.set('Advanced', 'filtered_osc_parameters', param_string)
-        
+    def get_osc_parameter_config(self) -> Dict[str, Dict]:
+        """获取所有OSC参数配置"""
+        return self.get('osc', 'filtered_parameters', {})
+    
+    def set_osc_parameter_enabled(self, param_name: str, enabled: bool):
+        """设置OSC参数是否启用过滤"""
+        filtered_params = self.get('osc', 'filtered_parameters', {})
+        if param_name in filtered_params:
+            filtered_params[param_name]['enabled'] = enabled
+        else:
+            filtered_params[param_name] = {
+                'enabled': enabled,
+                'description': '用户自定义参数'
+            }
+        self.set('osc', 'filtered_parameters', filtered_params)
+    
+    def add_custom_osc_parameter(self, param_name: str, description: str = "自定义参数"):
+        """添加自定义OSC参数"""
+        filtered_params = self.get('osc', 'filtered_parameters', {})
+        if param_name not in filtered_params:
+            filtered_params[param_name] = {
+                'enabled': True,
+                'description': description
+            }
+            self.set('osc', 'filtered_parameters', filtered_params)
+            return True
+        return False
+    
+    # 语音配置
+    @property
+    def voice_language(self) -> str:
+        return self.get('voice', 'language', 'ja-JP')
+    
+    @property
+    def voice_device(self) -> str:
+        return self.get('voice', 'device', 'auto')
+    
+    @property
+    def voice_threshold(self) -> float:
+        return self.get('voice', 'voice_threshold', 0.015)
+    
+    @property
+    def energy_threshold(self) -> float:
+        return self.get('voice', 'energy_threshold', 0.01)
+    
+    # 界面配置
+    @property
+    def ui_language(self) -> str:
+        return self.get('interface', 'ui_language', 'zh')
+    
+    @ui_language.setter
+    def ui_language(self, value: str):
+        self.set('interface', 'ui_language', value)
+    
+    @property
+    def window_width(self) -> int:
+        return self.get('interface', 'window_width', 800)
+    
+    @property
+    def window_height(self) -> int:
+        return self.get('interface', 'window_height', 1000)
+    
+    # LLM配置
+    @property
+    def gemini_api_key(self) -> str:
+        return self.get('llm', 'gemini_api_key', '')
+    
+    @property
+    def gemini_model(self) -> str:
+        return self.get('llm', 'gemini_model', 'gemini-2.5-flash')
+    
+    @property
+    def enable_llm(self) -> bool:
+        return self.get('llm', 'enable_llm', False)
+    
+    @property
+    def llm_temperature(self) -> float:
+        return self.get('llm', 'temperature', 0.7)
+    
+    @property
+    def llm_max_output_tokens(self) -> int:
+        return self.get('llm', 'max_output_tokens', 2048)
+    
+    @property
+    def llm_conversation_history_length(self) -> int:
+        return self.get('llm', 'conversation_history_length', 10)
+    
+    @property
+    def llm_system_prompt(self) -> str:
+        return self.get('llm', 'system_prompt', '')
+    
+    # VOICEVOX配置
+    @property
+    def voicevox_host(self) -> str:
+        return self.get('voicevox', 'host', 'localhost')
+    
+    @property
+    def voicevox_port(self) -> int:
+        return self.get('voicevox', 'port', 50021)
+    
+    @property
+    def voicevox_last_speaker_name(self) -> str:
+        return self.get('voicevox', 'last_speaker_name', '')
+    
+    @voicevox_last_speaker_name.setter
+    def voicevox_last_speaker_name(self, value: str):
+        self.set('voicevox', 'last_speaker_name', value)
+    
+    # 录制配置
+    @property
+    def max_speech_duration(self) -> float:
+        return self.get('recording', 'max_speech_duration', 8.0)
+    
+    @property
+    def min_speech_duration(self) -> float:
+        return self.get('recording', 'min_speech_duration', 0.3)
+    
+    @property
+    def silence_duration(self) -> float:
+        return self.get('recording', 'silence_duration', 0.8)
+    
+    @property
+    def sentence_pause_threshold(self) -> float:
+        return self.get('recording', 'sentence_pause_threshold', 0.5)
+    
+    @property
+    def phrase_pause_threshold(self) -> float:
+        return self.get('recording', 'phrase_pause_threshold', 0.3)
+    
+    # 模式配置
+    @property
+    def use_fallback_mode(self) -> bool:
+        return self.get('modes', 'use_fallback_mode', False)
+    
+    @property
+    def disable_fallback_mode(self) -> bool:
+        return self.get('modes', 'disable_fallback_mode', True)
+    
+    @property
+    def vrc_detection_timeout(self) -> float:
+        return self.get('modes', 'vrc_detection_timeout', 30.0)
+    
+    # 高级配置
+    @property
+    def energy_drop_ratio(self) -> float:
+        return self.get('advanced', 'energy_drop_ratio', 0.3)
+    
+    @property
+    def recent_energy_window(self) -> int:
+        return self.get('advanced', 'recent_energy_window', 10)
+    
+    @property
+    def recognition_interval(self) -> float:
+        return self.get('advanced', 'recognition_interval', 1.0)
+    
+    # AI角色VRC配置  
+    @property
+    def ai_character_host(self) -> str:
+        return self.get('ai_character_vrc', 'ai_host', '127.0.0.1')
+    
+    @property
+    def ai_character_send_port(self) -> int:
+        return self.get('ai_character_vrc', 'ai_send_port', 9000)
+    
+    @property
+    def ai_character_receive_port(self) -> int:
+        return self.get('ai_character_vrc', 'ai_receive_port', 9001)
+    
+    @property
+    def ai_character_auto_connect(self) -> bool:
+        return self.get('ai_character_vrc', 'auto_connect', False)
+    
+    @property
+    def ai_character_connection_timeout(self) -> int:
+        return self.get('ai_character_vrc', 'connection_timeout', 10)
+    
+    @property
+    def ai_character_last_name(self) -> str:
+        return self.get('ai_character_vrc', 'last_character_name', '')
+    
+    @property
+    def ai_character_last_personality(self) -> str:
+        return self.get('ai_character_vrc', 'last_character_personality', 'friendly')
+    
+    # VOICEVOX扩展配置
+    @property
+    def voicevox_last_period(self) -> str:
+        return self.get('voicevox', 'last_period', '1期')
+    
+    @property
+    def voicevox_last_character(self) -> str:
+        return self.get('voicevox', 'last_character', '春日部つむぎ')
+    
+    @property
+    def voicevox_last_speaker_id(self) -> str:
+        return self.get('voicevox', 'last_speaker_id', '8')
+    
+    @property
+    def voicevox_last_speaker_style(self) -> str:
+        return self.get('voicevox', 'last_speaker_style', 'ノーマル')
+    
+    # 运行时配置
+    @property
+    def runtime_mode(self) -> str:
+        return self.get('runtime', 'mode', 'user')
+    
+    @property
+    def disable_speech_recognition(self) -> bool:
+        return self.get('runtime', 'disable_speech_recognition', False)
+    
+    # 添加缺失的setter方法
+    def set_voicevox_last_selection(self, period: str, character: str, speaker_id: str = '', 
+                                  speaker_name: str = '', speaker_style: str = ''):
+        """保存VOICEVOX最后的选择"""
+        self.set('voicevox', 'last_period', period)
+        self.set('voicevox', 'last_character', character)
+        self.set('voicevox', 'last_speaker_id', speaker_id)
+        self.set('voicevox', 'last_speaker_name', speaker_name)
+        self.set('voicevox', 'last_speaker_style', speaker_style)
+    
+    # AI角色VRC相关setter方法
+    def set_ai_character_host(self, host: str):
+        """设置AI角色主机地址"""
+        self.set('ai_character_vrc', 'ai_host', host)
+    
+    def set_ai_character_ports(self, send_port: int, receive_port: int):
+        """设置AI角色OSC端口"""
+        self.set('ai_character_vrc', 'ai_send_port', send_port)
+        self.set('ai_character_vrc', 'ai_receive_port', receive_port)
+    
+    def set_ai_character_last_info(self, name: str, personality: str):
+        """保存最后使用的AI角色信息"""
+        self.set('ai_character_vrc', 'last_character_name', name)
+        self.set('ai_character_vrc', 'last_character_personality', personality)
+    
+    def set_ai_character_auto_connect(self, auto_connect: bool):
+        """设置是否自动连接"""
+        self.set('ai_character_vrc', 'auto_connect', auto_connect)
+    
+    # 运行时配置setter方法
+    def set_runtime_mode(self, mode: str):
+        """设置运行模式"""
+        self.set('runtime', 'mode', mode)
+    
+    def set_disable_speech_recognition(self, disable: bool):
+        """设置是否禁用语音识别"""
+        self.set('runtime', 'disable_speech_recognition', disable)
+    
+    # VOICEVOX setter方法
+    def set_voicevox_server(self, host: str, port: int):
+        """设置VOICEVOX服务器地址和端口"""
+        self.set('voicevox', 'host', host)
+        self.set('voicevox', 'port', port)
+    
+    # 兼容原有的setter属性
+    @voicevox_last_speaker_name.setter
+    def voicevox_last_speaker_name(self, value: str):
+        self.set('voicevox', 'last_speaker_name', value)
+    
+    @voicevox_last_speaker_id.setter  
+    def voicevox_last_speaker_id(self, value: str):
+        self.set('voicevox', 'last_speaker_id', value)
+    
     @voicevox_last_speaker_style.setter
     def voicevox_last_speaker_style(self, value: str):
-        """设置上次选择的说话人风格"""
-        self.set('VOICEVOX', 'last_speaker_style', value)
-        
-    @voicevox_last_speaker_id.setter
-    def voicevox_last_speaker_id(self, value: str):
-        """设置上次选择的说话人ID"""
-        self.set('VOICEVOX', 'last_speaker_id', value)
+        self.set('voicevox', 'last_speaker_style', value)
+    
+    @voicevox_last_period.setter
+    def voicevox_last_period(self, value: str):
+        self.set('voicevox', 'last_period', value)
 
 
 # 全局配置管理器实例

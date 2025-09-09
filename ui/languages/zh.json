@@ -228,5 +228,7 @@
   "add_custom_param": "添加自定义",
   "enter_param_name": "请输入参数名称:",
   "param_already_exists": "参数已存在!",
-  "param_added_success": "参数已添加，保存设置后生效"
+  "param_added_success": "参数已添加，保存设置后生效",
+  "enable_parameter_filtering": "启用参数过滤",
+  "osc_parameter_filtering": "OSC参数过滤"
 }

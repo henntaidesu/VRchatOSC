@@ -211,3 +211,5 @@ conf.ini
 models
 generated_voices
 Record
+config.json
+conf.ini.backup

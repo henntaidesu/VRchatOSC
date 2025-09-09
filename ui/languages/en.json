@@ -231,5 +231,7 @@
   "add_custom_param": "Add Custom",
   "enter_param_name": "Please enter parameter name:",
   "param_already_exists": "Parameter already exists!",
-  "param_added_success": "Parameter added, will take effect after saving settings"
+  "param_added_success": "Parameter added, will take effect after saving settings",
+  "enable_parameter_filtering": "Enable Parameter Filtering",
+  "osc_parameter_filtering": "OSC Parameter Filtering"
 }

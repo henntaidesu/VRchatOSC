@@ -303,9 +303,9 @@ class SettingsWindow:
         interface_frame.columnconfigure(1, weight=1)
     
     def create_advanced_tab(self):
-        """创建高级设置选项卡"""
+        """创建OSC参数过滤设置选项卡"""
         advanced_frame = ttk.Frame(self.notebook)
-        self.notebook.add(advanced_frame, text="高级设置")
+        self.notebook.add(advanced_frame, text=self._get_text("osc_parameter_filtering", "OSC参数过滤"))
         
         # 能量下降比例
         row = 0
@@ -343,13 +343,20 @@ class SettingsWindow:
         row += 1
         ttk.Label(advanced_frame, text=self._get_text("filter_osc_parameters", "过滤OSC参数:")).grid(row=row, column=0, sticky=tk.NW, padx=10, pady=5)
         
+        # 参数过滤总开关
+        row += 1
+        self.enable_filtering_var = tk.BooleanVar(value=self.config.enable_parameter_filtering)
+        ttk.Checkbutton(advanced_frame, text=self._get_text("enable_parameter_filtering", "启用参数过滤"), 
+                       variable=self.enable_filtering_var,
+                       command=self._on_filtering_toggle).grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
+        
         # 创建可滚动的参数勾选框列表
         row += 1
         filter_frame = ttk.LabelFrame(advanced_frame, text=self._get_text("parameter_filter_list", "参数过滤列表"), padding="5")
         filter_frame.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=5)
         
-        # 创建Canvas和Scrollbar用于滚动
-        canvas = tk.Canvas(filter_frame, height=200)
+        # 创建Canvas和Scrollbar用于滚动 - 减小高度以节省空间
+        canvas = tk.Canvas(filter_frame, height=150)
         scrollbar_params = ttk.Scrollbar(filter_frame, orient="vertical", command=canvas.yview)
         scrollable_params_frame = ttk.Frame(canvas)
         
@@ -360,6 +367,19 @@ class SettingsWindow:
         
         canvas.create_window((0, 0), window=scrollable_params_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar_params.set)
+        
+        # 添加滚轮支持
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        
+        def _bind_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_from_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+        
+        canvas.bind('<Enter>', _bind_to_mousewheel)
+        canvas.bind('<Leave>', _unbind_from_mousewheel)
         
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar_params.pack(side="right", fill="y")
@@ -407,7 +427,7 @@ class SettingsWindow:
         
         # 创建参数勾选框
         self.param_checkboxes = {}
-        current_filtered = self.config.filtered_osc_parameters
+        current_params_config = self.config.get_osc_parameter_config()
         
         # 使用循环创建分类和参数
         for category_name, params in self.osc_parameter_categories.items():
@@ -423,9 +443,11 @@ class SettingsWindow:
             
             # 创建该分类下的参数勾选框
             for param_name, description in params:
+                # 从JSON配置中获取当前状态
+                is_enabled = current_params_config.get(param_name, {}).get('enabled', False)
                 self._create_parameter_checkbox(scrollable_params_frame, 
                                               param_name, description, 
-                                              param_name in current_filtered)
+                                              is_enabled)
         
         # 添加全选/全不选按钮
         row += 1
@@ -444,7 +466,7 @@ class SettingsWindow:
                   command=self._add_custom_parameter).pack(side=tk.LEFT)
         
         advanced_frame.columnconfigure(1, weight=1)
-        advanced_frame.rowconfigure(row-1, weight=1)  # 让过滤参数框可以扩展
+        advanced_frame.rowconfigure(row-2, weight=2)  # 给参数过滤框更多扩展权重
     
     def _create_parameter_checkbox(self, parent, param_name, description, is_checked=False):
         """创建单个参数的勾选框
@@ -475,6 +497,12 @@ class SettingsWindow:
         desc_label = ttk.Label(checkbox_frame, text=f"- {description}", 
                              foreground="gray", font=("", 8))
         desc_label.pack(side=tk.LEFT)
+    
+    def _on_filtering_toggle(self):
+        """参数过滤总开关切换回调"""
+        enabled = self.enable_filtering_var.get()
+        # 可以在这里添加额外的UI更新逻辑
+        print(f"参数过滤已{'启用' if enabled else '禁用'}")
     
     def _select_all_params(self):
         """全选所有参数进行过滤"""
@@ -520,22 +548,27 @@ class SettingsWindow:
                 )
                 return
             
-            # 添加到自定义分类中
-            if "自定义参数" not in self.osc_parameter_categories:
-                self.osc_parameter_categories["自定义参数"] = []
-            
-            # 添加新参数
-            self.osc_parameter_categories["自定义参数"].append((param_name, "用户自定义参数"))
-            
-            # 需要重新创建界面来显示新参数
-            # 这里为简化，直接添加到现有的勾选框字典中
-            var = tk.BooleanVar(value=True)  # 新添加的参数默认选中过滤
-            self.param_checkboxes[param_name] = var
-            
-            messagebox.showinfo(
-                self._get_text("success", "成功"), 
-                self._get_text("param_added_success", f"参数 '{param_name}' 已添加，保存设置后生效")
-            )
+            # 使用新配置管理器添加自定义参数
+            success = self.config.add_custom_osc_parameter(param_name, "用户自定义参数")
+            if success:
+                # 添加到自定义分类中用于UI显示
+                if "自定义参数" not in self.osc_parameter_categories:
+                    self.osc_parameter_categories["自定义参数"] = []
+                self.osc_parameter_categories["自定义参数"].append((param_name, "用户自定义参数"))
+                
+                # 添加到勾选框
+                var = tk.BooleanVar(value=True)  # 新添加的参数默认启用过滤
+                self.param_checkboxes[param_name] = var
+                
+                messagebox.showinfo(
+                    self._get_text("success", "成功"), 
+                    self._get_text("param_added_success", f"参数 '{param_name}' 已添加，保存设置后生效")
+                )
+            else:
+                messagebox.showwarning(
+                    self._get_text("warning", "警告"),
+                    self._get_text("param_already_exists", "参数已存在!")
+                )
     
     def apply_settings(self):
         """应用设置（不保存到文件）"""
@@ -594,12 +627,13 @@ class SettingsWindow:
         self.config.set('Advanced', 'recognition_interval', self.recognition_interval_var.get())
         
         # OSC参数过滤设置
+        if hasattr(self, 'enable_filtering_var'):
+            self.config.enable_parameter_filtering = self.enable_filtering_var.get()
+        
         if hasattr(self, 'param_checkboxes'):
-            # 从勾选框获取选中的参数列表
-            filtered_params = [param_name for param_name, var in self.param_checkboxes.items() 
-                             if var.get()]
-            # 保存到配置
-            self.config.filtered_osc_parameters = filtered_params
+            # 更新每个参数的启用状态
+            for param_name, var in self.param_checkboxes.items():
+                self.config.set_osc_parameter_enabled(param_name, var.get())
         
         # LLM设置
         self.config.set('LLM', 'gemini_api_key', self.gemini_api_key_var.get())

@@ -559,7 +559,7 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror("错误", f"打开设置窗口失败: {e}")
     
-    def on_settings_saved(self):
+    def on_settings_saved(self, apply_only=False):
         """设置保存后的回调函数"""
         try:
             # 重新加载配置
@@ -575,6 +575,39 @@ class VRChatOSCGUI:
             
         except Exception as e:
             self.log(f"应用高级设置时出错: {e}")
+    
+    def load_settings(self):
+        """重新加载配置设置"""
+        try:
+            # 重新加载配置文件
+            self.config.load_config()
+            
+            # 更新UI变量
+            if hasattr(self, 'host_var'):
+                self.host_var.set(self.config.osc_host)
+            if hasattr(self, 'send_port_var'):
+                self.send_port_var.set(str(self.config.osc_send_port))
+            if hasattr(self, 'receive_port_var'):
+                self.receive_port_var.set(str(self.config.osc_receive_port))
+            if hasattr(self, 'language_var'):
+                self.language_var.set(self.config.voice_language)
+            if hasattr(self, 'device_var'):
+                self.device_var.set(self.config.voice_device)
+            if hasattr(self, 'ui_language'):
+                self.ui_language.set(self.config.ui_language)
+            if hasattr(self, 'disable_fallback_var'):
+                self.disable_fallback_var.set(self.config.disable_fallback_mode)
+            if hasattr(self, 'threshold_var'):
+                self.threshold_var.set(self.config.voice_threshold)
+                
+            # 更新阈值标签
+            if hasattr(self, 'threshold_label'):
+                self.threshold_label.config(text=f"{self.config.voice_threshold:.3f}")
+                
+            self.log("配置设置已重新加载")
+            
+        except Exception as e:
+            self.log(f"重新加载设置时出错: {e}")
     
     def on_closing(self):
         """窗口关闭事件处理"""

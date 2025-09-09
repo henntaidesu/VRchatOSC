@@ -231,5 +231,7 @@
   "add_custom_param": "カスタム追加",
   "enter_param_name": "パラメーター名を入力してください:",
   "param_already_exists": "パラメーターは既に存在します!",
-  "param_added_success": "パラメーターが追加されました。設定保存後に有効になります"
+  "param_added_success": "パラメーターが追加されました。設定保存後に有効になります",
+  "enable_parameter_filtering": "パラメータフィルタリングを有効にする",
+  "osc_parameter_filtering": "OSCパラメータフィルタリング"
 }
