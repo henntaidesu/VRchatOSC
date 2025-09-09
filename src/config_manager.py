@@ -23,7 +23,7 @@ class ConfigManager:
         
         # 默认配置
         self.default_config = {
-            "osc": {
+            "user_osc": {
                 "host": "127.0.0.1",
                 "send_port": 9000,
                 "receive_port": 9001,
@@ -116,7 +116,7 @@ class ConfigManager:
                 "conversation_history_length": 10,
                 "system_prompt": ""
             },
-            "ai_character_vrc": {
+            "ai_osc": {
                 "ai_host": "127.0.0.1",
                 "ai_send_port": 9000,
                 "ai_receive_port": 9001,
@@ -221,33 +221,33 @@ class ConfigManager:
     # OSC配置便捷方法
     @property
     def osc_host(self) -> str:
-        return self.get('osc', 'host', '127.0.0.1')
+        return self.get('user_osc', 'host', '127.0.0.1')
     
     @property
     def osc_send_port(self) -> int:
-        return self.get('osc', 'send_port', 9000)
+        return self.get('user_osc', 'send_port', 9000)
     
     @property
     def osc_receive_port(self) -> int:
-        return self.get('osc', 'receive_port', 9001)
+        return self.get('user_osc', 'receive_port', 9001)
     
     @property
     def osc_debug_mode(self) -> bool:
-        return self.get('osc', 'debug_mode', False)
+        return self.get('user_osc', 'debug_mode', False)
     
     @property
     def enable_parameter_filtering(self) -> bool:
-        return self.get('osc', 'enable_parameter_filtering', True)
+        return self.get('user_osc', 'enable_parameter_filtering', True)
     
     @enable_parameter_filtering.setter
     def enable_parameter_filtering(self, value: bool):
-        self.set('osc', 'enable_parameter_filtering', value)
+        self.set('user_osc', 'enable_parameter_filtering', value)
     
     # OSC参数过滤配置
     @property
     def filtered_osc_parameters(self) -> List[str]:
         """获取需要过滤的OSC参数列表（启用状态的参数）"""
-        filtered_params = self.get('osc', 'filtered_parameters', {})
+        filtered_params = self.get('user_osc', 'filtered_parameters', {})
         if not self.enable_parameter_filtering:
             return []
         return [param for param, config in filtered_params.items() 
@@ -255,11 +255,11 @@ class ConfigManager:
     
     def get_osc_parameter_config(self) -> Dict[str, Dict]:
         """获取所有OSC参数配置"""
-        return self.get('osc', 'filtered_parameters', {})
+        return self.get('user_osc', 'filtered_parameters', {})
     
     def set_osc_parameter_enabled(self, param_name: str, enabled: bool):
         """设置OSC参数是否启用过滤"""
-        filtered_params = self.get('osc', 'filtered_parameters', {})
+        filtered_params = self.get('user_osc', 'filtered_parameters', {})
         if param_name in filtered_params:
             filtered_params[param_name]['enabled'] = enabled
         else:
@@ -267,17 +267,17 @@ class ConfigManager:
                 'enabled': enabled,
                 'description': '用户自定义参数'
             }
-        self.set('osc', 'filtered_parameters', filtered_params)
+        self.set('user_osc', 'filtered_parameters', filtered_params)
     
     def add_custom_osc_parameter(self, param_name: str, description: str = "自定义参数"):
         """添加自定义OSC参数"""
-        filtered_params = self.get('osc', 'filtered_parameters', {})
+        filtered_params = self.get('user_osc', 'filtered_parameters', {})
         if param_name not in filtered_params:
             filtered_params[param_name] = {
                 'enabled': True,
                 'description': description
             }
-            self.set('osc', 'filtered_parameters', filtered_params)
+            self.set('user_osc', 'filtered_parameters', filtered_params)
             return True
         return False
     
@@ -408,34 +408,34 @@ class ConfigManager:
     def recognition_interval(self) -> float:
         return self.get('advanced', 'recognition_interval', 1.0)
     
-    # AI角色VRC配置  
+    # AI角色OSC配置  
     @property
     def ai_character_host(self) -> str:
-        return self.get('ai_character_vrc', 'ai_host', '127.0.0.1')
+        return self.get('ai_osc', 'ai_host', '127.0.0.1')
     
     @property
     def ai_character_send_port(self) -> int:
-        return self.get('ai_character_vrc', 'ai_send_port', 9000)
+        return self.get('ai_osc', 'ai_send_port', 9000)
     
     @property
     def ai_character_receive_port(self) -> int:
-        return self.get('ai_character_vrc', 'ai_receive_port', 9001)
+        return self.get('ai_osc', 'ai_receive_port', 9001)
     
     @property
     def ai_character_auto_connect(self) -> bool:
-        return self.get('ai_character_vrc', 'auto_connect', False)
+        return self.get('ai_osc', 'auto_connect', False)
     
     @property
     def ai_character_connection_timeout(self) -> int:
-        return self.get('ai_character_vrc', 'connection_timeout', 10)
+        return self.get('ai_osc', 'connection_timeout', 10)
     
     @property
     def ai_character_last_name(self) -> str:
-        return self.get('ai_character_vrc', 'last_character_name', '')
+        return self.get('ai_osc', 'last_character_name', '')
     
     @property
     def ai_character_last_personality(self) -> str:
-        return self.get('ai_character_vrc', 'last_character_personality', 'friendly')
+        return self.get('ai_osc', 'last_character_personality', 'friendly')
     
     # VOICEVOX扩展配置
     @property
@@ -473,24 +473,24 @@ class ConfigManager:
         self.set('voicevox', 'last_speaker_name', speaker_name)
         self.set('voicevox', 'last_speaker_style', speaker_style)
     
-    # AI角色VRC相关setter方法
+    # AI角色OSC相关setter方法
     def set_ai_character_host(self, host: str):
         """设置AI角色主机地址"""
-        self.set('ai_character_vrc', 'ai_host', host)
+        self.set('ai_osc', 'ai_host', host)
     
     def set_ai_character_ports(self, send_port: int, receive_port: int):
         """设置AI角色OSC端口"""
-        self.set('ai_character_vrc', 'ai_send_port', send_port)
-        self.set('ai_character_vrc', 'ai_receive_port', receive_port)
+        self.set('ai_osc', 'ai_send_port', send_port)
+        self.set('ai_osc', 'ai_receive_port', receive_port)
     
     def set_ai_character_last_info(self, name: str, personality: str):
         """保存最后使用的AI角色信息"""
-        self.set('ai_character_vrc', 'last_character_name', name)
-        self.set('ai_character_vrc', 'last_character_personality', personality)
+        self.set('ai_osc', 'last_character_name', name)
+        self.set('ai_osc', 'last_character_personality', personality)
     
     def set_ai_character_auto_connect(self, auto_connect: bool):
         """设置是否自动连接"""
-        self.set('ai_character_vrc', 'auto_connect', auto_connect)
+        self.set('ai_osc', 'auto_connect', auto_connect)
     
     # 运行时配置setter方法
     def set_runtime_mode(self, mode: str):

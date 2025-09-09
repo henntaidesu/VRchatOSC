@@ -595,36 +595,36 @@ class SettingsWindow:
     def _update_config(self):
         """更新配置"""
         # OSC设置
-        self.config.set('OSC', 'host', self.host_var.get())
-        self.config.set('OSC', 'send_port', int(self.send_port_var.get()))
-        self.config.set('OSC', 'receive_port', int(self.receive_port_var.get()))
-        self.config.set('OSC', 'debug_mode', self.debug_mode_var.get())
+        self.config.set('user_osc', 'host', self.host_var.get())
+        self.config.set('user_osc', 'send_port', int(self.send_port_var.get()))
+        self.config.set('user_osc', 'receive_port', int(self.receive_port_var.get()))
+        self.config.set('user_osc', 'debug_mode', self.debug_mode_var.get())
         
         # 语音设置
-        self.config.set('Voice', 'language', self.language_var.get())
-        self.config.set('Voice', 'device', self.device_var.get())
-        self.config.set('Voice', 'voice_threshold', self.voice_threshold_var.get())
-        self.config.set('Voice', 'energy_threshold', self.energy_threshold_var.get())
+        self.config.set('voice', 'language', self.language_var.get())
+        self.config.set('voice', 'device', self.device_var.get())
+        self.config.set('voice', 'voice_threshold', self.voice_threshold_var.get())
+        self.config.set('voice', 'energy_threshold', self.energy_threshold_var.get())
         
         # 录制设置
-        self.config.set('Recording', 'max_speech_duration', self.max_duration_var.get())
-        self.config.set('Recording', 'min_speech_duration', self.min_duration_var.get())
-        self.config.set('Recording', 'silence_duration', self.silence_duration_var.get())
-        self.config.set('Recording', 'sentence_pause_threshold', self.sentence_pause_var.get())
+        self.config.set('recording', 'max_speech_duration', self.max_duration_var.get())
+        self.config.set('recording', 'min_speech_duration', self.min_duration_var.get())
+        self.config.set('recording', 'silence_duration', self.silence_duration_var.get())
+        self.config.set('recording', 'sentence_pause_threshold', self.sentence_pause_var.get())
         
         # 模式设置
-        self.config.set('Modes', 'use_fallback_mode', self.use_fallback_var.get())
-        self.config.set('Modes', 'disable_fallback_mode', self.disable_fallback_var.get())
-        self.config.set('Modes', 'vrc_detection_timeout', self.timeout_var.get())
+        self.config.set('modes', 'use_fallback_mode', self.use_fallback_var.get())
+        self.config.set('modes', 'disable_fallback_mode', self.disable_fallback_var.get())
+        self.config.set('modes', 'vrc_detection_timeout', self.timeout_var.get())
         
         # 界面设置
-        self.config.set('Interface', 'ui_language', self.ui_language_var.get())
-        self.config.set('Interface', 'window_width', int(self.window_width_var.get()))
-        self.config.set('Interface', 'window_height', int(self.window_height_var.get()))
+        self.config.set('interface', 'ui_language', self.ui_language_var.get())
+        self.config.set('interface', 'window_width', int(self.window_width_var.get()))
+        self.config.set('interface', 'window_height', int(self.window_height_var.get()))
         
         # 高级设置
-        self.config.set('Advanced', 'energy_drop_ratio', self.energy_drop_var.get())
-        self.config.set('Advanced', 'recognition_interval', self.recognition_interval_var.get())
+        self.config.set('advanced', 'energy_drop_ratio', self.energy_drop_var.get())
+        self.config.set('advanced', 'recognition_interval', self.recognition_interval_var.get())
         
         # OSC参数过滤设置
         if hasattr(self, 'enable_filtering_var'):
