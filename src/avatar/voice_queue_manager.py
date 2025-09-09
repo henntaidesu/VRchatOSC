@@ -579,6 +579,21 @@ class VoiceQueueManager:
     def _get_ai_host_address(self) -> str:
         """获取AI端主机地址"""
         try:
+            # 优先从配置文件读取 ai_osc.ai_host
+            try:
+                import sys
+                import os
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                sys.path.append(project_root)
+                
+                from src.config_manager import config_manager
+                ai_host = config_manager.ai_character_host
+                if ai_host and ai_host != "127.0.0.1":
+                    print(f"从配置文件获取主机地址: {ai_host} (ai_osc.ai_host)")
+                    return ai_host
+            except Exception as e:
+                print(f"从配置文件读取主机地址失败: {e}")
+            
             # 优先从AI管理器的配置获取主机地址
             if hasattr(self.ai_manager, 'ai_host') and self.ai_manager.ai_host:
                 print(f"从AI管理器配置获取主机地址: {self.ai_manager.ai_host}")
@@ -599,7 +614,7 @@ class VoiceQueueManager:
                         print(f"从OSC客户端获取主机地址: {host}")
                         return host
             
-            print("无法从AI管理器获取主机地址，使用默认127.0.0.1")
+            print("无法从任何来源获取主机地址，使用默认127.0.0.1")
             return "127.0.0.1"
             
         except Exception as e:

@@ -81,9 +81,21 @@ class StreamingLLMProcessor:
     def _init_audio_client(self):
         """初始化音频客户端"""
         try:
+            # 从配置文件获取AI主机地址
+            ai_host = "127.0.0.1"  # 默认值
+            if self.config:
+                try:
+                    ai_host = self.config.ai_character_host
+                    if ai_host and ai_host != "127.0.0.1":
+                        print(f"[配置] 使用配置的AI主机地址: {ai_host}")
+                    else:
+                        print(f"[配置] 使用默认AI主机地址: {ai_host}")
+                except Exception as e:
+                    print(f"[警告] 读取配置主机地址失败，使用默认值: {e}")
+            
             # 创建远程音频客户端实例
-            self.remote_audio_client = RemoteAudioClient(host="127.0.0.1", port=9003)
-            print("[成功] 远程音频客户端已创建 (9003)")
+            self.remote_audio_client = RemoteAudioClient(host=ai_host, port=9003)
+            print(f"[成功] 远程音频客户端已创建 ({ai_host}:9003)")
         except Exception as e:
             print(f"[错误] 初始化音频客户端失败: {e}")
             self.remote_audio_client = None

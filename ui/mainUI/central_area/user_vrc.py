@@ -296,12 +296,10 @@ class VRChatConnection:
                             self.main_app.client.send_text_message(f"[语音] {text}")
                             self.main_app.log(f"[持续语音] {text}")
                             
-                            # 发送到LLM和语音生成
+                            # 发送到LLM和语音生成（只调用一次，避免重复处理）
                             self._send_to_llm_and_voice(text)
                     
-                    # 调用原有的语音结果处理（兼容性）
-                    if not is_realtime and not self.main_app.is_segmented_recognition:
-                        self.on_voice_result(text)
+                    # 注意：不再重复调用 on_voice_result，因为 _send_to_llm_and_voice 已经处理了LLM相关逻辑
             
             # 设置语音结果回调
             self.main_app.client.set_voice_result_callback(voice_callback)
