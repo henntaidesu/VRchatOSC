@@ -224,6 +224,9 @@ class CameraControl:
                 self.main_app.camera_combo.set(camera_values[0])
                 self.main_app.log(f"检测到 {len(available_cameras)} 个可用摄像头")
                 
+                # 更新分辨率选项
+                self.update_resolution_options()
+                
             else:
                 no_cameras_text = self.main_app.get_text("no_cameras_available")
                 self.main_app.camera_combo['values'] = [no_cameras_text]
@@ -277,53 +280,87 @@ class CameraControl:
         self.main_app.camera_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         self.main_app.camera_control_frame.columnconfigure(0, weight=1)
         
-        # 摄像头控制按钮
-        control_buttons = ttk.Frame(self.main_app.camera_control_frame)
-        control_buttons.pack(fill=tk.X, pady=5)
+        # 第一行：摄像头控制选择框架
+        control_row1 = ttk.Frame(self.main_app.camera_control_frame)
+        control_row1.pack(fill=tk.X, pady=(5, 2))
         
         # 摄像头选择
-        self.main_app.camera_label = ttk.Label(control_buttons, text=self.main_app.get_text("camera"))
+        self.main_app.camera_label = ttk.Label(control_row1, text=self.main_app.get_text("camera"))
         self.main_app.camera_label.pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.camera_id_var = tk.StringVar(value="0")
-        self.main_app.camera_combo = ttk.Combobox(control_buttons, textvariable=self.main_app.camera_id_var, 
+        self.main_app.camera_combo = ttk.Combobox(control_row1, textvariable=self.main_app.camera_id_var, 
                                         width=15, state="readonly")
         self.main_app.camera_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.main_app.camera_combo.bind("<<ComboboxSelected>>", self.on_camera_changed)
         
         # 模型选择
-        self.main_app.model_label = ttk.Label(control_buttons, text=self.main_app.get_text("model"))
+        self.main_app.model_label = ttk.Label(control_row1, text=self.main_app.get_text("model"))
         self.main_app.model_label.pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.model_var = tk.StringVar(value="ResEmoteNet")
-        self.main_app.model_combo = ttk.Combobox(control_buttons, textvariable=self.main_app.model_var,
+        self.main_app.model_combo = ttk.Combobox(control_row1, textvariable=self.main_app.model_var,
                                   values=["Simple", "ResEmoteNet", "FER2013", "EmoNeXt"], 
                                   width=12, state="readonly")
         self.main_app.model_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.main_app.model_combo.bind("<<ComboboxSelected>>", self.on_model_changed)
         
         # 刷新摄像头列表按钮
-        self.main_app.refresh_btn = ttk.Button(control_buttons, text=self.main_app.get_text("refresh"), command=self.refresh_camera_list)
+        self.main_app.refresh_btn = ttk.Button(control_row1, text=self.main_app.get_text("refresh"), command=self.refresh_camera_list)
         self.main_app.refresh_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 分辨率选择
+        self.main_app.resolution_label = ttk.Label(control_row1, text="分辨率")
+        self.main_app.resolution_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.main_app.resolution_var = tk.StringVar(value="1920x1080")
+        self.main_app.resolution_combo = ttk.Combobox(control_row1, textvariable=self.main_app.resolution_var,
+                                        width=10, state="readonly")
+        self.main_app.resolution_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.main_app.resolution_combo.bind("<<ComboboxSelected>>", self.on_resolution_changed)
         
         # 初始化摄像头列表
         self.refresh_camera_list()
         
+        # 第二行：控制按钮框架
+        control_row2 = ttk.Frame(self.main_app.camera_control_frame)
+        control_row2.pack(fill=tk.X, pady=(2, 5))
+        
         # 摄像头启动/停止按钮
-        self.main_app.camera_start_btn = ttk.Button(control_buttons, text=self.main_app.get_text("start_camera"), command=self.toggle_camera_only)
+        self.main_app.camera_start_btn = ttk.Button(control_row2, text=self.main_app.get_text("start_camera"), command=self.toggle_camera_only)
         self.main_app.camera_start_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 面部识别启动/停止按钮  
-        self.main_app.face_detection_btn = ttk.Button(control_buttons, text=self.main_app.get_text("start_face_detection"), 
+        self.main_app.face_detection_btn = ttk.Button(control_row2, text=self.main_app.get_text("start_face_detection"), 
                                            command=self.toggle_face_detection, state="disabled")
         self.main_app.face_detection_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 截图按钮
-        self.main_app.capture_btn = ttk.Button(control_buttons, text=self.main_app.get_text("screenshot"), command=self.capture_screenshot, 
+        self.main_app.capture_btn = ttk.Button(control_row2, text=self.main_app.get_text("screenshot"), command=self.capture_screenshot, 
                                      state="disabled")
         self.main_app.capture_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 保存表情数据按钮
-        self.main_app.save_expression_btn = ttk.Button(control_buttons, text=self.main_app.get_text("save_expression"), command=self.save_expression_data,
+        self.main_app.save_expression_btn = ttk.Button(control_row2, text=self.main_app.get_text("save_expression"), command=self.save_expression_data,
                                             state="disabled")
         self.main_app.save_expression_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 摄像头参数控制框架（新增的一行）
+        camera_params_frame = ttk.Frame(self.main_app.camera_control_frame)
+        camera_params_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # 对焦按钮
+        self.main_app.focus_btn = ttk.Button(camera_params_frame, text="自动对焦", command=self.auto_focus, state="disabled")
+        self.main_app.focus_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # 变焦控制
+        ttk.Label(camera_params_frame, text="变焦:").pack(side=tk.LEFT, padx=(0, 5))
+        self.main_app.zoom_var = tk.DoubleVar(value=1.0)
+        self.main_app.zoom_scale = ttk.Scale(camera_params_frame, from_=1.0, to=5.0,
+                                       variable=self.main_app.zoom_var,
+                                       orient='horizontal',
+                                       command=self.on_zoom_changed)
+        self.main_app.zoom_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        
+        self.main_app.zoom_label = ttk.Label(camera_params_frame, text="1.0x")
+        self.main_app.zoom_label.pack(side=tk.LEFT)
         
         # 表情更新间隔控制
         interval_frame = ttk.Frame(self.main_app.camera_control_frame)
@@ -500,6 +537,10 @@ class CameraControl:
             self.main_app.capture_btn.config(state="normal")
             self.main_app.save_expression_btn.config(state="normal")
             
+            # 启用摄像头控制按钮
+            if hasattr(self.main_app, 'focus_btn'):
+                self.main_app.focus_btn.config(state="normal")
+            
             # 启动视频显示线程
             self.main_app.camera_thread = threading.Thread(target=self.simple_video_loop, daemon=True)
             self.main_app.camera_thread.start()
@@ -593,6 +634,10 @@ class CameraControl:
             self.main_app.capture_btn.config(state="disabled")
             self.main_app.save_expression_btn.config(state="disabled")
             self.main_app.video_label.config(image="", text=self.main_app.get_text("click_to_start"))
+            
+            # 禁用摄像头控制按钮
+            if hasattr(self.main_app, 'focus_btn'):
+                self.main_app.focus_btn.config(state="disabled")
             
             self.main_app.log(self.main_app.get_text("camera_stopped"))
             
@@ -1091,6 +1136,10 @@ class CameraControl:
                     else:
                         display_frame = frame
                     
+                    # 应用数字变焦
+                    if hasattr(self.main_app, 'current_zoom_level') and self.main_app.current_zoom_level > 1.0:
+                        display_frame = self.apply_digital_zoom_to_frame(display_frame, self.main_app.current_zoom_level)
+                    
                     # 使用保持宽高比的缩放方式
                     display_frame = self._resize_frame_keep_aspect_ratio(display_frame, (640, 480))
                     
@@ -1174,3 +1223,166 @@ class CameraControl:
         except Exception as e:
             messagebox.showerror("摄像头错误", f"无法打开摄像头窗口: {e}")
             self.main_app.log(f"打开摄像头窗口失败: {e}")
+    
+    def update_resolution_options(self):
+        """更新分辨率选项"""
+        try:
+            # 获取当前选中的摄像头
+            selected_camera = self.main_app.camera_id_var.get()
+            
+            if hasattr(self.main_app, 'camera_id_mapping') and selected_camera in self.main_app.camera_id_mapping:
+                camera_id = self.main_app.camera_id_mapping[selected_camera]
+                
+                # 获取支持的分辨率
+                if camera_id in self.detected_cameras_info:
+                    camera_info = self.detected_cameras_info[camera_id]
+                    supported_resolutions = camera_info.get('supported_resolutions', [])
+                    
+                    if supported_resolutions:
+                        # 转换为字符串格式并按分辨率大小排序
+                        resolution_strings = [f"{w}x{h}" for w, h in supported_resolutions]
+                        resolution_strings.sort(key=lambda x: int(x.split('x')[0]) * int(x.split('x')[1]), reverse=True)
+                        
+                        self.main_app.resolution_combo['values'] = resolution_strings
+                        # 默认选择最高分辨率
+                        if resolution_strings:
+                            self.main_app.resolution_combo.set(resolution_strings[0])
+                    else:
+                        # 使用默认分辨率列表
+                        default_resolutions = ['1920x1080', '1280x720', '800x600', '640x480']
+                        self.main_app.resolution_combo['values'] = default_resolutions
+                        self.main_app.resolution_combo.set('1920x1080')
+                else:
+                    # 使用默认分辨率列表
+                    default_resolutions = ['1920x1080', '1280x720', '800x600', '640x480']
+                    self.main_app.resolution_combo['values'] = default_resolutions
+                    self.main_app.resolution_combo.set('1920x1080')
+            else:
+                # 使用默认分辨率列表
+                default_resolutions = ['1920x1080', '1280x720', '800x600', '640x480']
+                self.main_app.resolution_combo['values'] = default_resolutions
+                self.main_app.resolution_combo.set('1920x1080')
+                
+        except Exception as e:
+            self.main_app.log(f"更新分辨率选项失败: {e}")
+    
+    def on_camera_changed(self, event=None):
+        """摄像头选择变更处理"""
+        try:
+            # 更新对应的分辨率选项
+            self.update_resolution_options()
+            self.main_app.log(f"已切换到摄像头: {self.main_app.camera_id_var.get()}")
+        except Exception as e:
+            self.main_app.log(f"摄像头切换失败: {e}")
+    
+    def on_resolution_changed(self, event=None):
+        """分辨率变更处理"""
+        try:
+            if self.main_app.camera_running and hasattr(self.main_app, 'camera') and self.main_app.camera:
+                resolution_str = self.main_app.resolution_var.get()
+                width, height = map(int, resolution_str.split('x'))
+                
+                self.main_app.log(f"正在设置分辨率为: {width}x{height}")
+                
+                # 设置摄像头分辨率
+                self.main_app.camera.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                self.main_app.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                
+                # 验证设置是否成功
+                actual_width = int(self.main_app.camera.get(cv2.CAP_PROP_FRAME_WIDTH))
+                actual_height = int(self.main_app.camera.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                
+                if actual_width == width and actual_height == height:
+                    self.main_app.log(f"分辨率设置成功: {actual_width}x{actual_height}")
+                else:
+                    self.main_app.log(f"分辨率设置部分成功: 期望{width}x{height}, 实际{actual_width}x{actual_height}")
+                    
+        except Exception as e:
+            self.main_app.log(f"设置分辨率失败: {e}")
+    
+    def auto_focus(self):
+        """自动对焦"""
+        try:
+            if self.main_app.camera_running and hasattr(self.main_app, 'camera') and self.main_app.camera:
+                self.main_app.log("正在执行自动对焦...")
+                
+                # 尝试设置自动对焦
+                # 注意：不是所有摄像头都支持程序化对焦控制
+                success1 = self.main_app.camera.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+                
+                # 某些摄像头需要触发对焦
+                success2 = self.main_app.camera.set(cv2.CAP_PROP_FOCUS, 0)
+                
+                if success1 or success2:
+                    self.main_app.log("自动对焦命令已发送")
+                else:
+                    self.main_app.log("此摄像头可能不支持程序化对焦控制")
+                    
+                # 等待对焦完成（读取几帧让对焦生效）
+                for i in range(10):
+                    ret, frame = self.main_app.camera.read()
+                    if not ret:
+                        break
+                    time.sleep(0.1)
+                
+                self.main_app.log("对焦操作完成")
+                
+        except Exception as e:
+            self.main_app.log(f"自动对焦失败: {e}")
+    
+    def on_zoom_changed(self, value):
+        """变焦滑块变化处理"""
+        try:
+            zoom_level = float(value)
+            self.main_app.zoom_label.config(text=f"{zoom_level:.1f}x")
+            
+            # 注意：这里实现的是数字变焦（软件裁剪），不是光学变焦
+            # 光学变焦需要摄像头硬件支持，大多数网络摄像头不支持
+            if hasattr(self.main_app, 'current_zoom_level'):
+                self.main_app.current_zoom_level = zoom_level
+            else:
+                self.main_app.current_zoom_level = zoom_level
+                
+            # 如果摄像头正在运行，应用变焦
+            if self.main_app.camera_running:
+                self.apply_digital_zoom(zoom_level)
+                
+        except Exception as e:
+            self.main_app.log(f"设置变焦失败: {e}")
+    
+    def apply_digital_zoom(self, zoom_level):
+        """应用数字变焦（在process_face_detection方法中处理）"""
+        # 这个方法设置变焦级别，实际的变焦处理在视频循环中进行
+        pass
+    
+    def apply_digital_zoom_to_frame(self, frame, zoom_level):
+        """对单帧图像应用数字变焦"""
+        try:
+            if zoom_level <= 1.0 or frame is None:
+                return frame
+            
+            height, width = frame.shape[:2]
+            
+            # 计算裁剪区域（从中心裁剪）
+            crop_width = int(width / zoom_level)
+            crop_height = int(height / zoom_level)
+            
+            # 确保裁剪尺寸不会过小
+            crop_width = max(crop_width, 50)
+            crop_height = max(crop_height, 50)
+            
+            # 计算裁剪的起始位置（居中）
+            start_x = (width - crop_width) // 2
+            start_y = (height - crop_height) // 2
+            
+            # 裁剪图像
+            cropped_frame = frame[start_y:start_y+crop_height, start_x:start_x+crop_width]
+            
+            # 将裁剪后的图像放大回原始尺寸
+            zoomed_frame = cv2.resize(cropped_frame, (width, height), interpolation=cv2.INTER_LINEAR)
+            
+            return zoomed_frame
+            
+        except Exception as e:
+            # 如果变焦失败，返回原始帧
+            return frame
