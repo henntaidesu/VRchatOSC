@@ -283,16 +283,36 @@ class ResEmoteNetDetector:
         try:
             # 转换为灰度图进行面部检测
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # 优化的面部检测参数 - 更严格的检测条件
             faces = self.face_cascade.detectMultiScale(
-                gray, 1.05, 2, minSize=(30, 30), maxSize=(300, 300)
+                gray, 
+                scaleFactor=1.1,        # 更精细的尺度步长
+                minNeighbors=5,         # 增加最小邻居数，减少误检
+                minSize=(60, 60),       # 增大最小面部尺寸，过滤小物体
+                maxSize=(400, 400),     # 适当限制最大尺寸
+                flags=cv2.CASCADE_SCALE_IMAGE  # 使用更稳定的检测方式
             )
             
             annotated_frame = frame.copy()
             
             if len(faces) > 0:
-                # 处理第一个检测到的面部
-                (x, y, w, h) = faces[0]
-                face_roi = frame[y:y+h, x:x+w]
+                # 选择最大的面部（通常是最接近摄像头的）
+                largest_face = max(faces, key=lambda face: face[2] * face[3])
+                (x, y, w, h) = largest_face
+                
+                # 验证面部区域的有效性
+                if not self._is_valid_face_region(gray, x, y, w, h):
+                    return annotated_frame, expressions
+                
+                # 扩展面部区域以包含更多特征（但不超出图像边界）
+                margin = int(min(w, h) * 0.1)  # 10%的边距
+                x_expanded = max(0, x - margin)
+                y_expanded = max(0, y - margin)
+                w_expanded = min(frame.shape[1] - x_expanded, w + 2 * margin)
+                h_expanded = min(frame.shape[0] - y_expanded, h + 2 * margin)
+                
+                face_roi = frame[y_expanded:y_expanded+h_expanded, x_expanded:x_expanded+w_expanded]
                 
                 # 检测情感
                 expressions, emotion_name, confidence = self.detect_emotion_single_face(face_roi)
@@ -310,18 +330,24 @@ class ResEmoteNetDetector:
                 
                 expressions = smoothed_expressions
                 
-                # 绘制面部框
-                cv2.rectangle(annotated_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                # 绘制更明显的面部框（使用原始检测框）
+                cv2.rectangle(annotated_frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
+                
+                # 绘制扩展框（用于情感分析）
+                cv2.rectangle(annotated_frame, (x_expanded, y_expanded), 
+                            (x_expanded+w_expanded, y_expanded+h_expanded), (0, 255, 255), 1)
                 
                 # 显示情感信息
                 text = f"ResEmoteNet: {emotion_name} ({confidence:.2f})"
-                cv2.putText(annotated_frame, text, (x, y-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                cv2.putText(annotated_frame, text, (x, y-15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 
-                # 显示情感参数
-                y_offset = y + h + 20
-                for expr_name, value in expressions.items():
-                    if value > 0.05:  # 只显示有显著值的情感
+                # 显示置信度较高的情感参数
+                y_offset = y + h + 25
+                sorted_emotions = sorted(expressions.items(), key=lambda item: item[1], reverse=True)
+                
+                for expr_name, value in sorted_emotions[:3]:  # 只显示前3个最强的情感
+                    if value > 0.1:  # 提高阈值，只显示较强的情感
                         display_name = {
                             'angry': 'Angry',
                             'disgust': 'Disgust', 
@@ -332,16 +358,95 @@ class ResEmoteNetDetector:
                             'neutral': 'Neutral'
                         }.get(expr_name, expr_name)
                         
+                        # 使用颜色编码显示不同情感
+                        color = self._get_emotion_color(expr_name)
                         text = f"{display_name}: {value:.2f}"
                         cv2.putText(annotated_frame, text, (x, y_offset), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
                         y_offset += 20
+                
+                # 在右上角显示面部质量信息
+                quality_score = self._calculate_face_quality(face_roi)
+                quality_text = f"Quality: {quality_score:.2f}"
+                cv2.putText(annotated_frame, quality_text, (frame.shape[1] - 150, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
             
             return annotated_frame, expressions
             
         except Exception as e:
             self.logger.error(f"帧处理失败: {e}")
             return frame, expressions
+    
+    def _is_valid_face_region(self, gray_frame, x, y, w, h):
+        """验证检测到的区域是否为有效的面部"""
+        try:
+            # 检查区域大小合理性
+            if w < 60 or h < 60 or w > 400 or h > 400:
+                return False
+            
+            # 检查宽高比（人脸通常接近1:1.2）
+            aspect_ratio = w / h
+            if aspect_ratio < 0.7 or aspect_ratio > 1.5:
+                return False
+            
+            # 检查区域是否在图像边界内
+            if x < 0 or y < 0 or x + w > gray_frame.shape[1] or y + h > gray_frame.shape[0]:
+                return False
+            
+            # 检查区域内的纹理复杂度（面部应该有一定的纹理变化）
+            roi = gray_frame[y:y+h, x:x+w]
+            texture_variance = np.var(roi)
+            if texture_variance < 50:  # 纹理过于单一，可能是误检
+                return False
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def _calculate_face_quality(self, face_roi):
+        """计算面部图像质量分数"""
+        try:
+            if face_roi is None or face_roi.size == 0:
+                return 0.0
+            
+            # 转换为灰度图
+            if len(face_roi.shape) == 3:
+                gray_face = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+            else:
+                gray_face = face_roi
+            
+            # 计算清晰度（使用拉普拉斯算子）
+            laplacian_var = cv2.Laplacian(gray_face, cv2.CV_64F).var()
+            sharpness_score = min(1.0, laplacian_var / 500.0)  # 归一化到0-1
+            
+            # 计算对比度
+            contrast_score = min(1.0, gray_face.std() / 50.0)  # 归一化到0-1
+            
+            # 计算亮度适宜性
+            mean_brightness = gray_face.mean()
+            brightness_score = 1.0 - abs(mean_brightness - 128) / 128.0  # 128为理想亮度
+            
+            # 综合质量分数
+            quality_score = (sharpness_score * 0.4 + contrast_score * 0.3 + brightness_score * 0.3)
+            
+            return quality_score
+            
+        except Exception:
+            return 0.0
+    
+    def _get_emotion_color(self, emotion_name):
+        """获取情感对应的颜色"""
+        emotion_colors = {
+            'angry': (0, 0, 255),      # 红色
+            'disgust': (0, 128, 255),  # 橙色
+            'fear': (128, 0, 128),     # 紫色
+            'happy': (0, 255, 0),      # 绿色
+            'sad': (255, 0, 0),        # 蓝色
+            'surprise': (255, 255, 0), # 青色
+            'neutral': (255, 255, 255) # 白色
+        }
+        return emotion_colors.get(emotion_name, (255, 255, 255))
     
     def release(self):
         """释放资源"""

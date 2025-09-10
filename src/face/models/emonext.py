@@ -334,22 +334,42 @@ class EmoNeXtDetector:
         }
     
     def process_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, Dict[str, float]]:
-        """处理单帧图像，检测面部并识别情感"""
+        """处理单帧图像，检测面部并识别情感 - EmoNeXt优化版"""
         expressions = self._get_default_expressions()
         
         try:
             # 转换为灰度图进行面部检测
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # 优化的面部检测参数 - 与ResEmoteNet保持一致
             faces = self.face_cascade.detectMultiScale(
-                gray, 1.05, 2, minSize=(30, 30), maxSize=(300, 300)
+                gray, 
+                scaleFactor=1.1,        # 更精细的尺度步长
+                minNeighbors=5,         # 增加最小邻居数，减少误检
+                minSize=(60, 60),       # 增大最小面部尺寸，过滤小物体
+                maxSize=(400, 400),     # 适当限制最大尺寸
+                flags=cv2.CASCADE_SCALE_IMAGE  # 使用更稳定的检测方式
             )
             
             annotated_frame = frame.copy()
             
             if len(faces) > 0:
-                # 处理第一个检测到的面部
-                (x, y, w, h) = faces[0]
-                face_roi = frame[y:y+h, x:x+w]
+                # 选择最大的面部（通常是最接近摄像头的）
+                largest_face = max(faces, key=lambda face: face[2] * face[3])
+                (x, y, w, h) = largest_face
+                
+                # 验证面部区域的有效性
+                if not self._is_valid_face_region(gray, x, y, w, h):
+                    return annotated_frame, expressions
+                
+                # 扩展面部区域以包含更多特征（但不超出图像边界）
+                margin = int(min(w, h) * 0.15)  # EmoNeXt使用稍大的边距15%
+                x_expanded = max(0, x - margin)
+                y_expanded = max(0, y - margin)
+                w_expanded = min(frame.shape[1] - x_expanded, w + 2 * margin)
+                h_expanded = min(frame.shape[0] - y_expanded, h + 2 * margin)
+                
+                face_roi = frame[y_expanded:y_expanded+h_expanded, x_expanded:x_expanded+w_expanded]
                 
                 # 检测情感
                 expressions, emotion_name, confidence = self.detect_emotion_single_face(face_roi)
@@ -367,38 +387,135 @@ class EmoNeXtDetector:
                 
                 expressions = smoothed_expressions
                 
-                # 绘制面部框 (蓝色边框表示EmoNeXt)
-                cv2.rectangle(annotated_frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                # 绘制更明显的面部框（蓝色边框表示EmoNeXt）
+                cv2.rectangle(annotated_frame, (x, y), (x+w, y+h), (255, 0, 0), 3)
+                
+                # 绘制扩展框（用于情感分析）
+                cv2.rectangle(annotated_frame, (x_expanded, y_expanded), 
+                            (x_expanded+w_expanded, y_expanded+h_expanded), (255, 165, 0), 1)
                 
                 # 显示情感信息
                 text = f"EmoNeXt: {emotion_name} ({confidence:.2f})"
-                cv2.putText(annotated_frame, text, (x, y-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+                cv2.putText(annotated_frame, text, (x, y-15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
                 
-                # 显示表情参数
-                y_offset = y + h + 20
-                for expr_name, value in expressions.items():
-                    if value > 0.01:  # 只显示有值的表情
+                # 显示置信度较高的情感参数
+                y_offset = y + h + 25
+                sorted_emotions = sorted(expressions.items(), key=lambda item: item[1], reverse=True)
+                
+                for expr_name, value in sorted_emotions[:3]:  # 只显示前3个最强的情感
+                    if value > 0.08:  # EmoNeXt使用稍低的阈值（更敏感）
                         display_name = {
-                            'eyeblink_left': 'L_Eye',
-                            'eyeblink_right': 'R_Eye',
-                            'mouth_open': 'Mouth', 
-                            'smile': 'Smile'
+                            'angry': 'Angry',
+                            'disgust': 'Disgust', 
+                            'fear': 'Fear',
+                            'happy': 'Happy',
+                            'sad': 'Sad',
+                            'surprise': 'Surprise',
+                            'neutral': 'Neutral'
                         }.get(expr_name, expr_name)
                         
-                        if expr_name == 'eyeblink_right':  # 避免重复显示眨眼
-                            continue
-                            
+                        # 使用颜色编码显示不同情感
+                        color = self._get_emotion_color(expr_name)
                         text = f"{display_name}: {value:.2f}"
                         cv2.putText(annotated_frame, text, (x, y_offset), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 128, 0), 1)
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
                         y_offset += 20
+                
+                # 在右上角显示面部质量信息和模型特有信息
+                quality_score = self._calculate_face_quality(face_roi)
+                quality_text = f"Quality: {quality_score:.2f} (EmoNeXt)"
+                cv2.putText(annotated_frame, quality_text, (frame.shape[1] - 200, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                
+                # 显示ConvNeXt特色信息
+                model_info = f"ConvNeXt: {len(faces)} faces"
+                cv2.putText(annotated_frame, model_info, (frame.shape[1] - 200, 50), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 165, 0), 1)
             
             return annotated_frame, expressions
             
         except Exception as e:
-            self.logger.error(f"帧处理失败: {e}")
+            self.logger.error(f"EmoNeXt帧处理失败: {e}")
             return frame, expressions
+    
+    def _is_valid_face_region(self, gray_frame, x, y, w, h):
+        """验证检测到的区域是否为有效的面部 - EmoNeXt版本"""
+        try:
+            # 检查区域大小合理性
+            if w < 60 or h < 60 or w > 400 or h > 400:
+                return False
+            
+            # 检查宽高比（人脸通常接近1:1.2）
+            aspect_ratio = w / h
+            if aspect_ratio < 0.7 or aspect_ratio > 1.5:
+                return False
+            
+            # 检查区域是否在图像边界内
+            if x < 0 or y < 0 or x + w > gray_frame.shape[1] or y + h > gray_frame.shape[0]:
+                return False
+            
+            # 检查区域内的纹理复杂度（面部应该有一定的纹理变化）
+            roi = gray_frame[y:y+h, x:x+w]
+            texture_variance = np.var(roi)
+            if texture_variance < 40:  # EmoNeXt使用稍低的阈值（更敏感）
+                return False
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def _calculate_face_quality(self, face_roi):
+        """计算面部图像质量分数 - EmoNeXt优化版"""
+        try:
+            if face_roi is None or face_roi.size == 0:
+                return 0.0
+            
+            # 转换为灰度图
+            if len(face_roi.shape) == 3:
+                gray_face = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+            else:
+                gray_face = face_roi
+            
+            # 计算清晰度（使用拉普拉斯算子）
+            laplacian_var = cv2.Laplacian(gray_face, cv2.CV_64F).var()
+            sharpness_score = min(1.0, laplacian_var / 400.0)  # EmoNeXt使用更严格的清晰度标准
+            
+            # 计算对比度
+            contrast_score = min(1.0, gray_face.std() / 60.0)  # 更高的对比度要求
+            
+            # 计算亮度适宜性
+            mean_brightness = gray_face.mean()
+            brightness_score = 1.0 - abs(mean_brightness - 128) / 128.0  # 128为理想亮度
+            
+            # 计算特征丰富度（使用梯度）
+            grad_x = cv2.Sobel(gray_face, cv2.CV_64F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(gray_face, cv2.CV_64F, 0, 1, ksize=3)
+            gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+            feature_richness = min(1.0, gradient_magnitude.mean() / 30.0)
+            
+            # 综合质量分数 - EmoNeXt权重分配
+            quality_score = (sharpness_score * 0.3 + contrast_score * 0.25 + 
+                           brightness_score * 0.25 + feature_richness * 0.2)
+            
+            return quality_score
+            
+        except Exception:
+            return 0.0
+    
+    def _get_emotion_color(self, emotion_name):
+        """获取情感对应的颜色 - EmoNeXt特色配色"""
+        emotion_colors = {
+            'angry': (0, 0, 255),      # 红色
+            'disgust': (0, 100, 200),  # 深橙色
+            'fear': (128, 0, 128),     # 紫色
+            'happy': (0, 255, 0),      # 绿色
+            'sad': (200, 0, 0),        # 深蓝色
+            'surprise': (255, 200, 0), # 金黄色
+            'neutral': (200, 200, 200) # 浅灰色
+        }
+        return emotion_colors.get(emotion_name, (255, 255, 255))
     
     def release(self):
         """释放资源"""

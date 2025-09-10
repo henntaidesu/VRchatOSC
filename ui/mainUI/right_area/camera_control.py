@@ -750,21 +750,43 @@ class CameraControl:
         
         try:
             if self.main_app.emotion_model_type == 'Simple':
-                # 使用简单的OpenCV检测
+                # 使用优化的OpenCV检测
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(100, 100))
                 
-                # 绘制面部框
+                # 使用与GPU模型相同的优化参数
+                faces = face_cascade.detectMultiScale(
+                    gray, 
+                    scaleFactor=1.1,        # 更精细的尺度步长
+                    minNeighbors=5,         # 增加最小邻居数，减少误检
+                    minSize=(60, 60),       # 增大最小面部尺寸，过滤小物体
+                    maxSize=(400, 400),     # 适当限制最大尺寸
+                    flags=cv2.CASCADE_SCALE_IMAGE  # 使用更稳定的检测方式
+                )
+                
+                # 验证并绘制面部框
+                valid_faces = []
                 for (x, y, w, h) in faces:
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                    cv2.putText(frame, "Face Detected", (x, y-10), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    # 基本有效性检查
+                    if self._is_valid_simple_face(gray, x, y, w, h):
+                        valid_faces.append((x, y, w, h))
+                        
+                        # 绘制更明显的面部框
+                        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
+                        cv2.putText(frame, "Face Detected (Simple)", (x, y-15), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                        
+                        # 显示面部尺寸信息
+                        size_text = f"Size: {w}x{h}"
+                        cv2.putText(frame, size_text, (x, y + h + 20), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
                 
                 # Simple模式：只显示检测到的面部数量，不生成假数据
-                if len(faces) > 0:
-                    # 保持默认的表情值，不生成模拟数据
-                    pass
+                if len(valid_faces) > 0:
+                    # 在右上角显示检测统计
+                    stats_text = f"Faces: {len(valid_faces)}"
+                    cv2.putText(frame, stats_text, (frame.shape[1] - 120, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             
             elif self.main_app.emotion_model_type in ['ResEmoteNet', 'FER2013', 'EmoNeXt']:
                 # 使用GPU加速的情感识别模型
@@ -1386,3 +1408,30 @@ class CameraControl:
         except Exception as e:
             # 如果变焦失败，返回原始帧
             return frame
+    
+    def _is_valid_simple_face(self, gray_frame, x, y, w, h):
+        """简单模式的面部区域验证"""
+        try:
+            # 检查区域大小合理性
+            if w < 60 or h < 60 or w > 400 or h > 400:
+                return False
+            
+            # 检查宽高比（人脸通常接近1:1.2）
+            aspect_ratio = w / h
+            if aspect_ratio < 0.7 or aspect_ratio > 1.5:
+                return False
+            
+            # 检查区域是否在图像边界内
+            if x < 0 or y < 0 or x + w > gray_frame.shape[1] or y + h > gray_frame.shape[0]:
+                return False
+            
+            # 检查区域内的纹理复杂度（面部应该有一定的纹理变化）
+            roi = gray_frame[y:y+h, x:x+w]
+            texture_variance = np.var(roi)
+            if texture_variance < 50:  # 纹理过于单一，可能是误检
+                return False
+            
+            return True
+            
+        except Exception:
+            return False
