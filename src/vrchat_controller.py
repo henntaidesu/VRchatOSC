@@ -154,8 +154,9 @@ class VRChatController:
                 print("语音识别引擎未就绪")
                 return None
             
-            # 使用语音识别引擎识别音频
-            recognized_text = self.speech_engine.recognize_audio(audio_data, sample_rate)
+            # 使用语音识别引擎识别音频，传递语言配置
+            language = config_manager.voice_language
+            recognized_text = self.speech_engine.recognize_audio(audio_data, sample_rate, language)
             return recognized_text
             
         except Exception as e:

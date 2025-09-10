@@ -680,6 +680,11 @@ class VoicevoxArea:
             return_format: 返回格式 ("bytes" 或 "numpy")，默认为numpy用于流式处理
         """
         try:
+            # 详细的状态检查和调试信息
+            print(f"[VOICEVOX调试] voicevox_connected: {self.main_app.voicevox_connected}")
+            print(f"[VOICEVOX调试] voicevox_client: {self.main_app.voicevox_client}")
+            print(f"[VOICEVOX调试] voicevox_enabled: {self.main_app.voicevox_enabled_var.get()}")
+            
             if not self.main_app.voicevox_connected or not self.main_app.voicevox_client:
                 self.main_app.log("VOICEVOX未连接，跳过语音合成")
                 return None

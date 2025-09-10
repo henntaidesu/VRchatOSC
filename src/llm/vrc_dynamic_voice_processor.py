@@ -337,10 +337,13 @@ class VRCDynamicVoiceProcessor:
                     self.recording_state = RecordingState.IDLE
                     return
                 
-                # 进行语音识别
+                # 进行语音识别，传递语言配置
+                from ..config_manager import config_manager
+                language = config_manager.voice_language
                 recognized_text = self.speech_engine.recognize_audio(
                     audio_data, 
-                    self.sample_rate
+                    self.sample_rate,
+                    language
                 )
                 
                 if recognized_text and recognized_text.strip():

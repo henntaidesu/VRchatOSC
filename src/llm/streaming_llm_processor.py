@@ -300,9 +300,8 @@ class StreamingLLMProcessor:
                 if hasattr(self.main_app, 'log'):
                     self.main_app.log("[警告] 句子处理队列已满")
         
-        # 显示完整回复到界面
-        if hasattr(self.main_app, 'add_speech_output'):
-            self.main_app.add_speech_output(response.llm_response, "AI回复")
+        # 注意：不在此处显示消息到界面，由主处理器的回调统一处理显示
+        # 避免重复显示消息
         
         # 记录对话
         if hasattr(self, 'current_user_input') and self.current_user_input:

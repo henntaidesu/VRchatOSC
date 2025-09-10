@@ -278,20 +278,28 @@ class SpeechEngine:
                 whisper_lang = None
                 if language:
                     whisper_lang = language_map.get(language, language[:2])
-                    print(f"使用语言代码: {whisper_lang}")
+                    print(f"[Whisper调试] 输入语言: {language}")
+                    print(f"[Whisper调试] 映射后语言代码: {whisper_lang}")
+                else:
+                    print("[Whisper调试] 未指定语言，将使用自动检测")
                 
                 # 配置推理选项
                 transcribe_options = {
                     "fp16": self.device == "cuda",  # GPU时使用FP16加速
-                    "verbose": False  # 减少输出
+                    "verbose": False,  # 减少输出
+                    "condition_on_previous_text": False,  # 不依赖前文，避免语言污染
+                    "temperature": 0.0  # 使用确定性解码，提高一致性
                 }
                 
                 # 使用Whisper识别
                 print(f"调用Whisper进行识别 (设备: {self.device}, FP16: {transcribe_options['fp16']})...")
                 if whisper_lang:
+                    # 强制使用指定语言，禁用语言自动检测
+                    print(f"[Whisper] 强制使用语言: {whisper_lang}")
                     result = self.whisper_model.transcribe(
                         temp_path, 
                         language=whisper_lang,
+                        task="transcribe",  # 明确指定转录任务
                         **transcribe_options
                     )
                 else:
@@ -301,7 +309,9 @@ class SpeechEngine:
                     )
                 
                 text = result["text"].strip()
-                print(f"Whisper识别结果: '{text}'")
+                detected_lang = result.get("language", "未知")
+                print(f"[Whisper识别] 文本: '{text}'")
+                print(f"[Whisper识别] 检测到的语言: {detected_lang}")
                 
                 if text:
                     return text
