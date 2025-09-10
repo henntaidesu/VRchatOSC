@@ -523,6 +523,10 @@ class ConfigManager:
     @voicevox_last_period.setter
     def voicevox_last_period(self, value: str):
         self.set('voicevox', 'last_period', value)
+    
+    def save(self):
+        """保存配置的别名方法，复用save_config"""
+        return self.save_config()
 
 
 # 全局配置管理器实例
