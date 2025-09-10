@@ -445,6 +445,10 @@ class GeminiClient:
                         # 调用回调函数传递完整响应
                         if callback:
                             callback(full_text, True)
+                        
+                        # 如果是完整响应模式，跳过逐行解析
+                        print(f"[流式结束] 完整响应模式，总文本长度: {len(full_text)}")
+                        return full_text
                     
                     # 检查完成状态
                     if candidate.get("finishReason"):
@@ -502,8 +506,9 @@ class GeminiClient:
             
             print(f"[流式结束] 总共接收 {chunk_count} 个片段，文本长度: {len(full_text)}")
             
-            # 发送最终完成信号
-            if callback:
+            # 只在真正的流式模式下发送结束信号
+            if chunk_count > 1 and callback:
+                print("[流式模式] 发送最终完成信号")
                 callback("", True)
             
             return full_text

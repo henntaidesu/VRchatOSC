@@ -71,6 +71,7 @@ class StreamingLLMProcessor:
         
         # 回调函数
         self.sentence_callback: Optional[Callable[[str], None]] = None
+        self.additional_callback: Optional[Callable[[VoiceLLMResponse], None]] = None  # 额外的回调
         
         # 对话记录相关
         self.conversation_file_path = None
@@ -82,6 +83,11 @@ class StreamingLLMProcessor:
         self._setup_llm_handler()
         
         print("[成功] 流式LLM处理器初始化完成")
+    
+    def set_additional_callback(self, callback: Callable[[VoiceLLMResponse], None]):
+        """设置额外的回调函数"""
+        self.additional_callback = callback
+        print("[设置] 已设置额外回调函数")
     
     def _init_conversation_recording(self):
         """初始化对话记录功能"""
@@ -300,8 +306,21 @@ class StreamingLLMProcessor:
                 if hasattr(self.main_app, 'log'):
                     self.main_app.log("[警告] 句子处理队列已满")
         
-        # 注意：不在此处显示消息到界面，由主处理器的回调统一处理显示
-        # 避免重复显示消息
+        # 调用额外的回调函数
+        if self.additional_callback:
+            try:
+                self.additional_callback(response)
+                if hasattr(self.main_app, 'log'):
+                    self.main_app.log(f"[回调] 已调用额外回调函数")
+            except Exception as e:
+                if hasattr(self.main_app, 'log'):
+                    self.main_app.log(f"[错误] 额外回调函数执行失败: {e}")
+        
+        # 注释掉直接的UI显示，由LLM_process.py统一处理
+        # if hasattr(self.main_app, 'add_speech_output') and callable(self.main_app.add_speech_output):
+        #     self.main_app.add_speech_output(response.llm_response, "AI回复")
+        #     if hasattr(self.main_app, 'log'):
+        #         self.main_app.log(f"[界面显示] AI回复已显示到语音识别框")
         
         # 记录对话
         if hasattr(self, 'current_user_input') and self.current_user_input:

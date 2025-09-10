@@ -219,19 +219,24 @@ class VoiceLLMHandler:
                 nonlocal current_response_text
                 if chunk_text:  # 如果有内容
                     current_response_text += chunk_text
-                    # 触发流式回调，传递部分响应
-                    partial_response = VoiceLLMResponse(
-                        request_id=request.request_id,
-                        original_text=request.text,
-                        llm_response=current_response_text,
-                        timestamp=time.time(),
-                        processing_time=time.time() - start_time,
-                        success=True,
-                        error=None
-                    )
-                    # 调用回调函数传递流式结果
-                    if self.response_callback:
-                        self.response_callback(partial_response)
+                    print(f"[流式回调] 累积文本长度: {len(current_response_text)}, 新增: {len(chunk_text)} 字符")
+                
+                if is_final:
+                    print(f"[流式完成] 最终文本长度: {len(current_response_text)}")
+                
+                # 始终触发回调（包含空内容的结束信号）
+                partial_response = VoiceLLMResponse(
+                    request_id=request.request_id,
+                    original_text=request.text,
+                    llm_response=current_response_text,
+                    timestamp=time.time(),
+                    processing_time=time.time() - start_time,
+                    success=True,
+                    error=None
+                )
+                # 调用回调函数传递流式结果
+                if self.response_callback:
+                    self.response_callback(partial_response)
             
             # 只使用流式生成内容，传递对话历史
             print(f"[流式] 使用Gemini流式API，对话历史长度: {len(self.conversation_history)}")

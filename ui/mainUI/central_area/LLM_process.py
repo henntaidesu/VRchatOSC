@@ -36,6 +36,10 @@ class LLMProcessor:
                             config=self.main_app.config
                         )
                         
+                        # 设置额外的回调到LLM_process
+                        if hasattr(self.emotion_aware_processor, 'set_additional_callback'):
+                            self.emotion_aware_processor.set_additional_callback(self.on_llm_response)
+                        
                         # 启动情感感知流式处理
                         self.emotion_aware_processor.start_processing()
                         
@@ -49,6 +53,10 @@ class LLMProcessor:
                             main_app=self.main_app,
                             config=self.main_app.config
                         )
+                        
+                        # 设置额外的回调到LLM_process
+                        if hasattr(self.streaming_processor, 'set_additional_callback'):
+                            self.streaming_processor.set_additional_callback(self.on_llm_response)
                         
                         # 启动流式处理
                         self.streaming_processor.start_processing()
