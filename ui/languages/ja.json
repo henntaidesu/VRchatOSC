@@ -233,5 +233,23 @@
   "param_already_exists": "パラメーターは既に存在します!",
   "param_added_success": "パラメーターが追加されました。設定保存後に有効になります",
   "enable_parameter_filtering": "パラメータフィルタリングを有効にする",
-  "osc_parameter_filtering": "OSCパラメータフィルタリング"
+  "osc_parameter_filtering": "OSCパラメータフィルタリング",
+  
+  "emotion_angry": "怒り",
+  "emotion_disgust": "嫌悪", 
+  "emotion_fear": "恐怖",
+  "emotion_happy": "喜び",
+  "emotion_sad": "悲しみ",
+  "emotion_surprise": "驚き",
+  "emotion_neutral": "中立",
+  
+  "emotion_fallback": {
+    "angry": "怒り",
+    "disgust": "嫌悪",
+    "fear": "恐怖",
+    "happy": "喜び",
+    "sad": "悲しみ",
+    "surprise": "驚き",
+    "neutral": "中立"
+  }
 }

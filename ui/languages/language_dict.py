@@ -52,6 +52,32 @@ class LanguageManager:
     def get_available_languages(self) -> list:
         """获取所有可用的语言代码"""
         return list(self._languages.keys())
+    
+    def get_emotion_name(self, language_code: str, emotion_key: str) -> str:
+        """
+        获取表情名称的翻译
+        
+        Args:
+            language_code: 语言代码 ('zh', 'ja', 'en')
+            emotion_key: 表情键值 ('angry', 'happy', etc.)
+            
+        Returns:
+            对应语言的表情名称
+        """
+        # 首先尝试使用新的格式 emotion_{emotion_key}
+        emotion_text_key = f"emotion_{emotion_key}"
+        result = self.get_text(language_code, emotion_text_key, None)
+        if result != emotion_text_key:
+            return result
+            
+        # 如果找不到，尝试使用fallback字典
+        if language_code in self._languages:
+            fallback_dict = self._languages[language_code].get('emotion_fallback', {})
+            if emotion_key in fallback_dict:
+                return fallback_dict[emotion_key]
+                
+        # 最后返回原始键值
+        return emotion_key
 
 # 创建全局语言管理器实例
 _language_manager = LanguageManager()
@@ -380,3 +406,16 @@ def get_available_languages() -> list:
 def get_language_display_names() -> list:
     """获取所有语言的显示名称"""
     return list(DISPLAY_TO_LANGUAGE_MAP.keys())
+
+def get_emotion_name(language_code: str, emotion_key: str) -> str:
+    """
+    获取表情名称的翻译（便捷函数）
+    
+    Args:
+        language_code: 语言代码 ('zh', 'ja', 'en')
+        emotion_key: 表情键值 ('angry', 'happy', etc.)
+        
+    Returns:
+        对应语言的表情名称
+    """
+    return _language_manager.get_emotion_name(language_code, emotion_key)

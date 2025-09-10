@@ -233,5 +233,23 @@
   "param_already_exists": "Parameter already exists!",
   "param_added_success": "Parameter added, will take effect after saving settings",
   "enable_parameter_filtering": "Enable Parameter Filtering",
-  "osc_parameter_filtering": "OSC Parameter Filtering"
+  "osc_parameter_filtering": "OSC Parameter Filtering",
+  
+  "emotion_angry": "Angry",
+  "emotion_disgust": "Disgust", 
+  "emotion_fear": "Fear",
+  "emotion_happy": "Happy",
+  "emotion_sad": "Sad",
+  "emotion_surprise": "Surprise",
+  "emotion_neutral": "Neutral",
+  
+  "emotion_fallback": {
+    "angry": "Angry",
+    "disgust": "Disgust",
+    "fear": "Fear",
+    "happy": "Happy",
+    "sad": "Sad",
+    "surprise": "Surprise",
+    "neutral": "Neutral"
+  }
 }

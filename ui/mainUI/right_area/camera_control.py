@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 import time
 import numpy as np
 from tkinter import messagebox
+from ui.languages.language_dict import get_emotion_name
 
 
 class CameraControl:
@@ -417,16 +418,8 @@ class CameraControl:
         self.main_app.expression_progress_bars = {}
         
         for expr_name in self.main_app.expressions.keys():
-            # 表情名称
-            display_name = {
-                'angry': '愤怒',
-                'disgust': '厌恶',
-                'fear': '恐惧', 
-                'happy': '高兴',
-                'sad': '伤心',
-                'surprise': '惊讶',
-                'neutral': '中立'
-            }.get(expr_name, expr_name)
+            # 表情名称 - 支持多语言
+            display_name = get_emotion_name(self.main_app.ui_language.get(), expr_name)
             
             # 使用正确的列偏移避免重叠：每列占用3个位置
             base_col = col * 3
@@ -1044,13 +1037,8 @@ class CameraControl:
             max_emotion = max(expressions, key=expressions.get)
             max_value = expressions[max_emotion]
             
-            # 情感中文名称映射
-            emotion_names = {
-                'angry': '愤怒', 'disgust': '厌恶', 'fear': '恐惧',
-                'happy': '高兴', 'sad': '伤心', 'surprise': '惊讶', 'neutral': '中立'
-            }
-            
-            emotion_name_cn = emotion_names.get(max_emotion, max_emotion)
+            # 多语言支持的情感名称
+            emotion_name_cn = get_emotion_name(self.main_app.ui_language.get(), max_emotion)
             
             # 更新标签和进度条
             if hasattr(self.main_app, 'overall_status_label'):
@@ -1066,13 +1054,8 @@ class CameraControl:
         try:
             emotion_name, intensity = dominant_emotion
             
-            # 情感中文名称映射
-            emotion_names = {
-                'angry': '愤怒', 'disgust': '厌恶', 'fear': '恐惧',
-                'happy': '高兴', 'sad': '伤心', 'surprise': '惊讶', 'neutral': '中立'
-            }
-            
-            emotion_name_cn = emotion_names.get(emotion_name, emotion_name)
+            # 多语言支持的情感名称
+            emotion_name_cn = get_emotion_name(self.main_app.ui_language.get(), emotion_name)
             
             # 格式化时间间隔
             if interval > 0:
