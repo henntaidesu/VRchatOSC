@@ -215,14 +215,34 @@ class VoiceLLMHandler:
             
             # 创建流式回调函数
             current_response_text = ""
+            processed_sentences = []  # 已处理的句子
+            
             def stream_callback(chunk_text, is_final):
-                nonlocal current_response_text
+                nonlocal current_response_text, processed_sentences
                 if chunk_text:  # 如果有内容
                     current_response_text += chunk_text
                     print(f"[流式回调] 累积文本长度: {len(current_response_text)}, 新增: {len(chunk_text)} 字符")
+                    
+                    # 检测完整句子
+                    new_sentences = self._detect_complete_sentences_in_stream(current_response_text, processed_sentences)
+                    
+                    # 处理新检测到的句子
+                    for sentence in new_sentences:
+                        if sentence.strip():
+                            print(f"[实时句子] 检测到完整句子: {sentence}")
+                            processed_sentences.append(sentence)
+                            
+                            # 立即触发VOICEVOX音频合成
+                            self._trigger_voice_synthesis(sentence, request.request_id)
                 
                 if is_final:
                     print(f"[流式完成] 最终文本长度: {len(current_response_text)}")
+                    
+                    # 处理最后可能剩余的不完整句子
+                    remaining_text = self._get_remaining_text(current_response_text, processed_sentences)
+                    if remaining_text and remaining_text.strip():
+                        print(f"[最终句子] 处理剩余文本: {remaining_text}")
+                        self._trigger_voice_synthesis(remaining_text, request.request_id)
                 
                 # 始终触发回调（包含空内容的结束信号）
                 partial_response = VoiceLLMResponse(
@@ -470,3 +490,102 @@ class VoiceLLMHandler:
             print(f"[错误] 更新API Key失败: {e}")
             self.gemini_client = None
             return False
+    
+    def _detect_complete_sentences_in_stream(self, full_text: str, processed_sentences: list) -> list:
+        """
+        在流式文本中检测完整句子
+        
+        Args:
+            full_text: 累积的完整文本
+            processed_sentences: 已处理的句子列表
+            
+        Returns:
+            新检测到的完整句子列表
+        """
+        import re
+        
+        # 句子结束标点符号（中文、日文、英文）+ 逗号（用于语音停顿）
+        sentence_endings = r'[。！？.!?，,、]'
+        
+        # 按句子标点分割文本
+        parts = re.split(f'({sentence_endings})', full_text)
+        
+        new_sentences = []
+        current_sentence = ""
+        
+        i = 0
+        while i < len(parts):
+            part = parts[i]
+            
+            if re.match(sentence_endings, part):
+                # 这是一个标点符号
+                current_sentence += part
+                
+                # 检查这个句子是否已经处理过
+                if current_sentence.strip() and current_sentence not in processed_sentences:
+                    new_sentences.append(current_sentence.strip())
+                
+                current_sentence = ""
+            else:
+                # 这是文本内容
+                current_sentence += part
+            
+            i += 1
+        
+        return new_sentences
+    
+    def _get_remaining_text(self, full_text: str, processed_sentences: list) -> str:
+        """
+        获取剩余未处理的文本
+        
+        Args:
+            full_text: 完整文本
+            processed_sentences: 已处理的句子列表
+            
+        Returns:
+            剩余的未处理文本
+        """
+        # 简单实现：移除所有已处理的句子后返回剩余部分
+        remaining = full_text
+        for sentence in processed_sentences:
+            remaining = remaining.replace(sentence, "", 1)
+        
+        return remaining.strip()
+    
+    def _trigger_voice_synthesis(self, sentence: str, request_id: str):
+        """
+        触发VOICEVOX语音合成
+        
+        Args:
+            sentence: 要合成的句子
+            request_id: 请求ID
+        """
+        try:
+            print(f"[语音合成] 开始合成句子: {sentence}")
+            
+            # 这里需要调用VOICEVOX API
+            # 由于这个方法在voice_llm_handler中，需要通过某种方式访问主应用的VOICEVOX功能
+            # 可以通过回调函数或者事件系统来实现
+            
+            # 创建合成请求事件
+            synthesis_event = {
+                'type': 'voice_synthesis_request',
+                'text': sentence,
+                'request_id': request_id,
+                'timestamp': time.time(),
+                'priority': 'realtime'  # 实时优先级
+            }
+            
+            # 触发语音合成回调（如果有的话）
+            if hasattr(self, 'voice_synthesis_callback') and self.voice_synthesis_callback:
+                self.voice_synthesis_callback(synthesis_event)
+            else:
+                print(f"[警告] 未设置语音合成回调，无法合成: {sentence}")
+                
+        except Exception as e:
+            print(f"[错误] 触发语音合成失败: {e}")
+    
+    def set_voice_synthesis_callback(self, callback):
+        """设置语音合成回调函数"""
+        self.voice_synthesis_callback = callback
+        print("[设置] 已设置语音合成回调函数")

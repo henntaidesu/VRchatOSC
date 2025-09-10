@@ -89,6 +89,93 @@ class StreamingLLMProcessor:
         self.additional_callback = callback
         print("[设置] 已设置额外回调函数")
     
+    def _on_voice_synthesis_request(self, synthesis_event):
+        """
+        处理语音合成请求
+        
+        Args:
+            synthesis_event: 语音合成事件
+        """
+        try:
+            sentence = synthesis_event.get('text', '')
+            request_id = synthesis_event.get('request_id', '')
+            priority = synthesis_event.get('priority', 'normal')
+            
+            print(f"[实时语音合成] 处理句子: {sentence} (优先级: {priority})")
+            
+            if not sentence.strip():
+                return
+            
+            # 使用VOICEVOX合成音频
+            if hasattr(self.main_app, 'voicevox_area') and self.main_app.voicevox_area:
+                # 同步合成音频，返回bytes格式
+                audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(
+                    sentence.strip(), 
+                    return_format="bytes"
+                )
+                
+                if audio_result is not None:
+                    print(f"[VOICEVOX] 实时合成成功: {sentence.strip()} (大小: {len(audio_result)} bytes)")
+                    
+                    # 立即发送音频到9003端口
+                    self._send_realtime_audio_to_port9003(audio_result, sentence)
+                else:
+                    print(f"[VOICEVOX] 实时合成失败: {sentence.strip()}")
+            else:
+                print(f"[警告] VOICEVOX未初始化，无法合成: {sentence}")
+                
+        except Exception as e:
+            print(f"[错误] 处理语音合成请求失败: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _send_realtime_audio_to_port9003(self, audio_data: bytes, sentence: str):
+        """
+        实时发送音频到9003端口
+        
+        Args:
+            audio_data: 音频数据
+            sentence: 对应的句子文本
+        """
+        try:
+            import tempfile
+            import os
+            from remote_audio import RemoteAudioClient
+            
+            audio_size = len(audio_data)
+            ai_host = self.main_app.config.ai_character_host if self.main_app.config else "127.0.0.1"
+            
+            print(f"[实时音频] 发送到 {ai_host}:9003，句子: {sentence[:20]}..., 大小: {audio_size} bytes")
+            
+            # 使用RemoteAudioClient发送音频
+            client = RemoteAudioClient(host=ai_host, port=9003)
+            
+            # 保存临时音频文件
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_file.write(audio_data)
+                temp_audio_path = temp_file.name
+            
+            # 发送音频文件（实时优先级）
+            success = client.play_audio_file(
+                temp_audio_path,
+                use_queue=True,
+                priority=0  # 最高优先级，确保实时播放
+            )
+            
+            # 清理临时文件
+            try:
+                os.unlink(temp_audio_path)
+            except:
+                pass
+            
+            if success:
+                print(f"[实时音频] 句子音频发送成功: {sentence[:20]}...")
+            else:
+                print(f"[实时音频] 句子音频发送失败: {sentence[:20]}...")
+                
+        except Exception as e:
+            print(f"[错误] 实时音频发送失败: {e}")
+    
     def _init_conversation_recording(self):
         """初始化对话记录功能"""
         try:
@@ -196,6 +283,9 @@ class StreamingLLMProcessor:
         """设置LLM处理器"""
         # 设置LLM响应回调为流式处理
         self.llm_handler.set_response_callback(self._on_llm_streaming_response)
+        
+        # 设置语音合成回调
+        self.llm_handler.set_voice_synthesis_callback(self._on_voice_synthesis_request)
         
         # 启动LLM处理器
         if self.llm_handler.is_client_ready():
