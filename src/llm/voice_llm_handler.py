@@ -219,11 +219,12 @@ class VoiceLLMHandler:
                     if self.response_callback:
                         self.response_callback(partial_response)
             
-            # 只使用流式生成内容
-            print("[流式] 使用Gemini流式API")
+            # 只使用流式生成内容，传递对话历史
+            print(f"[流式] 使用Gemini流式API，对话历史长度: {len(self.conversation_history)}")
             full_response_text = self.gemini_client.generate_content_stream(
                 prompt=request.text,
                 system_prompt=system_prompt,
+                conversation_history=self.conversation_history,
                 callback=stream_callback
             )
             

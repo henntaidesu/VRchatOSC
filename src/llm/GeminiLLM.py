@@ -271,13 +271,15 @@ class GeminiClient:
                 error=f"内容生成异常: {str(e)}"
             )
     
-    def generate_content_stream(self, prompt: str, system_prompt: Optional[str] = None, callback=None):
+    def generate_content_stream(self, prompt: str, system_prompt: Optional[str] = None, 
+                               conversation_history: Optional[List[Dict[str, str]]] = None, callback=None):
         """
         流式生成内容
         
         Args:
             prompt: 用户输入的提示词
             system_prompt: 系统提示词（可选）
+            conversation_history: 对话历史 [{"role": "user/assistant", "text": "..."}]
             callback: 回调函数，接收每个流式片段 callback(chunk_text, is_final)
             
         Returns:
@@ -296,7 +298,24 @@ class GeminiClient:
                     "parts": [{"text": f"System: {system_prompt}"}]
                 })
             
-            # 添加用户消息
+            # 添加对话历史
+            if conversation_history:
+                print(f"[对话历史] 加载 {len(conversation_history)} 条历史记录")
+                for msg in conversation_history:
+                    role_map = {
+                        "user": "user",
+                        "assistant": "model",  # Gemini 使用 "model" 作为助手角色
+                        "model": "model"
+                    }
+                    gemini_role = role_map.get(msg.get("role"), "user")
+                    contents.append({
+                        "role": gemini_role,
+                        "parts": [{"text": msg.get("text", "")}]
+                    })
+            else:
+                print("[对话历史] 无历史记录，新对话开始")
+            
+            # 添加当前用户消息
             contents.append({
                 "role": "user", 
                 "parts": [{"text": prompt}]
