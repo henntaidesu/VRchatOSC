@@ -251,5 +251,9 @@
     "sad": "悲しみ",
     "surprise": "驚き",
     "neutral": "中立"
-  }
+  },
+  
+  "overall_status": "全体状態",
+  "dominant_emotion": "主要感情",
+  "no_data": "データなし"
 }

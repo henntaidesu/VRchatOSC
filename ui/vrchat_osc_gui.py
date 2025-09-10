@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.vrchat_controller import VRChatController
 from src.config_manager import config_manager
 from ui.settings_window import SettingsWindow
-from ui.languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP
+from ui.languages.language_dict import get_text, get_language_display_names, DISPLAY_TO_LANGUAGE_MAP, get_emotion_name
 from src.avatar import AvatarController
 from src.avatar.single_ai_vrc_manager import SingleAIVRCManager
 from ui.mainUI.right_area.camera_control import CameraControl
@@ -895,16 +895,8 @@ class VRChatOSCGUI:
         self.expression_progress_bars = {}
         
         for expr_name in self.expressions.keys():
-            # 表情名称
-            display_name = {
-                'angry': '愤怒',
-                'disgust': '厌恶',
-                'fear': '恐惧', 
-                'happy': '高兴',
-                'sad': '伤心',
-                'surprise': '惊讶',
-                'neutral': '中立'
-            }.get(expr_name, expr_name)
+            # 表情名称 - 支持多语言
+            display_name = get_emotion_name(self.ui_language.get(), expr_name)
             
             # 使用正确的列偏移避免重叠：每列占用3个位置
             base_col = col * 3
@@ -935,15 +927,25 @@ class VRChatOSCGUI:
         
         row += 1
         # 整体情感状态显示
-        ttk.Label(self.expression_frame, text="整体状态:").grid(
+        ttk.Label(self.expression_frame, text=f"{self.get_text('overall_status')}:").grid(
             row=row, column=0, sticky=tk.W, padx=(0, 5))
         
-        self.overall_status_label = ttk.Label(self.expression_frame, text="中立 (0.00)", width=15)
+        # 获取默认的中立状态文本
+        neutral_text = get_emotion_name(self.ui_language.get(), 'neutral')
+        self.overall_status_label = ttk.Label(self.expression_frame, text=f"{neutral_text} (0.00)", width=15)
         self.overall_status_label.grid(row=row, column=1, sticky=tk.W, padx=(0, 5))
         
         self.overall_status_progress = ttk.Progressbar(self.expression_frame, length=250, mode='determinate')
         self.overall_status_progress.grid(row=row, column=2, columnspan=4, sticky=(tk.W, tk.E), padx=(0, 15))
         self.overall_status_progress['maximum'] = 100
+        
+        # 主导情感状态显示
+        row += 1
+        ttk.Label(self.expression_frame, text=f"{self.get_text('dominant_emotion')}:").grid(
+            row=row, column=0, sticky=tk.W, padx=(0, 5))
+        
+        self.dominant_emotion_label = ttk.Label(self.expression_frame, text=self.get_text('no_data'), width=30)
+        self.dominant_emotion_label.grid(row=row, column=1, columnspan=5, sticky=tk.W, padx=(0, 5))
     
     def refresh_ai_movement_control_labels(self):
         """刷新AI角色移动控制区域的标签文本"""

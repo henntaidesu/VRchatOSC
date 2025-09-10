@@ -1418,3 +1418,4 @@ class CameraControl:
             
         except Exception:
             return False
+    

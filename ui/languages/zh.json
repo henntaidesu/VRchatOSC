@@ -248,5 +248,9 @@
     "sad": "伤心",
     "surprise": "惊讶",
     "neutral": "中立"
-  }
+  },
+  
+  "overall_status": "整体状态",
+  "dominant_emotion": "主导情感",
+  "no_data": "无数据"
 }

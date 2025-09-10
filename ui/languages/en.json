@@ -251,5 +251,9 @@
     "sad": "Sad",
     "surprise": "Surprise",
     "neutral": "Neutral"
-  }
+  },
+  
+  "overall_status": "Overall Status",
+  "dominant_emotion": "Dominant Emotion",
+  "no_data": "No Data"
 }
