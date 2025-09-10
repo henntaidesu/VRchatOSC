@@ -8,6 +8,9 @@ import queue
 import time
 import numpy as np
 import sounddevice as sd
+import json
+import os
+from datetime import datetime
 from typing import Optional, Callable, Dict, Any, List
 from dataclasses import dataclass
 
@@ -60,7 +63,18 @@ class VoiceLLMHandler:
         
         # 对话历史 (支持多轮对话)
         self.conversation_history: List[Dict[str, str]] = []
-        self.max_history_length = 10  # 保留最近10轮对话
+        self.max_history_length = None  # 不设置对话上限，保留所有历史
+        
+        # 对话会话管理
+        self.conversation_sessions_dir = "data/conversations"
+        self.current_session_id = None
+        self.current_session_file = None
+        
+        # 确保对话目录存在
+        os.makedirs(self.conversation_sessions_dir, exist_ok=True)
+        
+        # 创建新的对话会话
+        self._create_new_conversation_session()
         
         # 默认系统提示词
         self.default_system_prompt = """你是一个友善、有用的AI助手。请用简洁、自然的语言回复用户的问题。
@@ -278,6 +292,50 @@ class VoiceLLMHandler:
                 error=f"处理异常: {str(e)}"
             )
     
+    def _create_new_conversation_session(self):
+        """创建新的对话会话"""
+        try:
+            # 生成新的会话ID (基于时间戳)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.current_session_id = f"conversation_{timestamp}"
+            self.current_session_file = os.path.join(self.conversation_sessions_dir, f"{self.current_session_id}.json")
+            
+            # 创建新的会话文件
+            session_data = {
+                "session_id": self.current_session_id,
+                "created_at": datetime.now().isoformat(),
+                "conversation_history": []
+            }
+            
+            with open(self.current_session_file, 'w', encoding='utf-8') as f:
+                json.dump(session_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"[会话] 创建新对话会话: {self.current_session_id}")
+            
+        except Exception as e:
+            print(f"[错误] 创建对话会话失败: {e}")
+            self.current_session_id = None
+            self.current_session_file = None
+
+    def _save_conversation_to_file(self):
+        """保存对话历史到文件"""
+        try:
+            if not self.current_session_file:
+                return
+            
+            session_data = {
+                "session_id": self.current_session_id,
+                "created_at": datetime.now().isoformat(),
+                "conversation_history": self.conversation_history,
+                "last_updated": datetime.now().isoformat()
+            }
+            
+            with open(self.current_session_file, 'w', encoding='utf-8') as f:
+                json.dump(session_data, f, ensure_ascii=False, indent=2)
+                
+        except Exception as e:
+            print(f"[错误] 保存对话历史失败: {e}")
+
     def _update_conversation_history(self, user_text: str, assistant_text: str):
         """
         更新对话历史
@@ -286,21 +344,26 @@ class VoiceLLMHandler:
             user_text: 用户输入
             assistant_text: 助手回复
         """
+        current_time = datetime.now().isoformat()
+        
         # 添加用户消息
         self.conversation_history.append({
             "role": "user",
-            "text": user_text
+            "text": user_text,
+            "timestamp": current_time
         })
         
         # 添加助手回复
         self.conversation_history.append({
-            "role": "assistant",
-            "text": assistant_text
+            "role": "assistant", 
+            "text": assistant_text,
+            "timestamp": current_time
         })
         
-        # 保持历史长度限制
-        while len(self.conversation_history) > self.max_history_length * 2:  # *2 因为每轮有用户和助手两条消息
-            self.conversation_history.pop(0)
+        # 不设置历史长度限制，保留所有对话历史
+        
+        # 保存到文件
+        self._save_conversation_to_file()
     
     def submit_voice_text(self, text: str, system_prompt: Optional[str] = None, 
                          user_context: Optional[Dict[str, Any]] = None) -> str:
@@ -347,7 +410,9 @@ class VoiceLLMHandler:
     def clear_conversation_history(self):
         """清空对话历史"""
         self.conversation_history.clear()
-        print("[清空] 已清空对话历史")
+        # 创建新的会话
+        self._create_new_conversation_session()
+        print("[清空] 已清空对话历史并创建新会话")
     
     def get_queue_size(self) -> int:
         """获取当前队列大小"""
