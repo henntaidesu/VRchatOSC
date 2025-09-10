@@ -341,14 +341,14 @@ class EmoNeXtDetector:
             # 转换为灰度图进行面部检测
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
-            # 优化的面部检测参数 - 与ResEmoteNet保持一致
+            # 优化的面部检测参数 - 降低阈值提高检测敏感度
             faces = self.face_cascade.detectMultiScale(
                 gray, 
-                scaleFactor=1.1,        # 更精细的尺度步长
-                minNeighbors=5,         # 增加最小邻居数，减少误检
-                minSize=(60, 60),       # 增大最小面部尺寸，过滤小物体
-                maxSize=(400, 400),     # 适当限制最大尺寸
-                flags=cv2.CASCADE_SCALE_IMAGE  # 使用更稳定的检测方式
+                scaleFactor=1.05,       # 更精细的尺度步长（从1.1降至1.05）
+                minNeighbors=3,         # 减少最小邻居数（从5降至3）
+                minSize=(40, 40),       # 降低最小面部尺寸（从60x60降至40x40）
+                maxSize=(600, 600),     # 增大最大尺寸（从400x400增至600x600）
+                flags=cv2.CASCADE_SCALE_IMAGE | cv2.CASCADE_DO_CANNY_PRUNING  # 添加边缘优化
             )
             
             annotated_frame = frame.copy()
@@ -404,7 +404,7 @@ class EmoNeXtDetector:
                 sorted_emotions = sorted(expressions.items(), key=lambda item: item[1], reverse=True)
                 
                 for expr_name, value in sorted_emotions[:3]:  # 只显示前3个最强的情感
-                    if value > 0.08:  # EmoNeXt使用稍低的阈值（更敏感）
+                    if value > 0.05:  # 进一步降低显示阈值（从0.08降至0.05）
                         display_name = {
                             'angry': 'Angry',
                             'disgust': 'Disgust', 
@@ -442,8 +442,8 @@ class EmoNeXtDetector:
     def _is_valid_face_region(self, gray_frame, x, y, w, h):
         """验证检测到的区域是否为有效的面部 - EmoNeXt版本"""
         try:
-            # 检查区域大小合理性
-            if w < 60 or h < 60 or w > 400 or h > 400:
+            # 检查区域大小合理性（放宽限制）
+            if w < 40 or h < 40 or w > 600 or h > 600:
                 return False
             
             # 检查宽高比（人脸通常接近1:1.2）
@@ -458,7 +458,7 @@ class EmoNeXtDetector:
             # 检查区域内的纹理复杂度（面部应该有一定的纹理变化）
             roi = gray_frame[y:y+h, x:x+w]
             texture_variance = np.var(roi)
-            if texture_variance < 40:  # EmoNeXt使用稍低的阈值（更敏感）
+            if texture_variance < 20:  # 进一步降低纹理阈值（更敏感）
                 return False
             
             return True
