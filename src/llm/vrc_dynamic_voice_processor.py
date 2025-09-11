@@ -83,6 +83,17 @@ class VRCDynamicVoiceProcessor:
         self.max_recording_duration = 30.0  # 最大录音时长（秒）
         self.silence_timeout = 2.0  # 静音超时时间（秒）
         
+        # 语音片段累积功能
+        self.speech_segments = []  # 存储当前会话的所有语音片段
+        self.session_start_time = None  # 会话开始时间
+        self.last_speech_time = None  # 最后一次语音的时间
+        self.session_timeout = 5.0  # 会话超时时间(秒)，超过此时间未说话则发送累积的语音
+        self.enable_speech_accumulation = True  # 是否启用语音累积功能
+        
+        # 识别完成状态跟踪
+        self.pending_recognition = False  # 是否有待处理的语音识别
+        self.mic_closed_waiting_recognition = False  # 麦克风已关闭，等待最后识别完成
+        
         print("[初始化] VRC动态语音处理器初始化完成")
     
     def set_speech_engine(self, speech_engine: SpeechEngine):
@@ -124,6 +135,11 @@ class VRCDynamicVoiceProcessor:
         """停止处理器"""
         if not self.is_running:
             return
+        
+        # 发送剩余的累积语音片段
+        if self.speech_segments:
+            print("[停止] 发送剩余的累积语音片段")
+            self._send_accumulated_speech()
         
         self.is_running = False
         self._stop_recording()
@@ -180,6 +196,8 @@ class VRCDynamicVoiceProcessor:
                 except queue.Empty:
                     # 检查录音超时
                     self._check_recording_timeout()
+                    # 语音累积超时检查已禁用，只在麦克风关闭时发送
+                    # self._check_speech_session_timeout()
                     continue
                 
             except Exception as e:
@@ -213,6 +231,9 @@ class VRCDynamicVoiceProcessor:
         """处理VRC麦克风开启"""
         print(f"[检测] VRC麦克风开启")
         
+        # 清除麦克风关闭等待状态
+        self.mic_closed_waiting_recognition = False
+        
         if self.recording_state == RecordingState.IDLE:
             self._start_recording()
         elif self.recording_state == RecordingState.RECORDING:
@@ -231,6 +252,19 @@ class VRCDynamicVoiceProcessor:
             else:
                 print(f"[录音] 录音时长过短 ({recording_duration:.2f}s < {self.min_recording_duration}s)，取消录音")
                 self._cancel_recording()
+        
+        # 关键修改：麦克风关闭时标记等待最后识别完成
+        if self.enable_speech_accumulation:
+            if self.pending_recognition:
+                # 如果还有识别任务在处理，标记等待
+                self.mic_closed_waiting_recognition = True
+                print(f"[麦克风关闭] 等待最后一次识别完成，然后发送累积的{len(self.speech_segments)}个语音片段")
+            elif self.speech_segments:
+                # 没有待处理识别，立即发送
+                print(f"[麦克风关闭] 立即发送累积的{len(self.speech_segments)}个语音片段")
+                self._send_accumulated_speech()
+            else:
+                print(f"[麦克风关闭] 没有累积的语音片段")
     
     def _start_recording(self):
         """开始录音"""
@@ -301,6 +335,9 @@ class VRCDynamicVoiceProcessor:
             
             print(f"[处理] 开始处理录音，时长: {recording_duration:.2f}秒")
             
+            # 标记开始识别处理
+            self.pending_recognition = True
+            
             # 异步处理语音识别
             processing_thread = threading.Thread(
                 target=self._process_audio_async,
@@ -357,9 +394,19 @@ class VRCDynamicVoiceProcessor:
                             'timestamp': time.time()
                         })
                     
-                    # 提交到LLM处理
-                    if self.llm_handler:
-                        self.llm_handler.submit_voice_text(recognized_text)
+                    # 处理语音片段累积
+                    if self.enable_speech_accumulation:
+                        self._add_speech_segment(recognized_text)
+                        
+                        # 检查是否需要发送累积语音（麦克风已关闭且这是最后一次识别）
+                        if self.mic_closed_waiting_recognition:
+                            print(f"[识别完成] 最后一次识别完成，发送累积的{len(self.speech_segments)}个语音片段")
+                            self._send_accumulated_speech()
+                            self.mic_closed_waiting_recognition = False
+                    else:
+                        # 直接提交到LLM处理（原始行为）
+                        if self.llm_handler:
+                            self.llm_handler.submit_voice_text(recognized_text)
                 else:
                     print("[识别] 未识别出文本内容")
             else:
@@ -370,6 +417,15 @@ class VRCDynamicVoiceProcessor:
             import traceback
             traceback.print_exc()
         finally:
+            # 清除识别处理标志
+            self.pending_recognition = False
+            
+            # 如果麦克风已关闭且在等待识别完成，且没有识别出文本，仍需检查是否发送累积语音
+            if self.mic_closed_waiting_recognition and self.enable_speech_accumulation and self.speech_segments:
+                print(f"[识别完成] 识别未产生文本，但发送已有的累积语音片段")
+                self._send_accumulated_speech()
+                self.mic_closed_waiting_recognition = False
+            
             self.recording_state = RecordingState.IDLE
             print("[状态] 处理完成，回到空闲状态")
     
@@ -424,3 +480,69 @@ class VRCDynamicVoiceProcessor:
         
         print(f"[配置] 录音参数已更新: min={self.min_recording_duration}s, "
               f"max={self.max_recording_duration}s, silence_timeout={self.silence_timeout}s")
+    
+    def _add_speech_segment(self, text: str):
+        """添加语音片段到累积列表"""
+        current_time = time.time()
+        
+        # 如果是新会话的开始（没有累积片段或麦克风已关闭很久）
+        if not self.speech_segments:
+            self.session_start_time = current_time
+            print(f"[新会话] 开始新的语音累积会话")
+        
+        # 添加当前语音片段
+        self.speech_segments.append({
+            'text': text,
+            'timestamp': current_time
+        })
+        # 不更新 last_speech_time，避免触发超时机制
+        # self.last_speech_time = current_time
+        
+        print(f"[累积] 语音片段已添加: {text[:30]}... (共{len(self.speech_segments)}个片段)")
+        print(f"[累积状态] 等待麦克风关闭信号以发送累积语音")
+    
+    def _check_speech_session_timeout(self):
+        """检查语音累积会话是否超时（已禁用，只在麦克风关闭时发送）"""
+        # 完全禁用基于时间的自动发送机制
+        # 只在麦克风关闭时发送累积语音，确保完整性
+        pass
+    
+    def _send_accumulated_speech(self):
+        """发送累积的语音片段到LLM"""
+        if not self.speech_segments:
+            return
+        
+        # 合并所有语音片段
+        combined_text = " ".join([segment['text'] for segment in self.speech_segments])
+        
+        print(f"[累积发送] 合并{len(self.speech_segments)}个语音片段: {combined_text[:100]}...")
+        
+        # 发送到LLM处理
+        if self.llm_handler:
+            self.llm_handler.submit_voice_text(combined_text)
+        
+        # 清空累积列表
+        self.speech_segments = []
+        self.session_start_time = None
+        print(f"[累积发送] 语音片段已发送并清空缓存")
+    
+    def set_speech_accumulation_enabled(self, enabled: bool):
+        """设置语音累积功能开关"""
+        self.enable_speech_accumulation = enabled
+        if not enabled and self.speech_segments:
+            # 如果禁用累积功能时还有未发送的语音，立即发送
+            self._send_accumulated_speech()
+        print(f"[配置] 语音累积功能已{'启用' if enabled else '禁用'}")
+    
+    def set_session_timeout(self, timeout: float):
+        """设置会话超时时间（现在主要用作安全机制）"""
+        self.session_timeout = timeout
+        print(f"[配置] 安全超时时间设为{timeout}秒（2倍值用作强制发送阈值）")
+    
+    def force_send_accumulated_speech(self):
+        """强制发送当前累积的语音片段"""
+        if self.speech_segments:
+            print(f"[强制发送] 手动发送累积的语音片段")
+            self._send_accumulated_speech()
+        else:
+            print(f"[强制发送] 没有累积的语音片段")

@@ -371,30 +371,45 @@ class StreamingLLMProcessor:
         if hasattr(self.main_app, 'log'):
             self.main_app.log(f"[LLM返回] {response.llm_response}")
         
+        # 添加重复响应检测机制
+        if not hasattr(self, '_processed_responses'):
+            self._processed_responses = set()
+        
+        # 创建响应唯一标识
+        response_key = f"{response.request_id}_{hash(response.llm_response)}"
+        
+        if response_key in self._processed_responses:
+            print(f"[重复检测] 跳过重复的LLM响应处理: {response.request_id}")
+            if hasattr(self.main_app, 'log'):
+                self.main_app.log(f"[重复检测] 跳过重复的LLM响应处理: {response.request_id}")
+            return
+        
+        # 标记响应为已处理
+        self._processed_responses.add(response_key)
+        
+        # 清理旧的响应记录（保持最近100个）
+        if len(self._processed_responses) > 100:
+            # 转换为列表并只保留最新的50个
+            response_list = list(self._processed_responses)
+            self._processed_responses = set(response_list[-50:])
+
         # 累积响应文本
         self.current_response = response.llm_response
-        
+
         # 检测完整句子
         new_sentences = self._detect_complete_sentences()
-        
-        # 将新检测到的句子加入处理队列
-        for sentence in new_sentences:
-            sentence_data = StreamingSentence(
-                text=sentence,
-                timestamp=time.time(),
-                is_complete=True,
-                request_id=response.request_id
-            )
-            
-            try:
-                self.sentence_queue.put(sentence_data, timeout=0.1)
-                print(f"[句子检测] 发现完整句子: {sentence}")
+
+        # 语音合成完全由LLM Handler的voice_synthesis_callback处理
+        # 此处只记录检测到的句子，不再使用句子队列进行二次处理
+        if new_sentences:
+            for sentence in new_sentences:
+                print(f"[句子检测] 检测到完整句子: {sentence} (已由LLM Handler处理合成)")
                 if hasattr(self.main_app, 'log'):
-                    self.main_app.log(f"[句子检测] 发现完整句子: {sentence}")
-            except queue.Full:
-                print("[警告] 句子处理队列已满")
-                if hasattr(self.main_app, 'log'):
-                    self.main_app.log("[警告] 句子处理队列已满")
+                    self.main_app.log(f"[句子检测] 检测到完整句子: {sentence[:30]}...")
+        else:
+            print(f"[流式完成] 无新句子，已处理句子数: {len(self.processed_sentences)}")
+            if hasattr(self.main_app, 'log'):
+                self.main_app.log(f"[流式完成] 无新句子，已处理句子数: {len(self.processed_sentences)}")
         
         # 调用额外的回调函数
         if self.additional_callback:
@@ -412,12 +427,13 @@ class StreamingLLMProcessor:
         #     if hasattr(self.main_app, 'log'):
         #         self.main_app.log(f"[界面显示] AI回复已显示到语音识别框")
         
+        # 记录对话和发送VRChat消息（现在每个响应只会处理一次）
         # 记录对话
         if hasattr(self, 'current_user_input') and self.current_user_input:
             self._record_conversation(self.current_user_input, response.llm_response)
             # 清空当前用户输入
             self.current_user_input = None
-        
+
         # 发送完整回复到AI端VRChat (而不是用户VRChat端)
         if (hasattr(self.main_app, 'ai_vrchat_area') and 
             self.main_app.ai_vrchat_area and 
@@ -508,90 +524,13 @@ class StreamingLLMProcessor:
             sentence_text = sentence_data.text
             print(f"[处理] 开始处理句子: {sentence_text}")
             
-            # 1. 使用VOICEVOX合成语音
-            if self.voice_synthesis_enabled and hasattr(self.main_app, 'voicevox_area'):
-                print(f"[语音合成] 开始合成语音: {sentence_text}")
-                if hasattr(self.main_app, 'log'):
-                    self.main_app.log(f"[语音合成] 开始合成: {sentence_text}")
-                
-                # 调用VOICEVOX合成，指定返回numpy格式
-                audio_data = self.main_app.voicevox_area.synthesize_with_voicevox(sentence_text, return_format="numpy")
-                
-                if audio_data is not None:
-                    print(f"[VOICEVOX] 语音合成成功 - 文本: {sentence_text}")
-                    if hasattr(self.main_app, 'log'):
-                        self.main_app.log(f"[VOICEVOX] 语音合成成功: {sentence_text[:30]}...")
-                    
-                    # 2. 保存为临时WAV文件
-                    try:
-                        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
-                            temp_audio_path = tmp_file.name
-                        
-                        # 确定采样率和音频数据格式
-                        if isinstance(audio_data, np.ndarray):
-                            # numpy数组格式 - 来自新的转换，采样率已在转换时确定
-                            # 从VOICEVOX area获取实际采样率
-                            sample_rate = getattr(self.main_app.voicevox_area, '_last_sample_rate', 24000)
-                            print(f"[音频] numpy数组格式，形状: {audio_data.shape}, 采样率: {sample_rate}Hz")
-                        else:
-                            # 其他格式的兜底处理
-                            print(f"[音频] 其他格式: {type(audio_data)}")
-                            # 尝试获取VOICEVOX客户端信息来推断采样率
-                            sample_rate = getattr(self.main_app.voicevox_area, '_last_sample_rate', 24000)
-                        
-                        # 保存音频数据为WAV文件
-                        sf.write(temp_audio_path, audio_data, sample_rate)
-                        print(f"[临时文件] 已保存音频: {temp_audio_path} (采样率: {sample_rate}Hz)")
-                        
-                        # 3. 发送音频文件到9003端口
-                        if self.remote_audio_client:
-                            try:
-                                print(f"[9003发送] 正在发送音频: {sentence_text}")
-                                success = self.remote_audio_client.play_audio_file(
-                                    temp_audio_path, 
-                                    use_queue=True, 
-                                    priority=0
-                                )
-                                if success:
-                                    print(f"[9003] 音频发送成功: {sentence_text}")
-                                    if hasattr(self.main_app, 'log'):
-                                        self.main_app.log(f"[9003] 音频发送成功: {sentence_text[:30]}...")
-                                else:
-                                    print(f"[9003] 音频发送失败: {sentence_text}")
-                                    if hasattr(self.main_app, 'log'):
-                                        self.main_app.log(f"[9003] 音频发送失败: {sentence_text[:30]}...")
-                            except Exception as e:
-                                print(f"[错误] 发送音频到9003失败: {e}")
-                                if hasattr(self.main_app, 'log'):
-                                    self.main_app.log(f"[错误] 发送音频到9003失败: {e}")
-                            finally:
-                                # 清理临时文件
-                                try:
-                                    if os.path.exists(temp_audio_path):
-                                        os.unlink(temp_audio_path)
-                                        print(f"[清理] 已删除临时文件: {temp_audio_path}")
-                                except Exception as cleanup_e:
-                                    print(f"[警告] 清理临时文件失败: {cleanup_e}")
-                        else:
-                            print("[警告] 远程音频客户端未创建")
-                            # 清理临时文件
-                            try:
-                                if os.path.exists(temp_audio_path):
-                                    os.unlink(temp_audio_path)
-                            except:
-                                pass
-                    
-                    except Exception as file_e:
-                        print(f"[错误] 保存临时音频文件失败: {file_e}")
-                        import traceback
-                        traceback.print_exc()
-                        
-                else:
-                    print(f"[警告] VOICEVOX合成失败: {sentence_text}")
-                    if hasattr(self.main_app, 'log'):
-                        self.main_app.log(f"[VOICEVOX] 合成失败: {sentence_text[:30]}...")
+            # 语音合成已由LLM Handler的voice_synthesis_callback处理
+            # 此处不再重复合成，避免同一句子被合成两次
+            print(f"[句子处理] 句子已通过回调处理合成: {sentence_text}")
+            if hasattr(self.main_app, 'log'):
+                self.main_app.log(f"[句子处理] 跳过重复合成: {sentence_text[:30]}...")
             
-            # 4. 调用句子回调（如果有）
+            # 调用句子回调（如果有）
             if self.sentence_callback:
                 try:
                     self.sentence_callback(sentence_text)

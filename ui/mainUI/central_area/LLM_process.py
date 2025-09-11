@@ -74,19 +74,31 @@ class LLMProcessor:
             self.emotion_aware_processor = None
     
     def on_llm_response(self, response: VoiceLLMResponse):
-        """处理LLM响应"""
+        """处理LLM响应 - 作为additional_callback，只处理UI更新和对话记录"""
+        # 添加重复调用检测
+        if hasattr(response, 'request_id'):
+            if not hasattr(self, '_processed_responses'):
+                self._processed_responses = set()
+            
+            response_key = f"{response.request_id}_{response.llm_response[:50]}"
+            if response_key in self._processed_responses:
+                self.main_app.log(f"[警告] 检测到重复的LLM响应处理: {response.request_id}")
+                return
+            self._processed_responses.add(response_key)
+            
+            # 清理过期的响应记录（保持最多100个）
+            if len(self._processed_responses) > 100:
+                self._processed_responses.clear()
+        
         try:
             if response.success:
-                # 详细显示LLM返回内容
-                self.main_app.log(f"[{self.main_app.get_text('llm_response_return')}] {self.main_app.get_text('llm_response_complete')}: {response.llm_response}")
-                
-                # 记录对话
+                # 记录对话 (StreamingLLMProcessor没有这个功能)
                 if hasattr(self, 'current_user_input') and self.current_user_input:
                     self._record_conversation(self.current_user_input, response.llm_response)
                     # 清空当前用户输入
                     self.current_user_input = None
                 
-                # 显示LLM回复在语音识别框中
+                # 显示LLM回复在语音识别框中 (StreamingLLMProcessor的add_speech_output被注释了)
                 self.main_app.add_speech_output(response.llm_response, self.main_app.get_text("llm_response_ai_reply"))
                 
                 # 发送AI回复到AI端VRChat (而不是用户VRChat端)
@@ -108,12 +120,7 @@ class LLMProcessor:
                 else:
                     self.main_app.log(f"[{self.main_app.get_text('llm_response_ai_reply')}] {self.main_app.get_text('llm_response_ai_not_connected')}")
                 
-                # 按句子结束标点分割文本并逐句处理
-                self.main_app.log(f"[{self.main_app.get_text('llm_voice_synthesis')}] {self.main_app.get_text('llm_sentence_split')}: {response.llm_response}")
-                sentences = self._split_by_punctuation(response.llm_response)
-                
-                # 使用顺序播放处理
-                self._process_sentences_sequentially(sentences)
+                # 注意：语音合成已由StreamingLLMProcessor处理，此处不再重复处理
                 
             else:
                 self.main_app.log(f"[{self.main_app.get_text('llm_error')}] {self.main_app.get_text('llm_error_processing_failed')}: {response.error}")
@@ -121,8 +128,7 @@ class LLMProcessor:
         except Exception as e:
             self.main_app.log(f"[{self.main_app.get_text('error')}] {self.main_app.get_text('llm_error_response_processing')}: {e}")
         
-        # 在主线程中更新UI
-        self.main_app.root.after(0, lambda: None)
+        # 注意：不在此处更新UI，避免额外的线程调用
     
     def process_voice_text(self, text: str) -> bool:
         """处理语音转文本结果
