@@ -9,6 +9,30 @@ from src.VOICEVOX.voicevox_tts import VOICEVOXClient, get_voicevox_client
 class VoicevoxArea:
     def __init__(self, main_app):
         self.main_app = main_app
+    
+    def safe_log(self, message):
+        """Safe logging method that handles threading issues"""
+        try:
+            if self.main_app.root and hasattr(self.main_app.root, 'after'):
+                self.main_app.root.after(0, lambda: self.main_app.log(message))
+        except RuntimeError:
+            # If main thread is not in main loop, just print to console as fallback
+            print(f"[VOICEVOX] {message}")
+        except Exception as e:
+            # Fallback for any other threading issues
+            print(f"[VOICEVOX] {message} (logging error: {e})")
+    
+    def safe_ui_update(self, callback):
+        """Safe UI update method that handles threading issues"""
+        try:
+            if self.main_app.root and hasattr(self.main_app.root, 'after'):
+                self.main_app.root.after(0, callback)
+        except RuntimeError:
+            # If main thread is not in main loop, skip UI update
+            print("[VOICEVOX] Skipped UI update - main thread not in main loop")
+        except Exception as e:
+            # Fallback for any other threading issues
+            print(f"[VOICEVOX] UI update error: {e}")
         
     def setup_voicevox_area(self, parent_frame):
         """设置VOICEVOX控制区域"""
@@ -204,7 +228,7 @@ class VoicevoxArea:
             for attempt in range(retry_count):
                 try:
                     log_msg = f"正在尝试连接VOICEVOX Engine {host}:{port}... (第{attempt + 1}次)"
-                    self.main_app.root.after(0, lambda msg=log_msg: self.main_app.log(msg))
+                    self.safe_log(log_msg)
                     
                     # 使用配置的主机和端口创建客户端实例
                     from src.VOICEVOX.voicevox_tts import VOICEVOXClient
@@ -220,26 +244,26 @@ class VoicevoxArea:
                                 self.main_app.voicevox_connected = True
                                 
                                 # 更新UI（必须在主线程中执行）
-                                self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
+                                self.safe_ui_update(lambda: self.update_voicevox_ui(speaker_names, True))
                                 success_msg = f"VOICEVOX连接成功！已加载{len(speaker_names)}个角色"
-                                self.main_app.root.after(0, lambda msg=success_msg: self.main_app.log(msg))
+                                self.safe_log(success_msg)
                                 return
                             else:
-                                self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX连接成功但未获取到角色列表"))
+                                self.safe_log("VOICEVOX连接成功但未获取到角色列表")
                         except Exception as e:
                             error_msg = f"获取VOICEVOX角色列表失败: {e}"
-                            self.main_app.root.after(0, lambda msg=error_msg: self.main_app.log(msg))
+                            self.safe_log(error_msg)
                     else:
                         fail_msg = f"VOICEVOX Engine连接测试失败 (第{attempt + 1}次)"
-                        self.main_app.root.after(0, lambda msg=fail_msg: self.main_app.log(msg))
+                        self.safe_log(fail_msg)
                         
                 except Exception as e:
                     error_msg = f"VOICEVOX连接尝试失败 (第{attempt + 1}次): {e}"
-                    self.main_app.root.after(0, lambda msg=error_msg: self.main_app.log(msg))
+                    self.safe_log(error_msg)
                 
                 # 如果不是最后一次尝试，等待后重试
                 if attempt < retry_count - 1:
-                    self.main_app.root.after(0, lambda: self.main_app.log("等待3秒后重试..."))
+                    self.safe_log("等待3秒后重试...")
                     time.sleep(3)
             
             # 所有尝试都失败了
@@ -248,8 +272,8 @@ class VoicevoxArea:
                        f"1. VOICEVOX Engine是否已启动\n" \
                        f"2. 端口50021是否被占用\n" \
                        f"3. 防火墙设置是否正确"
-            self.main_app.root.after(0, lambda: self.main_app.log(error_msg))
-            self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
+            self.safe_log(error_msg)
+            self.safe_ui_update(lambda: self.update_voicevox_ui([], False))
         
         # 在后台线程中初始化，避免阻塞UI
         threading.Thread(target=init_in_background, daemon=True).start()
@@ -259,8 +283,8 @@ class VoicevoxArea:
         def connect_in_background():
             try:
                 # 更新按钮状态
-                self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="disabled", text=self.main_app.get_text("voicevox_connecting")))
-                self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connecting"), foreground="orange"))
+                self.safe_ui_update(lambda: self.main_app.voicevox_connect_btn.config(state="disabled", text=self.main_app.get_text("voicevox_connecting")))
+                self.safe_ui_update(lambda: self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connecting"), foreground="orange"))
                 
                 # 获取用户输入的IP和端口
                 host = self.main_app.voicevox_host_var.get().strip()
@@ -278,9 +302,9 @@ class VoicevoxArea:
                 try:
                     port = int(port)
                 except ValueError:
-                    self.main_app.root.after(0, lambda: messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_port_must_be_number")))
-                    self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text=self.main_app.get_text("connect")))
-                    self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connection_failed"), foreground="red"))
+                    self.safe_ui_update(lambda: messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_port_must_be_number")))
+                    self.safe_ui_update(lambda: self.main_app.voicevox_connect_btn.config(state="normal", text=self.main_app.get_text("connect")))
+                    self.safe_ui_update(lambda: self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connection_failed"), foreground="red"))
                     return
                 
                 self.main_app.log(f"尝试连接VOICEVOX服务器: {host}:{port}")
@@ -303,8 +327,8 @@ class VoicevoxArea:
                         self.main_app.voicevox_connected = True
                         
                         # 更新UI
-                        self.main_app.root.after(0, lambda: self.update_voicevox_ui(speaker_names, True))
-                        self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="重连"))
+                        self.safe_ui_update(lambda: self.update_voicevox_ui(speaker_names, True))
+                        self.safe_ui_update(lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="重连"))
                         self.main_app.log(f"VOICEVOX连接成功！服务器: {host}:{port}, 已加载{len(speaker_names)}个角色")
                     else:
                         raise Exception("未获取到角色列表")
@@ -314,9 +338,9 @@ class VoicevoxArea:
             except Exception as e:
                 self.main_app.log(f"VOICEVOX连接失败: {e}")
                 self.main_app.voicevox_connected = False
-                self.main_app.root.after(0, lambda: self.update_voicevox_ui([], False))
-                self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="连接"))
-                self.main_app.root.after(0, lambda: messagebox.showerror("连接失败", f"无法连接到VOICEVOX服务器 {host}:{port}\n\n错误信息: {e}\n\n请检查:\n1. VOICEVOX Engine是否已启动\n2. IP地址和端口是否正确\n3. 防火墙设置"))
+                self.safe_ui_update(lambda: self.update_voicevox_ui([], False))
+                self.safe_ui_update(lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="连接"))
+                self.safe_ui_update(lambda: messagebox.showerror("连接失败", f"无法连接到VOICEVOX服务器 {host}:{port}\n\n错误信息: {e}\n\n请检查:\n1. VOICEVOX Engine是否已启动\n2. IP地址和端口是否正确\n3. 防火墙设置"))
         
         # 在后台线程中连接
         threading.Thread(target=connect_in_background, daemon=True).start()
@@ -649,19 +673,19 @@ class VoicevoxArea:
                         
                         if audio_data:
                             self.main_app.voicevox_client.play_audio(audio_data)
-                            self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX语音测试完成"))
-                            self.main_app.root.after(0, lambda: messagebox.showinfo(self.main_app.get_text("success"), self.main_app.get_text("voicevox_test_completed")))
+                            self.safe_log("VOICEVOX语音测试完成")
+                            self.safe_ui_update(lambda: messagebox.showinfo(self.main_app.get_text("success"), self.main_app.get_text("voicevox_test_completed")))
                         else:
-                            self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX语音合成失败"))
-                            self.main_app.root.after(0, lambda: messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_synthesis_failed")))
+                            self.safe_log("VOICEVOX语音合成失败")
+                            self.safe_ui_update(lambda: messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_synthesis_failed")))
                         
                         # 恢复原来的说话人
                         if original_speaker is not None:
                             self.main_app.voicevox_client.set_speaker(original_speaker)
                             
                     except Exception as e:
-                        self.main_app.root.after(0, lambda: self.main_app.log(f"VOICEVOX测试失败: {e}"))
-                        self.main_app.root.after(0, lambda: messagebox.showerror("错误", f"语音测试失败: {e}"))
+                        self.safe_log(f"VOICEVOX测试失败: {e}")
+                        self.safe_ui_update(lambda: messagebox.showerror("错误", f"语音测试失败: {e}"))
                 
                 # 启动后台合成线程
                 threading.Thread(target=synthesize_test, daemon=True).start()
@@ -889,10 +913,10 @@ class VoicevoxArea:
         def monitor_status():
             self.check_voicevox_status()
             # 每30秒检查一次状态
-            self.main_app.root.after(30000, monitor_status)
+            self.safe_ui_update(lambda: self.main_app.root.after(30000, monitor_status))
         
         # 启动监控（5秒后开始）
-        self.main_app.root.after(5000, monitor_status)
+        self.safe_ui_update(lambda: self.main_app.root.after(5000, monitor_status))
     
     def auto_reconnect(self):
         """自动重连VOICEVOX"""

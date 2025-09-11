@@ -13,6 +13,30 @@ from ui.languages.language_dict import get_emotion_name
 class CameraControl:
     def __init__(self, main_app):
         self.main_app = main_app
+    
+    def safe_log(self, message):
+        """Safe logging method that handles threading issues"""
+        try:
+            if self.main_app.root and hasattr(self.main_app.root, 'after'):
+                self.main_app.root.after(0, lambda: self.main_app.log(message))
+        except RuntimeError:
+            # If main thread is not in main loop, just print to console as fallback
+            print(f"[CAMERA] {message}")
+        except Exception as e:
+            # Fallback for any other threading issues
+            print(f"[CAMERA] {message} (logging error: {e})")
+    
+    def safe_ui_update(self, callback):
+        """Safe UI update method that handles threading issues"""
+        try:
+            if self.main_app.root and hasattr(self.main_app.root, 'after'):
+                self.main_app.root.after(0, callback)
+        except RuntimeError:
+            # If main thread is not in main loop, skip UI update
+            print("[CAMERA] Skipped UI update - main thread not in main loop")
+        except Exception as e:
+            # Fallback for any other threading issues
+            print(f"[CAMERA] UI update error: {e}")
         
         # 表情数据缓存和平均计算相关变量
         self.emotion_data_cache = []  # 存储表情数据的缓存
@@ -196,10 +220,10 @@ class CameraControl:
                         # 更新摄像头列表
                         self.update_camera_list(available_cameras)
                     
-                    self.main_app.root.after(0, update_ui_and_logs)
+                    self.safe_ui_update(update_ui_and_logs)
                     
                 except Exception as e:
-                    self.main_app.root.after(0, lambda: self.main_app.log(f"检测摄像头失败: {e}"))
+                    self.safe_log(f"检测摄像头失败: {e}")
             
             # 启动检测线程
             thread = threading.Thread(target=detect_cameras, daemon=True)
@@ -272,7 +296,7 @@ class CameraControl:
             self.main_app.log("检测到模型变更，正在重启面部识别以应用新模型...")
             self.main_app.stop_face_detection()
             # 延迟一点再启动
-            self.main_app.root.after(1000, self.main_app.start_face_detection)
+            self.safe_ui_update(lambda: self.main_app.root.after(1000, self.main_app.start_face_detection))
 
     def setup_camera_area(self, parent_frame):
         """设置摄像头区域"""
@@ -864,7 +888,11 @@ class CameraControl:
         try:
             if hasattr(self.main_app, 'face_detection_running') and self.main_app.face_detection_running:
                 interval_ms = int(self.main_app.emotion_update_interval_var.get() * 1000)
-                self.emotion_update_timer = self.main_app.root.after(interval_ms, self._process_emotion_average)
+                try:
+                    self.emotion_update_timer = self.main_app.root.after(interval_ms, self._process_emotion_average)
+                except RuntimeError:
+                    # If main thread is not in main loop, skip scheduling
+                    print("[CAMERA] Skipped emotion timer - main thread not in main loop")
         except Exception as e:
             self.main_app.log(f"启动表情定时器失败: {e}")
     
@@ -1132,7 +1160,7 @@ class CameraControl:
                         try:
                             display_frame, expressions = self.process_face_detection(frame)
                             # 更新表情显示
-                            self.main_app.root.after(0, lambda e=expressions: self._update_expression_display(e))
+                            self.safe_ui_update(lambda e=expressions: self._update_expression_display(e))
                         except Exception as face_e:
                             display_frame = frame
                             if time.time() - last_error_time > 5:  # 每5秒最多报告一次错误
@@ -1157,7 +1185,7 @@ class CameraControl:
                         
                         # 更新显示
                         self.main_app.current_frame = frame
-                        self.main_app.root.after(0, lambda p=photo: self.update_video_display(p))
+                        self.safe_ui_update(lambda p=photo: self.update_video_display(p))
                     
                 else:
                     # 如果读取失败，等待更长时间
