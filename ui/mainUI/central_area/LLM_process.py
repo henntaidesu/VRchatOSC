@@ -44,9 +44,9 @@ class LLMProcessor:
                         self.emotion_aware_processor.start_processing()
                         
                         if self.emotion_aware_processor.is_client_ready():
-                            self.main_app.log("情感感知流式LLM处理器初始化成功")
+                            self.main_app.log(self.main_app.get_text("llm_emotion_streaming_init_success"))
                         else:
-                            self.main_app.log("情感感知流式LLM处理器初始化失败：客户端未就绪")
+                            self.main_app.log(self.main_app.get_text("llm_emotion_streaming_init_failed"))
                     else:
                         # 初始化普通流式处理器
                         self.streaming_processor = StreamingLLMProcessor(
@@ -62,13 +62,13 @@ class LLMProcessor:
                         self.streaming_processor.start_processing()
                         
                         if self.streaming_processor.is_client_ready():
-                            self.main_app.log("流式LLM处理器初始化成功")
+                            self.main_app.log(self.main_app.get_text("llm_streaming_init_success"))
                         else:
-                            self.main_app.log("流式LLM处理器初始化失败：客户端未就绪")
+                            self.main_app.log(self.main_app.get_text("llm_streaming_init_failed"))
                 # 已移除传统模式处理器初始化
                     
         except Exception as e:
-            self.main_app.log(f"初始化LLM处理器失败: {e}")
+            self.main_app.log(f"{self.main_app.get_text('llm_init_failed')}: {e}")
             self.llm_handler = None
             self.streaming_processor = None
             self.emotion_aware_processor = None
@@ -78,7 +78,7 @@ class LLMProcessor:
         try:
             if response.success:
                 # 详细显示LLM返回内容
-                self.main_app.log(f"[LLM返回] 完整回复: {response.llm_response}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_response_return')}] {self.main_app.get_text('llm_response_complete')}: {response.llm_response}")
                 
                 # 记录对话
                 if hasattr(self, 'current_user_input') and self.current_user_input:
@@ -87,7 +87,7 @@ class LLMProcessor:
                     self.current_user_input = None
                 
                 # 显示LLM回复在语音识别框中
-                self.main_app.add_speech_output(response.llm_response, "AI回复")
+                self.main_app.add_speech_output(response.llm_response, self.main_app.get_text("llm_response_ai_reply"))
                 
                 # 发送AI回复到AI端VRChat (而不是用户VRChat端)
                 if (hasattr(self.main_app, 'ai_vrchat_area') and 
@@ -100,26 +100,26 @@ class LLMProcessor:
                             send_immediately=True
                         )
                         if success:
-                            self.main_app.log(f"[AI回复→AI端] 文本已发送: {response.llm_response[:50]}...")
+                            self.main_app.log(f"[{self.main_app.get_text('llm_response_ai_to_ai')}] {self.main_app.get_text('llm_response_text_sent')}: {response.llm_response[:50]}...")
                         else:
-                            self.main_app.log(f"[AI回复→AI端] 文本发送失败: {response.llm_response[:50]}...")
+                            self.main_app.log(f"[{self.main_app.get_text('llm_response_ai_to_ai')}] {self.main_app.get_text('llm_response_text_failed')}: {response.llm_response[:50]}...")
                     except Exception as e:
-                        self.main_app.log(f"[AI回复→AI端] 发送异常: {e}")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_response_ai_to_ai')}] {self.main_app.get_text('llm_response_send_exception')}: {e}")
                 else:
-                    self.main_app.log("[AI回复] AI端未连接，无法发送文本消息")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_response_ai_reply')}] {self.main_app.get_text('llm_response_ai_not_connected')}")
                 
                 # 按句子结束标点分割文本并逐句处理
-                self.main_app.log(f"[语音合成] 按句子分割（支持中日英标点）: {response.llm_response}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_voice_synthesis')}] {self.main_app.get_text('llm_sentence_split')}: {response.llm_response}")
                 sentences = self._split_by_punctuation(response.llm_response)
                 
                 # 使用顺序播放处理
                 self._process_sentences_sequentially(sentences)
                 
             else:
-                self.main_app.log(f"[LLM错误] 处理失败: {response.error}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_error')}] {self.main_app.get_text('llm_error_processing_failed')}: {response.error}")
             
         except Exception as e:
-            self.main_app.log(f"[错误] 处理LLM响应时出错: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('error')}] {self.main_app.get_text('llm_error_response_processing')}: {e}")
         
         # 在主线程中更新UI
         self.main_app.root.after(0, lambda: None)
@@ -147,43 +147,43 @@ class LLMProcessor:
             if self.emotion_awareness_enabled and self.emotion_aware_processor:
                 # 使用情感感知流式处理器
                 if self.emotion_aware_processor.is_client_ready():
-                    self.main_app.log(f"[语音识别] 提交到情感感知LLM: {text}")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_voice_submit_emotion')}: {text}")
                     request_id = self.emotion_aware_processor.submit_voice_text(text)
                     if request_id:
-                        self.main_app.log(f"[情感感知LLM] 已提交语音到AI处理 (ID: {request_id})")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_emotion_submitted')}: {request_id})")
                         return True
                     else:
-                        self.main_app.log("[情感感知LLM] 提交语音到AI失败")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_emotion_submit_failed')}")
                         return False
                 else:
-                    self.main_app.log("[情感感知LLM] 情感感知处理器未就绪")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_emotion_not_ready')}")
                     return False
             elif self.streaming_processor:
                 # 使用普通流式处理器
                 if self.streaming_processor.is_client_ready():
-                    self.main_app.log(f"[语音识别] 提交到流式LLM: {text}")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_voice_submit_streaming')}: {text}")
                     request_id = self.streaming_processor.submit_voice_text(text)
                     if request_id:
-                        self.main_app.log(f"[流式LLM] 已提交语音到AI处理 (ID: {request_id})")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_streaming_submitted')}: {request_id})")
                         return True
                     else:
-                        self.main_app.log("[流式LLM] 提交语音到AI失败")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_streaming_submit_failed')}")
                         return False
                 else:
-                    self.main_app.log("[流式LLM] 流式处理器未就绪")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_streaming_not_ready')}")
                     return False
             else:
-                self.main_app.log("[流式LLM] 没有可用的流式处理器")
+                self.main_app.log(f"[{self.main_app.get_text('llm_no_processor')}")
                 return False
         except Exception as e:
-            self.main_app.log(f"处理语音文本时出错: {e}")
+            self.main_app.log(f"{self.main_app.get_text('llm_voice_text_error')}: {e}")
             return False
     
     def toggle_llm_enabled(self, enabled: bool):
         """切换LLM启用状态"""
         self.llm_enabled = enabled
-        status = "启用" if self.llm_enabled else "禁用"
-        self.main_app.log(f"LLM处理已{status}")
+        status = self.main_app.get_text("llm_enabled") if self.llm_enabled else self.main_app.get_text("llm_disabled")
+        self.main_app.log(f"{self.main_app.get_text('llm_processing_status')}{status}")
     
     def is_enabled(self) -> bool:
         """检查LLM是否启用"""
@@ -210,19 +210,19 @@ class LLMProcessor:
             if self.emotion_aware_processor:
                 self.emotion_aware_processor.shutdown()
                 self.emotion_aware_processor = None
-                self.main_app.log("情感感知流式LLM处理器已关闭")
+                self.main_app.log(self.main_app.get_text("llm_emotion_processor_shutdown"))
             
             if self.streaming_processor:
                 self.streaming_processor.shutdown()
                 self.streaming_processor = None
-                self.main_app.log("流式LLM处理器已关闭")
+                self.main_app.log(self.main_app.get_text("llm_streaming_processor_shutdown"))
                 
             if self.llm_handler:
                 self.llm_handler.stop_processing()
                 self.llm_handler = None
-                self.main_app.log("LLM处理器已关闭")
+                self.main_app.log(self.main_app.get_text("llm_processor_shutdown"))
         except Exception as e:
-            self.main_app.log(f"关闭LLM处理器时出错: {e}")
+            self.main_app.log(f"{self.main_app.get_text('llm_shutdown_error')}: {e}")
             
     # 已移除 set_streaming_mode 方法，因为强制使用流式模式
     
@@ -237,8 +237,8 @@ class LLMProcessor:
             # 重新初始化
             self.init_llm_handler()
             
-            mode = "情感感知" if enabled else "普通流式"
-            self.main_app.log(f"已切换到{mode}LLM处理模式")
+            mode = self.main_app.get_text("llm_emotion_mode") if enabled else self.main_app.get_text("llm_streaming_mode")
+            self.main_app.log(self.main_app.get_text("llm_mode_switched").format(mode=mode))
     
     def update_emotion_state(self, emotions: dict):
         """更新用户情感状态"""
@@ -255,7 +255,7 @@ class LLMProcessor:
         if self.emotion_aware_processor:
             return self.emotion_aware_processor.get_emotion_summary()
         else:
-            return {"message": "情感感知功能未启用"}
+            return {"message": self.main_app.get_text("llm_emotion_not_enabled")}
     
     def clear_emotion_history(self):
         """清除情感历史记录"""
@@ -283,13 +283,13 @@ class LLMProcessor:
             try:
                 for i, sentence in enumerate(sentences):
                     if sentence.strip():
-                        self.main_app.log(f"[顺序播放] 处理句子 {i+1}/{len(sentences)}: {sentence}")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_sequential_processing')} {i+1}/{len(sentences)}: {sentence}")
                         
                         # 同步合成音频，指定返回bytes格式（用于传统处理）
                         audio_result = self.main_app.voicevox_area.synthesize_with_voicevox(sentence.strip(), return_format="bytes")
                         
                         if audio_result is not None:
-                            self.main_app.log(f"[VOICEVOX] 句子合成成功: {sentence.strip()} (大小: {len(audio_result)} bytes)")
+                            self.main_app.log(f"[{self.main_app.get_text('llm_voicevox_success')}: {sentence.strip()} ({self.main_app.get_text('llm_audio_size')}: {len(audio_result)} bytes)")
                             
                             # 同步发送音频到9003端口
                             self._send_audio_to_port9003_sync(audio_result, i+1, len(sentences))
@@ -297,16 +297,16 @@ class LLMProcessor:
                             # 等待一小段时间确保音频开始播放再处理下一句
                             # 根据音频长度估算播放时间（简单估算：每1000字节约0.1秒）
                             estimated_duration = max(0.5, len(audio_result) / 10000)  # 最少0.5秒间隔
-                            self.main_app.log(f"[顺序播放] 等待 {estimated_duration:.1f}s 后处理下一句")
+                            self.main_app.log(f"[{self.main_app.get_text('llm_sequential_wait')} {estimated_duration:.1f}s {self.main_app.get_text('llm_processing_next_sentence')}")
                             time.sleep(estimated_duration)
                             
                         else:
-                            self.main_app.log(f"[VOICEVOX] 句子合成失败: {sentence.strip()}")
+                            self.main_app.log(f"[{self.main_app.get_text('llm_voicevox_failed')}: {sentence.strip()}")
                             
-                self.main_app.log("[顺序播放] 所有句子处理完成")
+                self.main_app.log(f"[{self.main_app.get_text('llm_sequential_complete')}")
                 
             except Exception as e:
-                self.main_app.log(f"[顺序播放] 处理出错: {e}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_sequential_processing')}] {self.main_app.get_text('llm_sequential_error_prefix')}: {e}")
         
         # 在后台线程中顺序处理，避免阻塞UI
         thread = threading.Thread(target=sequential_processor, daemon=True)
@@ -322,14 +322,14 @@ class LLMProcessor:
             
             # 检查音频数据格式
             if not isinstance(audio_data, bytes):
-                self.main_app.log(f"[警告] VOICEVOX返回的音频数据格式不支持: {type(audio_data)}")
+                self.main_app.log(f"[{self.main_app.get_text('warning')}] VOICEVOX{self.main_app.get_text('llm_audio_format_unsupported')}: {type(audio_data)}")
                 return
                 
             audio_size = len(audio_data)
             
             # 获取AI主机地址
             ai_host = self.main_app.config.ai_character_host if self.main_app.config else "127.0.0.1"
-            self.main_app.log(f"[端口9003] 准备发送音频数据到 {ai_host}:9003，大小: {audio_size} bytes")
+            self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_prepare_send')} {ai_host}:9003，{self.main_app.get_text('llm_audio_size')}: {audio_size} bytes")
             
             def send_audio_thread():
                 try:
@@ -351,19 +351,19 @@ class LLMProcessor:
                         pass
                     
                     if success:
-                        self.main_app.log(f"[端口9003] 音频数据发送成功到 {ai_host}:9003 ({audio_size} bytes)")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_send_success')} {ai_host}:9003 ({audio_size} bytes)")
                     else:
-                        self.main_app.log(f"[端口9003] 音频发送失败到 {ai_host}:9003")
+                        self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_send_failed')} {ai_host}:9003")
                     
                 except Exception as e:
-                    self.main_app.log(f"[端口9003] 音频发送失败到 {ai_host}:9003: {e}")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_send_failed')} {ai_host}:9003: {e}")
             
             # 在后台线程中发送，避免阻塞UI
             thread = threading.Thread(target=send_audio_thread, daemon=True)
             thread.start()
             
         except Exception as e:
-            self.main_app.log(f"[端口9003] 创建发送线程失败: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_thread_failed')}: {e}")
     
     def _send_audio_to_port9003_sync(self, audio_data, sentence_index, total_sentences):
         """同步发送音频数据到9003端口（用于顺序播放）"""
@@ -374,14 +374,14 @@ class LLMProcessor:
             
             # 检查音频数据格式
             if not isinstance(audio_data, bytes):
-                self.main_app.log(f"[警告] 音频数据格式不支持: {type(audio_data)}")
+                self.main_app.log(f"[{self.main_app.get_text('warning')}] {self.main_app.get_text('llm_audio_format_unsupported')}: {type(audio_data)}")
                 return
                 
             audio_size = len(audio_data)
             
             # 获取AI主机地址
             ai_host = self.main_app.config.ai_character_host if self.main_app.config else "127.0.0.1"
-            self.main_app.log(f"[端口9003] 发送句子 {sentence_index}/{total_sentences} 到 {ai_host}:9003，大小: {audio_size} bytes")
+            self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_sentence_send')} {sentence_index}/{total_sentences} {self.main_app.get_text('to')} {ai_host}:9003，{self.main_app.get_text('llm_audio_size')}: {audio_size} bytes")
             
             try:
                 # 使用RemoteAudioClient发送音频
@@ -406,15 +406,15 @@ class LLMProcessor:
                     pass
                 
                 if success:
-                    self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送成功到 {ai_host}:9003 ({audio_size} bytes)")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_sentence_success').format(index=sentence_index)} {ai_host}:9003 ({audio_size} bytes)")
                 else:
-                    self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败到 {ai_host}:9003")
+                    self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_sentence_failed').format(index=sentence_index)} {ai_host}:9003")
                 
             except Exception as e:
-                self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送失败到 {ai_host}:9003: {e}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_sentence_failed').format(index=sentence_index)} {ai_host}:9003: {e}")
                 
         except Exception as e:
-            self.main_app.log(f"[端口9003] 句子 {sentence_index} 发送异常: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('llm_audio_port9003')}] {self.main_app.get_text('llm_audio_sentence_exception').format(index=sentence_index)}: {e}")
     
     def _init_conversation_recording(self):
         """初始化对话记录功能"""
@@ -440,10 +440,10 @@ class LLMProcessor:
                 f.write(f"# 文件格式: VSCode对话记录格式\n")
                 f.write(f"# ==========================================\n\n")
             
-            self.main_app.log(f"[对话记录] 已创建记录文件: {filename}")
+            self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_file_created')}: {filename}")
             
         except Exception as e:
-            self.main_app.log(f"[对话记录] 初始化失败: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_init_failed')}: {e}")
             self.conversation_file_path = None
     
     def _ensure_record_directory(self):
@@ -453,12 +453,12 @@ class LLMProcessor:
             
             if not os.path.exists(self.record_dir):
                 os.makedirs(self.record_dir, exist_ok=True)
-                self.main_app.log(f"[对话记录] 已创建目录: {self.record_dir}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_dir_created')}: {self.record_dir}")
             else:
-                self.main_app.log(f"[对话记录] 目录已存在: {self.record_dir}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_dir_exists')}: {self.record_dir}")
             
         except Exception as e:
-            self.main_app.log(f"[对话记录] 创建目录失败: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_dir_create_failed')}: {e}")
     
     def _record_conversation(self, user_input: str, ai_response: str):
         """记录对话到文件"""
@@ -475,24 +475,24 @@ class LLMProcessor:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             with open(self.conversation_file_path, 'a', encoding='utf-8') as f:
-                f.write(f"[{timestamp}] 用户: {user_input}\n")
+                f.write(f"[{timestamp}] {self.main_app.get_text('user')}: {user_input}\n")
                 f.write(f"[{timestamp}] AI: {ai_response}\n")
                 f.write(f"---\n\n")
             
-            self.main_app.log(f"[对话记录] 已记录对话")
+            self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_recorded')}")
             
         except Exception as e:
-            self.main_app.log(f"[对话记录] 记录失败: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_record_failed')}: {e}")
             # 如果记录失败，尝试重新初始化
             try:
                 self._init_conversation_recording()
-                self.main_app.log(f"[对话记录] 重新初始化完成，尝试再次记录")
+                self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_reinit_complete')}")
                 # 重新尝试记录
                 with open(self.conversation_file_path, 'a', encoding='utf-8') as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"[{timestamp}] 用户: {user_input}\n")
+                    f.write(f"[{timestamp}] {self.main_app.get_text('user')}: {user_input}\n")
                     f.write(f"[{timestamp}] AI: {ai_response}\n")
                     f.write(f"---\n\n")
-                self.main_app.log(f"[对话记录] 重新记录成功")
+                self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_retry_success')}")
             except Exception as retry_e:
-                self.main_app.log(f"[对话记录] 重新记录也失败: {retry_e}")
+                self.main_app.log(f"[{self.main_app.get_text('llm_conversation_recording')}] {self.main_app.get_text('llm_conversation_retry_failed')}: {retry_e}")

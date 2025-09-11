@@ -28,12 +28,12 @@ class VRChatConnection:
             device = self.main_app.device_var.get()
             
             # 禁用连接按钮并显示加载状态
-            self.main_app.connect_btn.config(text="连接中...", state="disabled")
+            self.main_app.connect_btn.config(text=self.main_app.get_text("user_vrc_connecting"), state="disabled")
             self.main_app.progress_bar.grid()  # 显示进度条
             self.main_app.progress_bar.start()  # 开始进度条动画
-            self.main_app.log("开始连接VRChat...")
-            self.main_app.log(f"正在加载语音识别模型 ({device})...")
-            self.main_app.log("提示：首次加载可能需要较长时间，请耐心等待...")
+            self.main_app.log(self.main_app.get_text("user_vrc_start_connect"))
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_loading_model')} ({device})...")
+            self.main_app.log(self.main_app.get_text("user_vrc_first_load_tip"))
             
             # 在后台线程中连接，避免界面卡顿
             def connect_thread():
@@ -67,7 +67,7 @@ class VRChatConnection:
                         # 在主线程中更新UI
                         self.main_app.root.after(0, lambda: self._connection_success(host, send_port))
                     else:
-                        self.main_app.root.after(0, lambda: self._connection_failed("OSC服务器启动失败"))
+                        self.main_app.root.after(0, lambda: self._connection_failed(self.main_app.get_text("user_vrc_osc_start_failed")))
                         
                 except Exception as e:
                     error_msg = str(e)
@@ -77,16 +77,16 @@ class VRChatConnection:
             threading.Thread(target=connect_thread, daemon=True).start()
             
         except ValueError:
-            self.main_app.connect_btn.config(text="连接", state="normal")
+            self.main_app.connect_btn.config(text=self.main_app.get_text("connect"), state="normal")
             self.main_app.progress_bar.stop()
             self.main_app.progress_bar.grid_remove()
             messagebox.showerror(self.main_app.get_text("error"), self.main_app.get_text("port_must_be_number"))
         except Exception as e:
-            self.main_app.connect_btn.config(text="连接", state="normal")
+            self.main_app.connect_btn.config(text=self.main_app.get_text("connect"), state="normal")
             self.main_app.progress_bar.stop()
             self.main_app.progress_bar.grid_remove()
             messagebox.showerror(self.main_app.get_text("connection_error"), f"{self.main_app.get_text('cannot_connect_vrchat')}: {e}")
-            self.main_app.log(f"连接失败: {e}")
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_connect_failed')}: {e}")
     
     def _connection_success(self, host: str, send_port: int):
         """连接成功的UI更新"""
@@ -115,10 +115,10 @@ class VRChatConnection:
                 self.osc_client.update_filtered_parameters(filtered_params)
         
         self.update_ui_state(True)
-        self.main_app.log(f"已连接到VRChat OSC服务器 {host}:{send_port}")
+        self.main_app.log(f"{self.main_app.get_text('user_vrc_connected_to')} {host}:{send_port}")
         
         # 语音识别始终启用
-        self.main_app.log("语音识别模型加载完成！")
+        self.main_app.log(self.main_app.get_text("user_vrc_voice_model_ready"))
         self.main_app.log(self.main_app.get_text("voice_recognition_ready"))
     
     def _connection_failed(self, error_msg: str):
@@ -127,9 +127,9 @@ class VRChatConnection:
         self.main_app.progress_bar.stop()
         self.main_app.progress_bar.grid_remove()
         
-        self.main_app.connect_btn.config(text="连接", state="normal")
+        self.main_app.connect_btn.config(text=self.main_app.get_text("connect"), state="normal")
         messagebox.showerror(self.main_app.get_text("connection_error"), f"{self.main_app.get_text('cannot_connect_vrchat')}: {error_msg}")
-        self.main_app.log(f"连接失败: {error_msg}")
+        self.main_app.log(f"{self.main_app.get_text('user_vrc_connect_failed')}: {error_msg}")
     
     def disconnect_from_vrchat(self):
         """断开VRChat连接"""
@@ -139,12 +139,12 @@ class VRChatConnection:
                 if self.main_app.is_listening:
                     self.main_app.client.stop_voice_listening()
                     self.main_app.is_listening = False
-                    self.main_app.listen_btn.config(text="开始监听")
-                    self.main_app.log("已停止语音监听")
+                    self.main_app.listen_btn.config(text=self.main_app.get_text("user_vrc_start_listening"))
+                    self.main_app.log(self.main_app.get_text("user_vrc_voice_stopped"))
                 
                 # 停止OSC服务器
                 self.main_app.client.stop_osc_server()
-                self.main_app.log("OSC服务器已停止")
+                self.main_app.log(self.main_app.get_text("user_vrc_osc_server_stopped"))
                 
                 # 清理资源
                 self.main_app.client.cleanup()
@@ -163,15 +163,15 @@ class VRChatConnection:
                     try:
                         self.main_app.single_ai_manager.cleanup()
                         self.main_app.single_ai_manager = None
-                        self.main_app.log("已清理AI角色管理器")
+                        self.main_app.log(self.main_app.get_text("user_vrc_ai_manager_cleaned"))
                     except Exception as e:
-                        self.main_app.log(f"清理AI角色管理器时出错: {e}")
+                        self.main_app.log(f"{self.main_app.get_text('user_vrc_ai_manager_clean_error')}: {e}")
             
             self.update_ui_state(False)
-            self.main_app.log("[成功] 已断开VRChat连接")
+            self.main_app.log(self.main_app.get_text("user_vrc_disconnect_success"))
             
         except Exception as e:
-            self.main_app.log(f"[错误] 断开连接时出错: {e}")
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_disconnect_error')}: {e}")
             # 即使出错也要更新UI状态
             self.update_ui_state(False)
     
@@ -216,11 +216,11 @@ class VRChatConnection:
         
         try:
             self.main_app.client.send_text_message(message)
-            self.main_app.log(f"[发送文字] {message}")
+            self.main_app.log(f"[{self.main_app.get_text('user_vrc_send_text')}] {message}")
             self.main_app.message_entry.delete(0, tk.END)
         except Exception as e:
             messagebox.showerror(self.main_app.get_text("send_error"), f"{self.main_app.get_text('send_message_failed')}: {e}")
-            self.main_app.log(f"发送消息失败: {e}")
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_send_failed')}: {e}")
     
     def toggle_voice_listening(self):
         """切换语音监听状态"""
@@ -239,7 +239,7 @@ class VRChatConnection:
             # 检查语音引擎是否就绪
             if not self.main_app.client.speech_engine.is_model_loaded():
                 messagebox.showerror(self.main_app.get_text("voice_recognition_error"), self.main_app.get_text("voice_model_not_loaded"))
-                self.main_app.log("语音识别模型未加载")
+                self.main_app.log(self.main_app.get_text("user_vrc_voice_model_not_loaded"))
                 return
             
             # 用于存储分段识别的文本
@@ -259,7 +259,7 @@ class VRChatConnection:
                         if audio_duration > 4.8 and not self.main_app.is_segmented_recognition:
                             self.main_app.is_segmented_recognition = True
                             self.main_app.segment_texts = []
-                            self.main_app.log("[分段识别] 检测到长语音，启动分段识别模式")
+                            self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_recognition')}] {self.main_app.get_text('user_vrc_segment_long_audio')}")
                         
                         # 如果是分段识别模式，累积文本
                         if self.main_app.is_segmented_recognition:
@@ -267,12 +267,12 @@ class VRChatConnection:
                                 # 麦克风关闭或检测到静音，添加这一段文本
                                 if text.strip() and text.strip() not in self.main_app.segment_texts:
                                     self.main_app.segment_texts.append(text.strip())
-                                    self.main_app.log(f"[分段识别] 添加片段: {text.strip()}")
+                                    self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_recognition')}] {self.main_app.get_text('user_vrc_segment_add')}: {text.strip()}")
                                 
                                 # 如果是麦克风关闭，合并所有片段发送到LLM
                                 if trigger_reason == "mic_closed" and self.main_app.segment_texts:
                                     combined_text = " ".join(self.main_app.segment_texts)
-                                    self.main_app.log(f"[分段识别] 麦克风关闭，合并文本发送到LLM: {combined_text}")
+                                    self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_recognition')}] {self.main_app.get_text('user_vrc_segment_mic_closed')}: {combined_text}")
                                     self._send_to_llm_and_voice(combined_text)
                                     
                                     # 重置分段识别状态
@@ -280,25 +280,25 @@ class VRChatConnection:
                                     self.main_app.segment_texts = []
                             else:
                                 # 实时显示当前片段
-                                display_text = f"[分段{reason_text}{duration_text}] {text}"
-                                self.main_app.add_speech_output(display_text, "分段识别")
+                                display_text = f"[{self.main_app.get_text('user_vrc_segment_recognition')}{reason_text}{duration_text}] {text}"
+                                self.main_app.add_speech_output(display_text, self.main_app.get_text("user_vrc_segment_recognition"))
                         else:
                             # 普通实时识别显示
-                            display_text = f"[实时{reason_text}{duration_text}] {text}"
-                            self.main_app.add_speech_output(display_text, "实时识别")
+                            display_text = f"[{self.main_app.get_text('user_vrc_realtime_recognition')}{reason_text}{duration_text}] {text}"
+                            self.main_app.add_speech_output(display_text, self.main_app.get_text("user_vrc_realtime_recognition"))
                         
                         # 记录到日志
-                        self.main_app.log(f"[实时语音{reason_text}] {text}")
+                        self.main_app.log(f"[{self.main_app.get_text('user_vrc_realtime_recognition')}{reason_text}] {text}")
                     else:
                         # 完整识别结果 - 统一处理逻辑
                         if not self.main_app.is_segmented_recognition:
                             # 单次完整识别，直接发送到LLM
-                            self.main_app.add_speech_output(text, "完整识别")
-                            self.main_app.log(f"[完整语音] {text} - 立即发送到LLM")
+                            self.main_app.add_speech_output(text, self.main_app.get_text("user_vrc_complete_recognition"))
+                            self.main_app.log(f"[{self.main_app.get_text('user_vrc_complete_voice')}] {text} - {self.main_app.get_text('user_vrc_send_to_llm_immediate')}")
                             self._send_to_llm_and_voice(text)
                         else:
                             # 如果已经在分段模式中，这个完整结果会被分段逻辑处理
-                            self.main_app.log(f"[分段模式] 完整结果已在分段逻辑中处理: {text}")
+                            self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_mode_handled')}] {self.main_app.get_text('user_vrc_segment_complete_handled')}: {text}")
                         # 注意：现在确保每个完整识别结果都会被发送到LLM，无论是单次还是分段
             
             # 设置语音结果回调
@@ -309,16 +309,16 @@ class VRChatConnection:
             
             if success:
                 self.main_app.is_listening = True
-                self.main_app.listen_btn.config(text="停止监听", style="Accent.TButton")
-                self.main_app.log("开始VRChat语音状态监听...")
-                self.main_app.log("提示：只有当VRChat检测到你说话时才会进行语音识别")
+                self.main_app.listen_btn.config(text=self.main_app.get_text("user_vrc_stop_listening"), style="Accent.TButton")
+                self.main_app.log(self.main_app.get_text("user_vrc_start_voice_monitor"))
+                self.main_app.log(self.main_app.get_text("user_vrc_voice_tip"))
             else:
-                self.main_app.log("启动语音监听失败")
+                self.main_app.log(self.main_app.get_text("user_vrc_voice_start_failed"))
                 messagebox.showerror(self.main_app.get_text("voice_recognition_error"), self.main_app.get_text("voice_listening_failed"))
             
         except Exception as e:
             messagebox.showerror(self.main_app.get_text("voice_recognition_error"), f"{self.main_app.get_text('voice_listening_failed')}: {e}")
-            self.main_app.log(f"启动语音监听失败: {e}")
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_voice_start_failed')}: {e}")
     
     def stop_voice_listening(self):
         """停止语音监听"""
@@ -326,11 +326,11 @@ class VRChatConnection:
             self.main_app.is_listening = False
             if self.main_app.client:
                 self.main_app.client.stop_voice_listening()
-            self.main_app.listen_btn.config(text="开始监听", style="TButton")
-            self.main_app.log("停止持续语音识别")
+            self.main_app.listen_btn.config(text=self.main_app.get_text("user_vrc_start_listening"), style="TButton")
+            self.main_app.log(self.main_app.get_text("user_vrc_stop_continuous_recognition"))
             
         except Exception as e:
-            self.main_app.log(f"停止语音监听时出错: {e}")
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_stop_voice_error')}: {e}")
     
     def send_parameter(self):
         """发送Avatar参数"""
@@ -342,7 +342,7 @@ class VRChatConnection:
         param_value_str = self.main_app.param_value_entry.get().strip()
         
         if not param_name or not param_value_str:
-            messagebox.showwarning("警告", "参数名和值不能为空")
+            messagebox.showwarning(self.main_app.get_text("warning"), self.main_app.get_text("user_vrc_param_empty_warning"))
             return
         
         try:
@@ -362,15 +362,15 @@ class VRChatConnection:
                     pass
             
             self.main_app.client.send_parameter(param_name, param_value)
-            self.main_app.log(f"[发送参数] {param_name} = {param_value}")
+            self.main_app.log(f"[{self.main_app.get_text('user_vrc_send_param')}] {param_name} = {param_value}")
             
             # 清空输入框
             self.main_app.param_name_entry.delete(0, tk.END)
             self.main_app.param_value_entry.delete(0, tk.END)
             
         except Exception as e:
-            messagebox.showerror("发送错误", f"发送参数失败: {e}")
-            self.main_app.log(f"发送参数失败: {e}")
+            messagebox.showerror(self.main_app.get_text("send_error"), f"{self.main_app.get_text('user_vrc_send_param_failed')}: {e}")
+            self.main_app.log(f"{self.main_app.get_text('user_vrc_send_param_failed')}: {e}")
     
     def on_status_change(self, status_type: str, data):
         """处理状态变化"""
@@ -378,12 +378,12 @@ class VRChatConnection:
             param_name, value = data
             # 检查是否需要过滤此参数
             if hasattr(self.osc_client, 'filtered_parameter_names') and param_name not in self.osc_client.filtered_parameter_names:
-                self.main_app.log(f"[收到参数] {param_name} = {value}")
+                self.main_app.log(f"[{self.main_app.get_text('user_vrc_receive_param')}] {param_name} = {value}")
         elif status_type == "message":
             msg_type, content = data
-            self.main_app.log(f"[收到消息] {msg_type}: {content}")
+            self.main_app.log(f"[{self.main_app.get_text('user_vrc_receive_message')}] {msg_type}: {content}")
         elif status_type == "vrc_speaking":
-            self.main_app.log(f"[VRC语音状态] {'说话中' if data else '静音'}")
+            self.main_app.log(f"[{self.main_app.get_text('user_vrc_voice_status')}] {self.main_app.get_text('user_vrc_speaking') if data else self.main_app.get_text('user_vrc_silent')}")
     
     def on_voice_result(self, text: str, is_realtime=False, trigger_reason="", audio_duration=0):
         """处理语音识别结果"""
@@ -391,7 +391,7 @@ class VRChatConnection:
             return
         
         # 显示语音识别结果
-        self.main_app.log(f"[语音识别] {text}")
+        self.main_app.log(f"[{self.main_app.get_text('user_vrc_voice_recognition')}] {text}")
         
         # 如果启用了LLM处理，发送到LLM
         if self.main_app.llm_enabled and hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
@@ -400,17 +400,17 @@ class VRChatConnection:
                     # 使用LLM处理器的语音文本处理方法
                     success = self.main_app.llm_processor.process_voice_text(text.strip())
                     if success:
-                        self.main_app.log(f"[LLM] 已发送到AI处理: {text.strip()}")
+                        self.main_app.log(f"[LLM] {self.main_app.get_text('user_vrc_llm_sent')}: {text.strip()}")
                     else:
-                        self.main_app.log(f"[LLM] 发送失败，处理器可能未就绪: {text.strip()}")
+                        self.main_app.log(f"[LLM] {self.main_app.get_text('user_vrc_llm_send_failed')}: {text.strip()}")
                 else:
-                    self.main_app.log("[LLM] LLM处理器方法不可用")
+                    self.main_app.log(f"[LLM] {self.main_app.get_text('user_vrc_llm_method_unavailable')}")
             except Exception as e:
-                self.main_app.log(f"[LLM] 发送到AI处理失败: {e}")
+                self.main_app.log(f"[LLM] {self.main_app.get_text('user_vrc_llm_send_error')}: {e}")
         elif not self.main_app.llm_enabled:
-            self.main_app.log("[LLM] LLM功能已禁用")
+            self.main_app.log(f"[LLM] {self.main_app.get_text('user_vrc_llm_disabled')}")
         else:
-            self.main_app.log("[LLM] LLM处理器未初始化")
+            self.main_app.log(f"[LLM] {self.main_app.get_text('user_vrc_llm_not_initialized')}")
     
     def _send_to_llm_and_voice(self, text: str):
         """发送文本到LLM处理，LLM处理器会自动处理响应、语音生成和端口发送"""
@@ -420,21 +420,21 @@ class VRChatConnection:
             
             # 发送到LLM处理（处理器会自动处理后续的语音生成和端口发送）
             if self.main_app.llm_enabled and hasattr(self.main_app, 'llm_processor') and self.main_app.llm_processor:
-                self.main_app.log(f"[分段LLM] 发送合并文本到AI处理: {text}")
+                self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_llm')}] {self.main_app.get_text('user_vrc_segment_send_text')}: {text}")
                 
                 if hasattr(self.main_app.llm_processor, 'process_voice_text'):
                     success = self.main_app.llm_processor.process_voice_text(text.strip())
                     if success:
-                        self.main_app.log(f"[分段LLM] 文本已发送，等待AI响应和语音生成")
+                        self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_llm')}] {self.main_app.get_text('user_vrc_segment_sent_waiting')}")
                     else:
-                        self.main_app.log(f"[分段LLM] 发送失败，处理器可能未就绪")
+                        self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_llm')}] {self.main_app.get_text('user_vrc_llm_send_failed')}")
                 else:
-                    self.main_app.log("[分段LLM] process_voice_text方法不可用")
+                    self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_llm')}] {self.main_app.get_text('user_vrc_segment_processor_unavailable')}")
             else:
-                self.main_app.log("[分段LLM] LLM功能未启用或未初始化")
+                self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_llm')}] {self.main_app.get_text('user_vrc_segment_llm_disabled')}")
                 
         except Exception as e:
-            self.main_app.log(f"[分段LLM] 发送处理失败: {e}")
+            self.main_app.log(f"[{self.main_app.get_text('user_vrc_segment_llm')}] {self.main_app.get_text('user_vrc_segment_process_failed')}: {e}")
     
     def update_player_position(self, x, y, z):
         """更新玩家位置（从OSC调用）"""
@@ -455,7 +455,7 @@ class VRChatConnection:
         # 更新角色管理窗口中的位置显示
         if hasattr(self.main_app, 'position_label'):
             self.main_app.root.after(0, lambda: self.main_app.position_label.config(
-                text=f"当前位置: ({x:.1f}, {y:.1f}, {z:.1f})"
+                text=f"{self.main_app.get_text('user_vrc_current_position')}: ({x:.1f}, {y:.1f}, {z:.1f})"
             ))
     
     def update_pause_threshold(self, value):
@@ -466,4 +466,4 @@ class VRChatConnection:
         # 同时更新配置
         self.main_app.config.set('Recording', 'sentence_pause_threshold', threshold)
         self.main_app.pause_label.config(text=f"{threshold:.1f}s")
-        self.main_app.log(f"断句间隔已设置为: {threshold:.1f}秒")
+        self.main_app.log(f"{self.main_app.get_text('user_vrc_pause_threshold_set')}: {threshold:.1f}秒")
