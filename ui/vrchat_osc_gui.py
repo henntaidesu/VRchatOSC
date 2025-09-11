@@ -265,6 +265,10 @@ class VRChatOSCGUI:
         self.camera_btn = ttk.Button(debug_frame, text=self.get_text("camera_window"), command=self.camera_control.open_camera_window)
         self.camera_btn.grid(row=0, column=1, padx=(0, 5))
         
+        # 重置LLM对话按钮 - 放在主页面显眼位置
+        self.reset_llm_btn = ttk.Button(debug_frame, text=self.get_text("reset_llm"), command=self.reset_llm_conversation)
+        self.reset_llm_btn.grid(row=0, column=2, padx=(0, 5))
+        
         # 语音阈值设置
         threshold_frame = ttk.Frame(self.message_frame)
         threshold_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
@@ -489,6 +493,55 @@ class VRChatOSCGUI:
         except Exception as e:
             messagebox.showerror(self.get_text("save_error"), f"{self.get_text('cannot_load_audio_file')}: {e}")
             self.log(f"保存语音记录失败: {e}")
+    
+    def reset_llm_conversation(self):
+        """重置LLM对话历史并创建新的对话文件"""
+        try:
+            # 确认重置操作
+            result = messagebox.askyesno(
+                "确认重置", 
+                "确定要重置LLM对话历史吗？\n这将清空当前对话并创建新的对话文件。",
+                icon="question"
+            )
+            
+            if not result:
+                return
+            
+            # 重置LLM处理器中的对话历史
+            if hasattr(self, 'llm_processor') and self.llm_processor:
+                # 如果使用情感感知处理器
+                if (self.llm_processor.emotion_awareness_enabled and 
+                    self.llm_processor.emotion_aware_processor and
+                    hasattr(self.llm_processor.emotion_aware_processor, 'llm_handler')):
+                    self.llm_processor.emotion_aware_processor.llm_handler.clear_conversation_history()
+                    self.log("[LLM重置] 情感感知处理器对话历史已清空")
+                
+                # 如果使用普通流式处理器
+                elif (self.llm_processor.streaming_processor and
+                      hasattr(self.llm_processor.streaming_processor, 'llm_handler')):
+                    self.llm_processor.streaming_processor.llm_handler.clear_conversation_history()
+                    self.log("[LLM重置] 流式处理器对话历史已清空")
+                
+                # 如果使用传统处理器
+                elif (self.llm_processor.llm_handler and
+                      hasattr(self.llm_processor.llm_handler, 'clear_conversation_history')):
+                    self.llm_processor.llm_handler.clear_conversation_history()
+                    self.log("[LLM重置] 传统处理器对话历史已清空")
+                
+                else:
+                    self.log("[LLM重置] 未找到有效的LLM处理器")
+                    return
+                
+                self.log("[LLM重置] 对话历史已重置，新的对话文件已创建")
+                messagebox.showinfo("重置完成", "LLM对话历史已成功重置！")
+                
+            else:
+                self.log("[LLM重置] LLM处理器未初始化")
+                messagebox.showerror("重置失败", "LLM处理器未初始化，无法重置对话历史")
+                
+        except Exception as e:
+            self.log(f"[LLM重置] 重置对话历史失败: {e}")
+            messagebox.showerror("重置失败", f"重置LLM对话历史时发生错误: {e}")
     
     def open_settings(self):
         """打开高级设置窗口"""

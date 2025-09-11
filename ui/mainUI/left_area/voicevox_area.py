@@ -30,18 +30,18 @@ class VoicevoxArea:
         self.main_app.voicevox_host_entry.pack(side=tk.LEFT, padx=(0, 5))
         
         # 端口输入
-        ttk.Label(server_frame, text="端口:", width=4).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(server_frame, text=self.main_app.get_text("voicevox_port"), width=4).pack(side=tk.LEFT, padx=(0, 2))
         saved_port = self.main_app.config.voicevox_port
         self.main_app.voicevox_port_var = tk.StringVar(value=str(saved_port))
         self.main_app.voicevox_port_entry = ttk.Entry(server_frame, textvariable=self.main_app.voicevox_port_var, width=8)
         self.main_app.voicevox_port_entry.pack(side=tk.LEFT, padx=(0, 10))
         
         # 连接按钮
-        self.main_app.voicevox_connect_btn = ttk.Button(server_frame, text="连接", command=self.connect_voicevox, width=8)
+        self.main_app.voicevox_connect_btn = ttk.Button(server_frame, text=self.main_app.get_text("connect"), command=self.connect_voicevox, width=8)
         self.main_app.voicevox_connect_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 连接状态
-        self.main_app.voicevox_status_label = ttk.Label(server_frame, text="未连接", foreground="red")
+        self.main_app.voicevox_status_label = ttk.Label(server_frame, text=self.main_app.get_text("voicevox_not_connected_status"), foreground="red")
         self.main_app.voicevox_status_label.pack(side=tk.RIGHT)
         
         # 第二行：期数选择
@@ -49,7 +49,7 @@ class VoicevoxArea:
         period_frame.pack(fill=tk.X, pady=(0, 5))
         
         # VOICEVOX期数选择
-        ttk.Label(period_frame, text="期数:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(period_frame, text=self.main_app.get_text("voicevox_period"), width=6).pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voicevox_period_var = tk.StringVar(value=self.main_app.config.voicevox_last_period)
         self.main_app.voicevox_period_combo = ttk.Combobox(period_frame, textvariable=self.main_app.voicevox_period_var,
                                                 values=["1期", "2期", "3期"],
@@ -61,7 +61,7 @@ class VoicevoxArea:
         character_frame = ttk.Frame(self.main_app.voicevox_control_frame)
         character_frame.pack(fill=tk.X, pady=(0, 5))
         
-        ttk.Label(character_frame, text="角色:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(character_frame, text=self.main_app.get_text("voicevox_character"), width=6).pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voicevox_character_var = tk.StringVar(value=self.main_app.config.voicevox_last_speaker_name)
         self.main_app.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.main_app.voicevox_character_var,
                                                    width=15, state="readonly")
@@ -72,14 +72,14 @@ class VoicevoxArea:
         style_frame = ttk.Frame(self.main_app.voicevox_control_frame)
         style_frame.pack(fill=tk.X, pady=(0, 5))
         
-        ttk.Label(style_frame, text="样式:", width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(style_frame, text=self.main_app.get_text("voicevox_style"), width=6).pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voicevox_style_var = tk.StringVar(value=self.main_app.config.voicevox_last_speaker_style)
         self.main_app.voicevox_style_combo = ttk.Combobox(style_frame, textvariable=self.main_app.voicevox_style_var,
                                                width=15, state="readonly")
         self.main_app.voicevox_style_combo.pack(side=tk.LEFT, padx=(0, 10))
         
         # 确定按钮
-        self.main_app.voicevox_confirm_btn = ttk.Button(style_frame, text="确定", width=8, command=self.confirm_voicevox_character_change)
+        self.main_app.voicevox_confirm_btn = ttk.Button(style_frame, text=self.main_app.get_text("voicevox_confirm"), width=8, command=self.confirm_voicevox_character_change)
         self.main_app.voicevox_confirm_btn.pack(side=tk.LEFT, padx=(10, 0))
         
         # 第四行：控制按钮
@@ -258,8 +258,8 @@ class VoicevoxArea:
         def connect_in_background():
             try:
                 # 更新按钮状态
-                self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="disabled", text="连接中..."))
-                self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text="连接中...", foreground="orange"))
+                self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="disabled", text=self.main_app.get_text("voicevox_connecting")))
+                self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connecting"), foreground="orange"))
                 
                 # 获取用户输入的IP和端口
                 host = self.main_app.voicevox_host_var.get().strip()
@@ -277,9 +277,9 @@ class VoicevoxArea:
                 try:
                     port = int(port)
                 except ValueError:
-                    self.main_app.root.after(0, lambda: messagebox.showerror("错误", "端口必须是数字"))
-                    self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text="连接"))
-                    self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text="连接失败", foreground="red"))
+                    self.main_app.root.after(0, lambda: messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_port_must_be_number")))
+                    self.main_app.root.after(0, lambda: self.main_app.voicevox_connect_btn.config(state="normal", text=self.main_app.get_text("connect")))
+                    self.main_app.root.after(0, lambda: self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connection_failed"), foreground="red"))
                     return
                 
                 self.main_app.log(f"尝试连接VOICEVOX服务器: {host}:{port}")
@@ -346,7 +346,7 @@ class VoicevoxArea:
                 # 显示连接详细信息
                 host = self.main_app.voicevox_host_var.get()
                 port = self.main_app.voicevox_port_var.get()
-                self.main_app.voicevox_status_label.config(text=f"已连接 ({host}:{port})", foreground="green")
+                self.main_app.voicevox_status_label.config(text=f"{self.main_app.get_text('voicevox_connected_status')} ({host}:{port})", foreground="green")
                 
                 # 启用相关控件
                 self.main_app.voicevox_character_combo['state'] = 'readonly'
@@ -368,7 +368,7 @@ class VoicevoxArea:
                 self.on_voicevox_period_changed()
                 
             else:
-                self.main_app.voicevox_status_label.config(text="未连接", foreground="red")
+                self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_not_connected_status"), foreground="red")
                 self.main_app.voicevox_character_combo['values'] = []
                 self.main_app.voicevox_style_combo['values'] = []
                 
@@ -388,7 +388,7 @@ class VoicevoxArea:
         """确认VOICEVOX角色变更"""
         try:
             if not self.main_app.voicevox_connected:
-                messagebox.showwarning("警告", "VOICEVOX未连接")
+                messagebox.showwarning(self.main_app.get_text("voicevox_warning"), self.main_app.get_text("voicevox_not_connected"))
                 return
                 
             character_name = self.main_app.voicevox_character_var.get()
@@ -606,7 +606,7 @@ class VoicevoxArea:
         """测试VOICEVOX语音合成"""
         try:
             if not self.main_app.voicevox_connected:
-                messagebox.showwarning("警告", "VOICEVOX未连接")
+                messagebox.showwarning(self.main_app.get_text("voicevox_warning"), self.main_app.get_text("voicevox_not_connected"))
                 return
             
             # 获取当前选择的角色和样式
@@ -749,7 +749,7 @@ class VoicevoxArea:
             return
         
         if not self.main_app.voicevox_connected:
-            messagebox.showerror("错误", "VOICEVOX未连接，请先连接VOICEVOX")
+            messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_not_connected"))
             return
             
         if not self.main_app.single_ai_manager:
@@ -857,7 +857,7 @@ class VoicevoxArea:
                         self.main_app.voicevox_connected = True
                         host = self.main_app.voicevox_host_var.get()
                         port = self.main_app.voicevox_port_var.get()
-                        self.main_app.voicevox_status_label.config(text=f"已连接 ({host}:{port})", foreground="green")
+                        self.main_app.voicevox_status_label.config(text=f"{self.main_app.get_text('voicevox_connected_status')} ({host}:{port})", foreground="green")
                         self.main_app.log("VOICEVOX连接已恢复")
                     return True
                 else:
@@ -865,14 +865,14 @@ class VoicevoxArea:
                     if self.main_app.voicevox_connected:
                         # 从连接变为断开
                         self.main_app.voicevox_connected = False
-                        self.main_app.voicevox_status_label.config(text="连接断开", foreground="red")
+                        self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connection_lost"), foreground="red")
                         self.main_app.log("VOICEVOX连接已断开")
                     return False
             except Exception as e:
                 # 连接异常
                 if self.main_app.voicevox_connected:
                     self.main_app.voicevox_connected = False
-                    self.main_app.voicevox_status_label.config(text="连接异常", foreground="red")
+                    self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_connection_error"), foreground="red")
                     self.main_app.log(f"VOICEVOX连接异常: {e}")
                 return False
         else:
@@ -880,7 +880,7 @@ class VoicevoxArea:
             if hasattr(self.main_app, 'voicevox_connected'):
                 self.main_app.voicevox_connected = False
             if hasattr(self.main_app, 'voicevox_status_label'):
-                self.main_app.voicevox_status_label.config(text="未初始化", foreground="red")
+                self.main_app.voicevox_status_label.config(text=self.main_app.get_text("voicevox_not_initialized"), foreground="red")
             return False
     
     def start_status_monitoring(self):
@@ -951,7 +951,7 @@ class VoicevoxArea:
         try:
             # 获取当前角色信息
             if not self.main_app.voicevox_client:
-                messagebox.showwarning("警告", "VOICEVOX未连接")
+                messagebox.showwarning(self.main_app.get_text("voicevox_warning"), self.main_app.get_text("voicevox_not_connected"))
                 return
             
             speaker_info = self.main_app.voicevox_client.get_current_speaker_info()
