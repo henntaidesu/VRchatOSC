@@ -47,7 +47,7 @@ class AIVRChatManager:
         scenario_row = ttk.Frame(scenario_frame)
         scenario_row.pack(fill=tk.X)
 
-        ttk.Label(scenario_row, text="当前场景:", width=6).pack(side=tk.LEFT)
+        ttk.Label(scenario_row, text=self.main_app.get_text("ai_vrchat_current_scenario"), width=6).pack(side=tk.LEFT)
         self.main_app.scenario_var = tk.StringVar(value="学習疲労")
         self.main_app.scenario_combo = ttk.Combobox(scenario_row, textvariable=self.main_app.scenario_var,
                                          values=["学習疲労", "研究ストレス", "就職活動不安"],
@@ -56,11 +56,11 @@ class AIVRChatManager:
         self.main_app.scenario_combo.bind('<<ComboboxSelected>>', self.on_scenario_change)
 
         # 应用场景按钮
-        self.main_app.apply_scenario_btn = ttk.Button(scenario_row, text="应用场景", command=self.apply_scenario, width=10)
+        self.main_app.apply_scenario_btn = ttk.Button(scenario_row, text=self.main_app.get_text("ai_vrchat_apply_scenario"), command=self.apply_scenario, width=10)
         self.main_app.apply_scenario_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         # 运行模式选择（已禁用）
-        ttk.Label(scenario_row, text="模式:", width=5).pack(side=tk.LEFT)
+        ttk.Label(scenario_row, text=self.main_app.get_text("ai_vrchat_mode"), width=5).pack(side=tk.LEFT)
         self.main_app.runtime_mode_var = tk.StringVar(value="user")
         self.main_app.runtime_mode_combo = ttk.Combobox(scenario_row, textvariable=self.main_app.runtime_mode_var,
                                              values=["user"],
@@ -84,7 +84,7 @@ class AIVRChatManager:
         movement_grid = ttk.Frame(control_container)
         movement_grid.pack(side=tk.LEFT, padx=(0, 20))
 
-        ttk.Label(movement_grid, text="移动控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
+        ttk.Label(movement_grid, text=self.main_app.get_text("ai_vrchat_movement_control"), font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
         # 斜着走按钮 - 左上、右上
         self.main_app.move_forward_left_btn = ttk.Button(movement_grid, text=self.main_app.get_text("move_forward_left"), width=6)
@@ -146,7 +146,7 @@ class AIVRChatManager:
         camera_grid = ttk.Frame(control_container)
         camera_grid.pack(side=tk.LEFT)
 
-        ttk.Label(camera_grid, text="镜头控制", font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
+        ttk.Label(camera_grid, text=self.main_app.get_text("ai_vrchat_camera_control"), font=("", 9, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
         # 斜着看按钮 - 左上、上看、右上
         self.main_app.look_up_left_btn = ttk.Button(camera_grid, text=self.main_app.get_text("look_up_left"), width=6)
@@ -218,15 +218,15 @@ class AIVRChatManager:
         config_grid.columnconfigure(3, weight=1)
 
         # 主机地址和端口
-        ttk.Label(config_grid, text="主机:", width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 2))
+        ttk.Label(config_grid, text=self.main_app.get_text("ai_vrchat_host"), width=6).grid(row=0, column=0, sticky=tk.W, padx=(0, 2))
         self.main_app.ai_host_entry = ttk.Entry(config_grid, width=12)
         self.main_app.ai_host_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 5))
 
-        ttk.Label(config_grid, text="发送:", width=6).grid(row=0, column=2, sticky=tk.W)
+        ttk.Label(config_grid, text=self.main_app.get_text("ai_vrchat_send_port"), width=6).grid(row=0, column=2, sticky=tk.W)
         self.main_app.ai_send_port_entry = ttk.Entry(config_grid, width=6)
         self.main_app.ai_send_port_entry.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=(0, 5))
 
-        ttk.Label(config_grid, text="接收:", width=6).grid(row=0, column=4, sticky=tk.W)
+        ttk.Label(config_grid, text=self.main_app.get_text("ai_vrchat_receive_port"), width=6).grid(row=0, column=4, sticky=tk.W)
         self.main_app.ai_receive_port_entry = ttk.Entry(config_grid, width=6)
         self.main_app.ai_receive_port_entry.grid(row=0, column=5, sticky=(tk.W, tk.E))
 
@@ -234,25 +234,25 @@ class AIVRChatManager:
         status_frame = ttk.Frame(vrc_control_frame)
         status_frame.pack(fill=tk.X, pady=(5, 2))
 
-        ttk.Label(status_frame, text="音频服务:", width=10).pack(side=tk.LEFT, padx=(0, 2))
-        self.main_app.ai_audio_status_label = ttk.Label(status_frame, text="未检查", foreground="gray", width=10)
+        ttk.Label(status_frame, text=self.main_app.get_text("ai_vrchat_audio_service"), width=10).pack(side=tk.LEFT, padx=(0, 2))
+        self.main_app.ai_audio_status_label = ttk.Label(status_frame, text=self.main_app.get_text("ai_vrchat_not_checked"), foreground="gray", width=10)
         self.main_app.ai_audio_status_label.pack(side=tk.LEFT, padx=(0, 15))
 
         ttk.Label(status_frame, text=self.main_app.get_text("ai_vrc_connection_status"), width=10).pack(side=tk.LEFT, padx=(0, 2))
-        self.main_app.ai_osc_status_label = ttk.Label(status_frame, text="未连接", foreground="red", width=20)
+        self.main_app.ai_osc_status_label = ttk.Label(status_frame, text=self.main_app.get_text("ai_vrchat_not_connected"), foreground="red", width=20)
         self.main_app.ai_osc_status_label.pack(side=tk.LEFT, padx=(0, 5))
 
         # 按钮控制行
         button_frame = ttk.Frame(vrc_control_frame)
         button_frame.pack(fill=tk.X, pady=(2, 5))
 
-        self.main_app.save_ai_config_btn = ttk.Button(button_frame, text="保存配置", command=self.save_ai_vrc_config, width=10)
+        self.main_app.save_ai_config_btn = ttk.Button(button_frame, text=self.main_app.get_text("ai_vrchat_save_config"), command=self.save_ai_vrc_config, width=10)
         self.main_app.save_ai_config_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         self.main_app.ai_osc_connect_btn = ttk.Button(button_frame, text=self.main_app.get_text("connect_ai_vrc"), command=self.toggle_ai_osc_connection, width=10)
         self.main_app.ai_osc_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.main_app.refresh_audio_btn = ttk.Button(button_frame, text="连接音频", command=self.refresh_audio_service_status, width=10)
+        self.main_app.refresh_audio_btn = ttk.Button(button_frame, text=self.main_app.get_text("ai_vrchat_connect_audio"), command=self.refresh_audio_service_status, width=10)
         self.main_app.refresh_audio_btn.pack(side=tk.LEFT)
 
         self.load_ai_vrc_config_from_file()
@@ -264,30 +264,30 @@ class AIVRChatManager:
         text_message_row = ttk.Frame(vrc_message_frame)
         text_message_row.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Label(text_message_row, text="发送文本:", width=6).pack(side=tk.LEFT)
+        ttk.Label(text_message_row, text=self.main_app.get_text("ai_vrchat_send_text"), width=6).pack(side=tk.LEFT)
         self.main_app.ai_text_entry = ttk.Entry(text_message_row)
         self.main_app.ai_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         self.main_app.ai_text_entry.bind("<Return>", lambda e: self.ai_send_text_message())
 
-        self.main_app.ai_send_text_btn = ttk.Button(text_message_row, text="发送", command=self.ai_send_text_message, width=6)
+        self.main_app.ai_send_text_btn = ttk.Button(text_message_row, text=self.main_app.get_text("ai_vrchat_send"), command=self.ai_send_text_message, width=6)
         self.main_app.ai_send_text_btn.pack(side=tk.LEFT)
 
         voice_upload_row = ttk.Frame(vrc_message_frame)
         voice_upload_row.pack(fill=tk.X, pady=(0, 5))
 
-        self.main_app.ai_upload_voice_btn = ttk.Button(voice_upload_row, text="上传语音文件", command=self.ai_upload_voice_file, width=12)
+        self.main_app.ai_upload_voice_btn = ttk.Button(voice_upload_row, text=self.main_app.get_text("ai_vrchat_upload_voice"), command=self.ai_upload_voice_file, width=12)
         self.main_app.ai_upload_voice_btn.pack(side=tk.LEFT, padx=(0, 5))
 
-        self.main_app.ai_voice_file_label = ttk.Label(voice_upload_row, text="未选择文件", foreground="gray")
+        self.main_app.ai_voice_file_label = ttk.Label(voice_upload_row, text=self.main_app.get_text("ai_vrchat_no_file_selected"), foreground="gray")
         self.main_app.ai_voice_file_label.pack(side=tk.LEFT, padx=(5, 0))
 
         voicevox_control_row = ttk.Frame(vrc_message_frame)
         voicevox_control_row.pack(fill=tk.X, pady=(5, 0))
 
-        self.main_app.ai_voicevox_generate_btn = ttk.Button(voicevox_control_row, text="生成并发送语音", command=self.main_app.voicevox_area.ai_generate_and_send_voice, width=15)
+        self.main_app.ai_voicevox_generate_btn = ttk.Button(voicevox_control_row, text=self.main_app.get_text("ai_vrchat_generate_voice"), command=self.main_app.voicevox_area.ai_generate_and_send_voice, width=15)
         self.main_app.ai_voicevox_generate_btn.pack(side=tk.LEFT, padx=(0, 5))
 
-        ttk.Label(voicevox_control_row, text="内容:", width=5).pack(side=tk.LEFT)
+        ttk.Label(voicevox_control_row, text=self.main_app.get_text("ai_vrchat_content"), width=5).pack(side=tk.LEFT)
         self.main_app.ai_voicevox_text_entry = ttk.Entry(voicevox_control_row)
         self.main_app.ai_voicevox_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         self.main_app.ai_voicevox_text_entry.bind("<Return>", lambda e: self.main_app.voicevox_area.ai_generate_and_send_voice())
@@ -548,12 +548,12 @@ class AIVRChatManager:
             # 切换到走路模式
             self.send_osc_command("/input/Run", 0, "切换到走路模式")
             if hasattr(self.main_app, 'walk_btn'):
-                self.main_app.walk_btn.config(text="跑步")  # 按钮显示相反的状态
+                self.main_app.walk_btn.config(text=self.main_app.get_text("run_mode"))  # 按钮显示相反的状态
         else:
             # 切换到跑步模式
             self.send_osc_command("/input/Run", 1, "切换到跑步模式")
             if hasattr(self.main_app, 'walk_btn'):
-                self.main_app.walk_btn.config(text="走路")  # 按钮显示相反的状态
+                self.main_app.walk_btn.config(text=self.main_app.get_text("walk_mode"))  # 按钮显示相反的状态
     
     # 斜着移动方法
     def move_forward_left(self):
@@ -706,10 +706,10 @@ class AIVRChatManager:
                 self.ai_receive_port = int(ai_receive_port)
                 
                 
-                messagebox.showinfo("保存成功", "AI VRC配置已保存")
+                messagebox.showinfo(self.main_app.get_text("success"), self.main_app.get_text("ai_config_saved"))
                 self.main_app.log(f"AI VRC配置已保存: {ai_host}:{ai_send_port}")
         except Exception as e:
-            messagebox.showerror("保存失败", f"保存AI VRC配置失败: {e}")
+            messagebox.showerror(self.main_app.get_text("failed"), f"{self.main_app.get_text('ai_config_save_failed')}: {e}")
             self.main_app.log(f"保存AI VRC配置异常: {e}")
     
     def toggle_ai_osc_connection(self):
@@ -729,7 +729,7 @@ class AIVRChatManager:
             if self.create_ai_osc_client():
                 self.ai_is_connected = True
                 if hasattr(self.main_app, 'ai_osc_status_label'):
-                    self.main_app.ai_osc_status_label.config(text="已连接", foreground="green")
+                    self.main_app.ai_osc_status_label.config(text=self.main_app.get_text("ai_status_connected"), foreground="green")
                 if hasattr(self.main_app, 'ai_osc_connect_btn'):
                     self.main_app.ai_osc_connect_btn.config(text=self.main_app.get_text("disconnect_ai_vrc"))
                 self.main_app.log("AI OSC已连接")
@@ -756,7 +756,7 @@ class AIVRChatManager:
                 self.ai_osc_client = None
             
             if hasattr(self.main_app, 'ai_osc_status_label'):
-                self.main_app.ai_osc_status_label.config(text="未连接", foreground="red")
+                self.main_app.ai_osc_status_label.config(text=self.main_app.get_text("ai_status_disconnected"), foreground="red")
             if hasattr(self.main_app, 'ai_osc_connect_btn'):
                 self.main_app.ai_osc_connect_btn.config(text=self.main_app.get_text("connect_ai_vrc"))
             self.main_app.log("AI OSC已断开")
@@ -790,15 +790,15 @@ class AIVRChatManager:
             
             if hasattr(self.main_app, 'ai_audio_status_label'):
                 if is_available:
-                    self.main_app.ai_audio_status_label.config(text="正常", foreground="green")
+                    self.main_app.ai_audio_status_label.config(text=self.main_app.get_text("ai_status_normal"), foreground="green")
                     self.main_app.log(f"✅ AI机器音频服务连接正常 ({ai_host}:{audio_service_port})")
                 else:
-                    self.main_app.ai_audio_status_label.config(text="异常", foreground="red")
+                    self.main_app.ai_audio_status_label.config(text=self.main_app.get_text("ai_status_error"), foreground="red")
                     self.main_app.log(f"❌ AI机器音频服务连接失败 ({ai_host}:{audio_service_port})")
             
         except Exception as e:
             if hasattr(self.main_app, 'ai_audio_status_label'):
-                self.main_app.ai_audio_status_label.config(text="错误", foreground="red")
+                self.main_app.ai_audio_status_label.config(text=self.main_app.get_text("ai_status_error"), foreground="red")
             self.main_app.log(f"检测AI机器音频服务异常: {e}")
 
     
@@ -811,7 +811,7 @@ class AIVRChatManager:
             if not message:
                 return
             if not self.ai_is_connected or not self.ai_osc_client:
-                messagebox.showwarning("提示", "请先连接AI_VRC")
+                messagebox.showwarning(self.main_app.get_text("warning"), self.main_app.get_text("ai_warning_connect_first"))
                 return
             
             # 发送文本消息到AI端
@@ -821,23 +821,23 @@ class AIVRChatManager:
                 self.main_app.ai_text_entry.delete(0, tk.END)
             else:
                 self.main_app.log(f"[AI文本发送失败] {message}")
-                messagebox.showerror("发送失败", "发送文本消息到AI端失败")
+                messagebox.showerror(self.main_app.get_text("ai_send_failed"), self.main_app.get_text("ai_send_text_to_ai"))
                 
         except Exception as e:
             self.main_app.log(f"AI发送文本消息异常: {e}")
-            messagebox.showerror("发送异常", f"发送文本消息异常: {e}")
+            messagebox.showerror(self.main_app.get_text("ai_send_exception"), f"{self.main_app.get_text('ai_send_exception')}: {e}")
     
     def ai_upload_voice_file(self):
         """AI上传语音文件"""
         try:
             file_path = filedialog.askopenfilename(
-                title="选择语音文件",
+                title=self.main_app.get_text("ai_select_audio_file"),
                 filetypes=[
-                    ("音频文件", "*.wav *.mp3 *.flac *.ogg *.m4a"),
-                    ("WAV文件", "*.wav"),
-                    ("MP3文件", "*.mp3"),
-                    ("FLAC文件", "*.flac"),
-                    ("所有文件", "*.*")
+                    (self.main_app.get_text("ai_audio_files"), "*.wav *.mp3 *.flac *.ogg *.m4a"),
+                    (self.main_app.get_text("ai_wav_files"), "*.wav"),
+                    (self.main_app.get_text("ai_mp3_files"), "*.mp3"),
+                    (self.main_app.get_text("ai_flac_files"), "*.flac"),
+                    (self.main_app.get_text("ai_all_files"), "*.*")
                 ]
             )
             if not file_path:
@@ -851,12 +851,12 @@ class AIVRChatManager:
                 self.ai_selected_voice_file = file_path
                 if hasattr(self.main_app, 'ai_voice_file_label'):
                     self.main_app.ai_voice_file_label.config(
-                        text=f"已选择: {os.path.basename(file_path)}", 
+                        text=f"{self.main_app.get_text('ai_file_selected')} {os.path.basename(file_path)}", 
                         foreground="blue"
                     )
                 self.main_app.log(f"AI语音文件已加载")
             except Exception as load_error:
-                messagebox.showerror("加载失败", f"加载语音文件失败: {load_error}")
+                messagebox.showerror(self.main_app.get_text("ai_load_failed"), f"{self.main_app.get_text('ai_load_audio_failed')}: {load_error}")
                 self.main_app.log(f"加载AI语音文件异常: {load_error}")
         except Exception as e:
             self.main_app.log(f"AI上传语音文件异常: {e}")

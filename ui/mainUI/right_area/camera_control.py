@@ -174,8 +174,8 @@ class CameraControl:
             self.main_app.log("正在检测可用摄像头...")
             
             # 显示检测状态
-            self.main_app.camera_combo['values'] = ['正在检测...']
-            self.main_app.camera_combo.set('正在检测...')
+            self.main_app.camera_combo['values'] = [self.main_app.get_text("camera_detecting")]
+            self.main_app.camera_combo.set(self.main_app.get_text("camera_detecting"))
             self.main_app.root.update()
             
             # 在后台线程中检测摄像头
@@ -207,8 +207,8 @@ class CameraControl:
             
         except Exception as e:
             self.main_app.log(f"刷新摄像头列表失败: {e}")
-            self.main_app.camera_combo['values'] = ['检测失败']
-            self.main_app.camera_combo.set('检测失败')
+            self.main_app.camera_combo['values'] = [self.main_app.get_text("camera_detection_failed")]
+            self.main_app.camera_combo.set(self.main_app.get_text("camera_detection_failed"))
 
     def update_camera_list(self, available_cameras):
         """更新摄像头列表（在主线程中调用）"""
@@ -237,8 +237,8 @@ class CameraControl:
                 
         except Exception as e:
             self.main_app.log(f"更新摄像头列表失败: {e}")
-            self.main_app.camera_combo['values'] = ['更新失败']
-            self.main_app.camera_combo.set('更新失败')
+            self.main_app.camera_combo['values'] = [self.main_app.get_text("camera_update_failed")]
+            self.main_app.camera_combo.set(self.main_app.get_text("camera_update_failed"))
 
     def on_model_changed(self, event=None):
         """模型选择变更处理"""
@@ -309,7 +309,7 @@ class CameraControl:
         self.main_app.refresh_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # 分辨率选择
-        self.main_app.resolution_label = ttk.Label(control_row1, text="分辨率")
+        self.main_app.resolution_label = ttk.Label(control_row1, text=self.main_app.get_text("camera_resolution"))
         self.main_app.resolution_label.pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.resolution_var = tk.StringVar(value="1920x1080")
         self.main_app.resolution_combo = ttk.Combobox(control_row1, textvariable=self.main_app.resolution_var,
@@ -348,11 +348,11 @@ class CameraControl:
         camera_params_frame.pack(fill=tk.X, pady=(5, 0))
         
         # 对焦按钮
-        self.main_app.focus_btn = ttk.Button(camera_params_frame, text="自动对焦", command=self.auto_focus, state="disabled")
+        self.main_app.focus_btn = ttk.Button(camera_params_frame, text=self.main_app.get_text("camera_auto_focus"), command=self.auto_focus, state="disabled")
         self.main_app.focus_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # 变焦控制
-        ttk.Label(camera_params_frame, text="变焦:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(camera_params_frame, text=self.main_app.get_text("camera_zoom")).pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.zoom_var = tk.DoubleVar(value=1.0)
         self.main_app.zoom_scale = ttk.Scale(camera_params_frame, from_=1.0, to=5.0,
                                        variable=self.main_app.zoom_var,
@@ -368,7 +368,7 @@ class CameraControl:
         interval_frame.pack(fill=tk.X, pady=(5, 0))
         
         # 表情更新间隔标签和滑块
-        ttk.Label(interval_frame, text="表情更新间隔:").pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Label(interval_frame, text=self.main_app.get_text("camera_expression_interval")).pack(side=tk.LEFT, padx=(0, 10))
         
         self.main_app.emotion_update_interval_var = tk.DoubleVar(value=3.0)  # 默认3秒
         self.main_app.emotion_interval_scale = ttk.Scale(interval_frame, from_=1.0, to=10.0,
@@ -450,10 +450,10 @@ class CameraControl:
         
         row += 1
         # 整体情感状态显示
-        ttk.Label(self.main_app.expression_frame, text="整体状态:").grid(
+        ttk.Label(self.main_app.expression_frame, text=self.main_app.get_text("camera_overall_status") + ":").grid(
             row=row, column=0, sticky=tk.W, padx=(0, 5))
         
-        self.main_app.overall_status_label = ttk.Label(self.main_app.expression_frame, text="中立 (0.00)", width=15)
+        self.main_app.overall_status_label = ttk.Label(self.main_app.expression_frame, text=self.main_app.get_text("camera_neutral_default"), width=15)
         self.main_app.overall_status_label.grid(row=row, column=1, sticky=tk.W, padx=(0, 5))
         
         self.main_app.overall_status_progress = ttk.Progressbar(self.main_app.expression_frame, length=250, mode='determinate')
@@ -462,10 +462,10 @@ class CameraControl:
         
         # 主导情感状态显示
         row += 1
-        ttk.Label(self.main_app.expression_frame, text="主导情感:").grid(
+        ttk.Label(self.main_app.expression_frame, text=self.main_app.get_text("camera_dominant_emotion") + ":").grid(
             row=row, column=0, sticky=tk.W, padx=(0, 5))
         
-        self.main_app.dominant_emotion_label = ttk.Label(self.main_app.expression_frame, text="无数据", width=30)
+        self.main_app.dominant_emotion_label = ttk.Label(self.main_app.expression_frame, text=self.main_app.get_text("camera_no_data"), width=30)
         self.main_app.dominant_emotion_label.grid(row=row, column=1, columnspan=5, sticky=tk.W, padx=(0, 5))
     
     def toggle_camera_only(self):
@@ -525,7 +525,7 @@ class CameraControl:
                 self.main_app.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
             
             self.main_app.camera_running = True
-            self.main_app.camera_start_btn.config(text="停止摄像头")
+            self.main_app.camera_start_btn.config(text=self.main_app.get_text("camera_stop_camera"))
             self.main_app.face_detection_btn.config(state="normal")
             self.main_app.capture_btn.config(state="normal")
             self.main_app.save_expression_btn.config(state="normal")
@@ -566,7 +566,7 @@ class CameraControl:
             
             # 这里不需要重新创建摄像头实例，只是设置标志
             self.main_app.face_detection_running = True
-            self.main_app.face_detection_btn.config(text="停止面部识别")
+            self.main_app.face_detection_btn.config(text=self.main_app.get_text("camera_stop_face_detection"))
             
             # 启动表情更新定时器
             import time
@@ -576,7 +576,7 @@ class CameraControl:
             
             # 重置主导情感显示
             if hasattr(self.main_app, 'dominant_emotion_label'):
-                self.main_app.dominant_emotion_label.config(text="等待检测...")
+                self.main_app.dominant_emotion_label.config(text=self.main_app.get_text("camera_waiting_detection"))
             
             self._start_emotion_update_timer()
             
@@ -641,7 +641,7 @@ class CameraControl:
         """停止面部识别"""
         try:
             self.main_app.face_detection_running = False
-            self.main_app.face_detection_btn.config(text="启动面部识别")
+            self.main_app.face_detection_btn.config(text=self.main_app.get_text("camera_start_detection"))
             
             # 停止表情更新定时器
             if self.emotion_update_timer:
@@ -660,7 +660,7 @@ class CameraControl:
             
             # 重置主导情感显示
             if hasattr(self.main_app, 'dominant_emotion_label'):
-                self.main_app.dominant_emotion_label.config(text="无数据")
+                self.main_app.dominant_emotion_label.config(text=self.main_app.get_text("camera_no_data"))
             
             # 重置时间戳
             self.last_dominant_update_time = 0
@@ -1059,12 +1059,12 @@ class CameraControl:
             
             # 格式化时间间隔
             if interval > 0:
-                interval_text = f"间隔: {interval:.1f}秒"
+                interval_text = f"{self.main_app.get_text('emotion_interval')} {interval:.1f}秒"
             else:
-                interval_text = "首次更新"
+                interval_text = self.main_app.get_text("emotion_first_update")
             
             # 更新显示文本
-            display_text = f"{emotion_name_cn} (强度: {intensity:.2f}) - {interval_text}"
+            display_text = f"{emotion_name_cn} ({self.main_app.get_text('emotion_intensity')} {intensity:.2f}) - {interval_text}"
             
             # 更新UI
             if hasattr(self.main_app, 'dominant_emotion_label'):
@@ -1226,7 +1226,7 @@ class CameraControl:
             from ui.camera_window import CameraWindow
             CameraWindow(self.main_app.root)
         except Exception as e:
-            messagebox.showerror("摄像头错误", f"无法打开摄像头窗口: {e}")
+            messagebox.showerror(self.main_app.get_text("camera_error"), f"{self.main_app.get_text('camera_window_open_failed')}: {e}")
             self.main_app.log(f"打开摄像头窗口失败: {e}")
     
     def update_resolution_options(self):

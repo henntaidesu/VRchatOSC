@@ -71,12 +71,11 @@ class VoicevoxArea:
         # 第三行：样式选择和确定按钮
         style_frame = ttk.Frame(self.main_app.voicevox_control_frame)
         style_frame.pack(fill=tk.X, pady=(0, 5))
-        
         ttk.Label(style_frame, text=self.main_app.get_text("voicevox_style"), width=12).pack(side=tk.LEFT, padx=(0, 5))
         
         # 确定按钮 - 先放置在右侧
         self.main_app.voicevox_confirm_btn = ttk.Button(style_frame, text=self.main_app.get_text("voicevox_confirm"), width=8, command=self.confirm_voicevox_character_change)
-        self.main_app.voicevox_confirm_btn.pack(side=tk.LEFT, padx=(10, 0))
+        self.main_app.voicevox_confirm_btn.pack(side=tk.RIGHT, padx=(10, 0))
         
         # 样式选择框 - 放在确定按钮左侧
         self.main_app.voicevox_style_var = tk.StringVar(value=self.main_app.config.voicevox_last_speaker_style)
@@ -89,7 +88,7 @@ class VoicevoxArea:
         control_frame.pack(fill=tk.X, pady=(5, 0))
         
         # VOICEVOX测试按钮
-        self.main_app.voicevox_test_btn = ttk.Button(control_frame, text=self.main_app.get_text("voice_test"), command=self.test_voicevox)
+        self.main_app.voicevox_test_btn = ttk.Button(control_frame, text=self.main_app.get_text("voice_test"), command=self.test_voicevox, width=10)
         self.main_app.voicevox_test_btn.pack(side=tk.LEFT, padx=(0, 5))
         
         # VOICEVOX启用开关
@@ -175,7 +174,7 @@ class VoicevoxArea:
         self.main_app.voice_preset_var = tk.StringVar(value=self.main_app.get_text("voicevox_default"))
         self.main_app.voice_preset_combo = ttk.Combobox(preset_frame, textvariable=self.main_app.voice_preset_var, 
                                              values=[self.main_app.get_text("voicevox_default"), self.main_app.get_text("voicevox_slow_clear"), self.main_app.get_text("voicevox_fast_natural"), self.main_app.get_text("voicevox_low_gentle"), self.main_app.get_text("voicevox_high_lively"), self.main_app.get_text("voicevox_robot"), self.main_app.get_text("voicevox_custom")], 
-                                             state="readonly", width=10)
+                                             state="readonly", width=14)
         self.main_app.voice_preset_combo.pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voice_preset_combo.bind('<<ComboboxSelected>>', self.on_voice_preset_changed)
         
@@ -183,13 +182,13 @@ class VoicevoxArea:
         button_frame = ttk.Frame(params_button_frame)
         button_frame.pack(side=tk.RIGHT)
         
-        self.main_app.preview_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_preview"), command=self.preview_voice, width=6)
+        self.main_app.preview_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_preview"), command=self.preview_voice, width=8)
         self.main_app.preview_btn.pack(side=tk.LEFT, padx=(5, 2))
         
-        self.main_app.reset_params_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_reset"), command=self.reset_voice_params, width=6)
+        self.main_app.reset_params_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_reset"), command=self.reset_voice_params, width=8)
         self.main_app.reset_params_btn.pack(side=tk.LEFT, padx=(2, 2))
         
-        self.main_app.save_params_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_save"), command=self.save_voice_params, width=6)
+        self.main_app.save_params_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_save"), command=self.save_voice_params, width=8)
         self.main_app.save_params_btn.pack(side=tk.LEFT, padx=(2, 0))
         
         # 角色管理区域 - 直接在左侧VOICEVOX区域下方
