@@ -23,14 +23,14 @@ class VoicevoxArea:
         server_frame.pack(fill=tk.X, pady=(0, 5))
         
         # IP地址输入
-        ttk.Label(server_frame, text=self.main_app.get_text("ip"), width=4).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(server_frame, text=self.main_app.get_text("ip"), width=6).pack(side=tk.LEFT, padx=(0, 2))
         saved_host = self.main_app.config.voicevox_host
         self.main_app.voicevox_host_var = tk.StringVar(value=saved_host)
         self.main_app.voicevox_host_entry = ttk.Entry(server_frame, textvariable=self.main_app.voicevox_host_var, width=12)
         self.main_app.voicevox_host_entry.pack(side=tk.LEFT, padx=(0, 5))
         
         # 端口输入
-        ttk.Label(server_frame, text=self.main_app.get_text("voicevox_port"), width=4).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Label(server_frame, text=self.main_app.get_text("voicevox_port"), width=6).pack(side=tk.LEFT, padx=(0, 2))
         saved_port = self.main_app.config.voicevox_port
         self.main_app.voicevox_port_var = tk.StringVar(value=str(saved_port))
         self.main_app.voicevox_port_entry = ttk.Entry(server_frame, textvariable=self.main_app.voicevox_port_var, width=8)
@@ -49,38 +49,40 @@ class VoicevoxArea:
         period_frame.pack(fill=tk.X, pady=(0, 5))
         
         # VOICEVOX期数选择
-        ttk.Label(period_frame, text=self.main_app.get_text("voicevox_period"), width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(period_frame, text=self.main_app.get_text("voicevox_period"), width=12).pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voicevox_period_var = tk.StringVar(value=self.main_app.config.voicevox_last_period)
         self.main_app.voicevox_period_combo = ttk.Combobox(period_frame, textvariable=self.main_app.voicevox_period_var,
                                                 values=["1期", "2期", "3期"],
                                                 width=8, state="readonly")
-        self.main_app.voicevox_period_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.main_app.voicevox_period_combo.pack(side=tk.LEFT, padx=(10, 0))
         self.main_app.voicevox_period_combo.bind("<<ComboboxSelected>>", self.on_voicevox_period_changed)
         
         # 第二行：角色名称选择
         character_frame = ttk.Frame(self.main_app.voicevox_control_frame)
         character_frame.pack(fill=tk.X, pady=(0, 5))
         
-        ttk.Label(character_frame, text=self.main_app.get_text("voicevox_character"), width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(character_frame, text=self.main_app.get_text("voicevox_character"), width=12).pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voicevox_character_var = tk.StringVar(value=self.main_app.config.voicevox_last_speaker_name)
         self.main_app.voicevox_character_combo = ttk.Combobox(character_frame, textvariable=self.main_app.voicevox_character_var,
                                                    width=15, state="readonly")
-        self.main_app.voicevox_character_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self.main_app.voicevox_character_combo.pack(side=tk.LEFT, padx=(10, 0))
         self.main_app.voicevox_character_combo.bind("<<ComboboxSelected>>", self.on_voicevox_character_name_changed)
         
         # 第三行：样式选择和确定按钮
         style_frame = ttk.Frame(self.main_app.voicevox_control_frame)
         style_frame.pack(fill=tk.X, pady=(0, 5))
         
-        ttk.Label(style_frame, text=self.main_app.get_text("voicevox_style"), width=6).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(style_frame, text=self.main_app.get_text("voicevox_style"), width=12).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 确定按钮 - 先放置在右侧
+        self.main_app.voicevox_confirm_btn = ttk.Button(style_frame, text=self.main_app.get_text("voicevox_confirm"), width=8, command=self.confirm_voicevox_character_change)
+        self.main_app.voicevox_confirm_btn.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 样式选择框 - 放在确定按钮左侧
         self.main_app.voicevox_style_var = tk.StringVar(value=self.main_app.config.voicevox_last_speaker_style)
         self.main_app.voicevox_style_combo = ttk.Combobox(style_frame, textvariable=self.main_app.voicevox_style_var,
                                                width=15, state="readonly")
-        self.main_app.voicevox_style_combo.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # 确定按钮
-        self.main_app.voicevox_confirm_btn = ttk.Button(style_frame, text=self.main_app.get_text("voicevox_confirm"), width=8, command=self.confirm_voicevox_character_change)
-        self.main_app.voicevox_confirm_btn.pack(side=tk.LEFT, padx=(10, 0))
+        self.main_app.voicevox_style_combo.pack(side=tk.LEFT, padx=(10, 0))
         
         # 第四行：控制按钮
         control_frame = ttk.Frame(self.main_app.voicevox_control_frame)
@@ -108,7 +110,7 @@ class VoicevoxArea:
         
         # 情感感知模式开关
         self.main_app.emotion_awareness_var = tk.BooleanVar(value=True)
-        self.main_app.emotion_awareness_check = ttk.Checkbutton(control_frame, text="情感感知", 
+        self.main_app.emotion_awareness_check = ttk.Checkbutton(control_frame, text=self.main_app.get_text("voicevox_emotion_awareness"), 
                                                       variable=self.main_app.emotion_awareness_var, 
                                                       command=self._toggle_emotion_awareness)
         self.main_app.emotion_awareness_check.pack(side=tk.LEFT, padx=(10, 0))
@@ -120,7 +122,7 @@ class VoicevoxArea:
         # 语速控制
         speed_frame = ttk.Frame(params_frame)
         speed_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(speed_frame, text="语速:", width=8).pack(side=tk.LEFT)
+        ttk.Label(speed_frame, text=self.main_app.get_text("voicevox_speed"), width=8).pack(side=tk.LEFT)
         self.main_app.speed_var = tk.DoubleVar(value=1.0)
         self.main_app.speed_scale = ttk.Scale(speed_frame, from_=0.0, to=2.0, variable=self.main_app.speed_var,
                                    orient=tk.HORIZONTAL, command=self.on_speed_changed)
@@ -131,7 +133,7 @@ class VoicevoxArea:
         # 音高控制  
         pitch_frame = ttk.Frame(params_frame)
         pitch_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(pitch_frame, text="音高:", width=8).pack(side=tk.LEFT)
+        ttk.Label(pitch_frame, text=self.main_app.get_text("voicevox_pitch"), width=8).pack(side=tk.LEFT)
         self.main_app.pitch_var = tk.DoubleVar(value=0.0)
         self.main_app.pitch_scale = ttk.Scale(pitch_frame, from_=-0.15, to=0.15, variable=self.main_app.pitch_var,
                                    orient=tk.HORIZONTAL, command=self.on_pitch_changed)
@@ -142,7 +144,7 @@ class VoicevoxArea:
         # 抑扬顿挫控制
         intonation_frame = ttk.Frame(params_frame)
         intonation_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(intonation_frame, text="抑扬:", width=8).pack(side=tk.LEFT)
+        ttk.Label(intonation_frame, text=self.main_app.get_text("voicevox_intonation"), width=8).pack(side=tk.LEFT)
         self.main_app.intonation_var = tk.DoubleVar(value=1.0)
         self.main_app.intonation_scale = ttk.Scale(intonation_frame, from_=0.0, to=2.0, variable=self.main_app.intonation_var,
                                         orient=tk.HORIZONTAL, command=self.on_intonation_changed)
@@ -153,7 +155,7 @@ class VoicevoxArea:
         # 音量控制
         volume_frame = ttk.Frame(params_frame)
         volume_frame.pack(fill=tk.X, pady=(0, 0))
-        ttk.Label(volume_frame, text="音量:", width=8).pack(side=tk.LEFT)
+        ttk.Label(volume_frame, text=self.main_app.get_text("voicevox_volume"), width=8).pack(side=tk.LEFT)
         self.main_app.volume_var = tk.DoubleVar(value=1.0)
         self.main_app.volume_scale = ttk.Scale(volume_frame, from_=0.0, to=2.0, variable=self.main_app.volume_var,
                                     orient=tk.HORIZONTAL, command=self.on_volume_changed)
@@ -169,10 +171,10 @@ class VoicevoxArea:
         preset_frame = ttk.Frame(params_button_frame)
         preset_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        ttk.Label(preset_frame, text="预设:").pack(side=tk.LEFT, padx=(0, 5))
-        self.main_app.voice_preset_var = tk.StringVar(value="默认")
+        ttk.Label(preset_frame, text=self.main_app.get_text("voicevox_preset")).pack(side=tk.LEFT, padx=(0, 5))
+        self.main_app.voice_preset_var = tk.StringVar(value=self.main_app.get_text("voicevox_default"))
         self.main_app.voice_preset_combo = ttk.Combobox(preset_frame, textvariable=self.main_app.voice_preset_var, 
-                                             values=["默认", "慢速清晰", "快速自然", "低音温和", "高音活泼", "机器人", "自定义"], 
+                                             values=[self.main_app.get_text("voicevox_default"), self.main_app.get_text("voicevox_slow_clear"), self.main_app.get_text("voicevox_fast_natural"), self.main_app.get_text("voicevox_low_gentle"), self.main_app.get_text("voicevox_high_lively"), self.main_app.get_text("voicevox_robot"), self.main_app.get_text("voicevox_custom")], 
                                              state="readonly", width=10)
         self.main_app.voice_preset_combo.pack(side=tk.LEFT, padx=(0, 5))
         self.main_app.voice_preset_combo.bind('<<ComboboxSelected>>', self.on_voice_preset_changed)
@@ -181,13 +183,13 @@ class VoicevoxArea:
         button_frame = ttk.Frame(params_button_frame)
         button_frame.pack(side=tk.RIGHT)
         
-        self.main_app.preview_btn = ttk.Button(button_frame, text="试听", command=self.preview_voice, width=6)
+        self.main_app.preview_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_preview"), command=self.preview_voice, width=6)
         self.main_app.preview_btn.pack(side=tk.LEFT, padx=(5, 2))
         
-        self.main_app.reset_params_btn = ttk.Button(button_frame, text="重置", command=self.reset_voice_params, width=6)
+        self.main_app.reset_params_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_reset"), command=self.reset_voice_params, width=6)
         self.main_app.reset_params_btn.pack(side=tk.LEFT, padx=(2, 2))
         
-        self.main_app.save_params_btn = ttk.Button(button_frame, text="保存", command=self.save_voice_params, width=6)
+        self.main_app.save_params_btn = ttk.Button(button_frame, text=self.main_app.get_text("voicevox_save"), command=self.save_voice_params, width=6)
         self.main_app.save_params_btn.pack(side=tk.LEFT, padx=(2, 0))
         
         # 角色管理区域 - 直接在左侧VOICEVOX区域下方
@@ -396,7 +398,7 @@ class VoicevoxArea:
             current_period = self.main_app.voicevox_period_var.get()
             
             if not character_name or not style_name or not current_period:
-                messagebox.showwarning("警告", "请选择期数、角色和样式")
+                messagebox.showwarning(self.main_app.get_text("voicevox_warning"), self.main_app.get_text("voicevox_select_period_character_style"))
                 return
             
             # 获取按期数分组的角色数据
@@ -452,7 +454,7 @@ class VoicevoxArea:
                             )
                     
                     self.main_app.log(f"VOICEVOX角色已切换为: {current_period} - {character_name} - {style_name} (ID: {style_id})")
-                    messagebox.showinfo("成功", f"角色已切换为:\n期数: {current_period}\n角色: {character_name}\n样式: {style_name}")
+                    messagebox.showinfo(self.main_app.get_text("success"), f"{self.main_app.get_text('voicevox_character_switch_success')}:\n{self.main_app.get_text('voicevox_period')}: {current_period}\n{self.main_app.get_text('voicevox_character')}: {character_name}\n{self.main_app.get_text('voicevox_style')}: {style_name}")
                 else:
                     messagebox.showerror("错误", f"在 {current_period} 中找不到角色 {character_name} 的样式 {style_name}")
             else:
@@ -614,7 +616,7 @@ class VoicevoxArea:
             style_name = self.main_app.voicevox_style_var.get()
             
             if not character_name or not style_name:
-                messagebox.showwarning("警告", "请先选择角色和样式")
+                messagebox.showwarning(self.main_app.get_text("voicevox_warning"), self.main_app.get_text("voicevox_select_character_style"))
                 return
             
             # 测试文本
@@ -649,10 +651,10 @@ class VoicevoxArea:
                         if audio_data:
                             self.main_app.voicevox_client.play_audio(audio_data)
                             self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX语音测试完成"))
-                            self.main_app.root.after(0, lambda: messagebox.showinfo("成功", "语音测试完成"))
+                            self.main_app.root.after(0, lambda: messagebox.showinfo(self.main_app.get_text("success"), self.main_app.get_text("voicevox_test_completed")))
                         else:
                             self.main_app.root.after(0, lambda: self.main_app.log("VOICEVOX语音合成失败"))
-                            self.main_app.root.after(0, lambda: messagebox.showerror("错误", "语音合成失败"))
+                            self.main_app.root.after(0, lambda: messagebox.showerror(self.main_app.get_text("voicevox_error"), self.main_app.get_text("voicevox_synthesis_failed")))
                         
                         # 恢复原来的说话人
                         if original_speaker is not None:
@@ -1043,15 +1045,15 @@ class VoicevoxArea:
         
         # 定义预设参数
         presets = {
-            "默认": {"speed": 1.0, "pitch": 0.0, "intonation": 1.0, "volume": 1.0},
-            "慢速清晰": {"speed": 0.8, "pitch": -0.05, "intonation": 1.2, "volume": 1.1},
-            "快速自然": {"speed": 1.3, "pitch": 0.02, "intonation": 0.9, "volume": 0.9},
-            "低音温和": {"speed": 0.9, "pitch": -0.1, "intonation": 0.8, "volume": 1.0},
-            "高音活泼": {"speed": 1.2, "pitch": 0.08, "intonation": 1.4, "volume": 1.1},
-            "机器人": {"speed": 1.1, "pitch": -0.12, "intonation": 0.6, "volume": 0.8}
+            self.main_app.get_text("voicevox_default"): {"speed": 1.0, "pitch": 0.0, "intonation": 1.0, "volume": 1.0},
+            self.main_app.get_text("voicevox_slow_clear"): {"speed": 0.8, "pitch": -0.05, "intonation": 1.2, "volume": 1.1},
+            self.main_app.get_text("voicevox_fast_natural"): {"speed": 1.3, "pitch": 0.02, "intonation": 0.9, "volume": 0.9},
+            self.main_app.get_text("voicevox_low_gentle"): {"speed": 0.9, "pitch": -0.1, "intonation": 0.8, "volume": 1.0},
+            self.main_app.get_text("voicevox_high_lively"): {"speed": 1.2, "pitch": 0.08, "intonation": 1.4, "volume": 1.1},
+            self.main_app.get_text("voicevox_robot"): {"speed": 1.1, "pitch": -0.12, "intonation": 0.6, "volume": 0.8}
         }
         
-        if preset in presets and preset != "自定义":
+        if preset in presets and preset != self.main_app.get_text("voicevox_custom"):
             params = presets[preset]
             # 更新滑块值
             self.main_app.speed_var.set(params["speed"])
