@@ -7,7 +7,7 @@
 import time
 import threading
 from typing import Dict, Any, Optional
-from .streaming_llm_processor import StreamingLLMProcessor, StreamingSentence
+from .streaming_llm_processor import StreamingLLMProcessor
 from .voice_llm_handler import VoiceLLMResponse
 
 
@@ -196,7 +196,6 @@ class EmotionAwareStreamingProcessor(StreamingLLMProcessor):
         
         # 清空之前的响应状态
         self.current_response = ""
-        self.processed_sentences.clear()
         
         # 生成情感感知的系统提示词
         emotion_system_prompt = self._generate_emotion_aware_system_prompt(text)
@@ -235,33 +234,7 @@ class EmotionAwareStreamingProcessor(StreamingLLMProcessor):
         # 调用父类的响应处理
         super()._on_llm_streaming_response(response)
     
-    def _process_sentence(self, sentence_data: StreamingSentence):
-        """
-        处理带情感信息的句子
-        
-        Args:
-            sentence_data: 句子数据
-        """
-        try:
-            sentence_text = sentence_data.text
-            dominant_emotion = self._get_dominant_emotion(self.current_emotions)
-            
-            print(f"[情感处理] 处理句子: {sentence_text} (用户情感: {dominant_emotion})")
-            
-            # 根据情感选择语音风格
-            emotion_voice_settings = self._get_emotion_voice_settings(dominant_emotion)
-            
-            # 临时应用语音设置
-            if emotion_voice_settings and hasattr(self.main_app, 'voicevox_area'):
-                self._apply_emotion_voice_settings(emotion_voice_settings)
-            
-            # 调用父类的句子处理
-            super()._process_sentence(sentence_data)
-            
-        except Exception as e:
-            print(f"[错误] 情感感知句子处理失败: {e}")
-            import traceback
-            traceback.print_exc()
+    # _process_sentence 方法已从父类移除，情感处理现在通过 voice_llm_handler 统一处理
     
     def _get_emotion_voice_settings(self, emotion: str) -> Optional[Dict[str, float]]:
         """

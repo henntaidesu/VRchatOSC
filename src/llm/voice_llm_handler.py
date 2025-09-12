@@ -223,29 +223,44 @@ class VoiceLLMHandler:
                     current_response_text += chunk_text
                     print(f"[流式回调] 累积文本长度: {len(current_response_text)}, 新增: {len(chunk_text)} 字符")
                     
-                    # 检测完整句子
-                    new_sentences = self._detect_complete_sentences_in_stream(current_response_text, processed_sentences)
-                    
-                    # 处理新检测到的句子
-                    for sentence in new_sentences:
-                        if sentence.strip():
-                            print(f"[实时句子] 检测到完整句子: {sentence}")
-                            processed_sentences.append(sentence)
-                            
-                            # 立即触发VOICEVOX音频合成
-                            self._trigger_voice_synthesis(sentence, request.request_id)
+                    # ======== 实时处理方法（已注释保留） ========
+                    # # 检测完整句子
+                    # new_sentences = self._detect_complete_sentences_in_stream(current_response_text, processed_sentences)
+                    # 
+                    # # 处理新检测到的句子
+                    # for sentence in new_sentences:
+                    #     if sentence.strip():
+                    #         print(f"[实时句子] 检测到完整句子: {sentence}")
+                    #         processed_sentences.append(sentence)
+                    #         
+                    #         # 立即触发VOICEVOX音频合成
+                    #         self._trigger_voice_synthesis(sentence, request.request_id)
                 
                 if is_final:
                     print(f"[流式完成] 最终文本长度: {len(current_response_text)}")
                     
-                    # 处理最后可能剩余的不完整句子
-                    remaining_text = self._get_remaining_text(current_response_text, processed_sentences)
-                    if remaining_text and remaining_text.strip():
-                        print(f"[最终句子] 处理剩余文本: {remaining_text}")
-                        self._trigger_voice_synthesis(remaining_text, request.request_id)
+                    # ======== 新的完整返回后处理方法 ========
+                    # 等待LLM完全返回后，再进行句子检测和VOX合成
+                    if current_response_text.strip():
+                        print(f"[完整处理] 开始处理完整响应: {current_response_text}")
+                        self._process_complete_response(current_response_text, request.request_id)
+                    
+                    # ======== 实时处理方法的剩余文本处理（已注释保留） ========
+                    # # 处理最后可能剩余的不完整句子
+                    # remaining_text = self._get_remaining_text(current_response_text, processed_sentences)
+                    # if remaining_text and remaining_text.strip():
+                    #     print(f"[最终句子] 处理剩余文本: {remaining_text}")
+                    #     self._trigger_voice_synthesis(remaining_text, request.request_id)
+                    
+                    # LLM流式返回完全并且发送VOX合成后，将文本存入历史，释放当前字符串
+                    self._store_response_to_history(current_response_text)
+                    
+                    # 释放当前字符串，回收内存
+                    self._release_current_response_memory(current_response_text, processed_sentences)
+                    print(f"[内存管理] 响应已存入历史，当前字符串已释放")
                 
-                # 只在最终完成时或有新内容时触发回调
-                if is_final or chunk_text:
+                # 只在最终完成时触发回调（移除中间流式回调）
+                if is_final:
                     partial_response = VoiceLLMResponse(
                         request_id=request.request_id,
                         original_text=request.text,
@@ -255,7 +270,7 @@ class VoiceLLMHandler:
                         success=True,
                         error=None
                     )
-                    # 调用回调函数传递流式结果
+                    # 调用回调函数传递最终结果
                     if self.response_callback:
                         self.response_callback(partial_response)
             
@@ -616,3 +631,163 @@ class VoiceLLMHandler:
         """设置语音合成回调函数"""
         self.voice_synthesis_callback = callback
         print("[设置] 已设置语音合成回调函数")
+    
+    def _store_response_to_history(self, response_text: str):
+        """
+        将响应文本存入历史管理
+        
+        Args:
+            response_text: 完整的响应文本
+        """
+        try:
+            if not hasattr(self, '_response_history'):
+                self._response_history = []
+            
+            # 存储响应到历史
+            history_item = {
+                'text': response_text,
+                'timestamp': time.time(),
+                'length': len(response_text),
+                'sentences_processed': True
+            }
+            
+            self._response_history.append(history_item)
+            
+            # 保持历史记录在合理范围内（最近100条）
+            if len(self._response_history) > 100:
+                removed = self._response_history.pop(0)
+                print(f"[历史清理] 移除旧历史记录: {removed['text'][:30]}...")
+            
+            print(f"[历史存储] 响应已存入历史，历史记录数: {len(self._response_history)}")
+            
+        except Exception as e:
+            print(f"[错误] 存储响应历史失败: {e}")
+    
+    def get_response_history(self, limit: int = 10) -> list:
+        """
+        获取响应历史记录
+        
+        Args:
+            limit: 返回的记录数量限制
+            
+        Returns:
+            历史记录列表
+        """
+        if not hasattr(self, '_response_history'):
+            return []
+        
+        return self._response_history[-limit:]
+    
+    def clear_response_history(self):
+        """清空响应历史记录"""
+        if hasattr(self, '_response_history'):
+            self._response_history.clear()
+            print("[历史管理] 响应历史已清空")
+    
+    def _process_complete_response(self, complete_text: str, request_id: str):
+        """
+        处理完整的LLM响应 - 等待完全返回后再进行句子检测和VOX合成
+        
+        Args:
+            complete_text: 完整的响应文本
+            request_id: 请求ID
+        """
+        try:
+            print(f"[完整处理] 开始处理完整响应，文本长度: {len(complete_text)}")
+            
+            # 使用与实时处理相同的句子检测逻辑，但处理完整文本
+            sentences = self._detect_all_sentences_in_complete_text(complete_text)
+            
+            print(f"[完整处理] 检测到 {len(sentences)} 个句子")
+            
+            # 按顺序处理每个句子进行VOX合成
+            for i, sentence in enumerate(sentences):
+                if sentence.strip():
+                    print(f"[完整句子 {i+1}/{len(sentences)}] 处理: {sentence}")
+                    self._trigger_voice_synthesis(sentence, request_id)
+                    
+                    # 在句子之间添加小延迟，避免VOX合成请求过于密集
+                    if i < len(sentences) - 1:  # 最后一个句子不需要延迟
+                        time.sleep(0.1)  # 100ms延迟
+            
+            print(f"[完整处理] 完成所有 {len(sentences)} 个句子的处理")
+            
+        except Exception as e:
+            print(f"[错误] 完整响应处理失败: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _detect_all_sentences_in_complete_text(self, complete_text: str) -> list:
+        """
+        检测完整文本中的所有句子
+        
+        Args:
+            complete_text: 完整文本
+            
+        Returns:
+            句子列表
+        """
+        import re
+        
+        # 句子结束标点符号（中文、日文、英文）+ 逗号（用于语音停顿）
+        sentence_endings = r'[。！？.!?，,]'
+        
+        # 按句子标点分割文本
+        parts = re.split(f'({sentence_endings})', complete_text)
+        
+        sentences = []
+        current_sentence = ""
+        
+        i = 0
+        while i < len(parts):
+            part = parts[i]
+            
+            if re.match(sentence_endings, part):
+                # 这是一个标点符号
+                current_sentence += part
+                
+                # 检查这个句子是否有效（至少3个字符）
+                if current_sentence.strip() and len(current_sentence.strip()) >= 3:
+                    sentences.append(current_sentence.strip())
+                
+                current_sentence = ""
+            else:
+                # 这是文本内容
+                current_sentence += part
+            
+            i += 1
+        
+        # 处理最后可能剩余的文本
+        if current_sentence.strip() and len(current_sentence.strip()) >= 3:
+            sentences.append(current_sentence.strip())
+        
+        return sentences
+    
+    def _release_current_response_memory(self, response_text: str, processed_sentences: list):
+        """
+        释放当前响应的内存
+        
+        Args:
+            response_text: 完整响应文本
+            processed_sentences: 已处理的句子列表
+        """
+        try:
+            # 记录内存释放前的信息
+            text_length = len(response_text)
+            sentences_count = len(processed_sentences)
+            
+            # 清空局部变量（虽然函数结束后会自动清理，但显式清理有助于理解）
+            # 在回调函数中，这些变量在函数返回后会自动释放
+            
+            # 如果有全局的当前响应缓存，也清空它
+            if hasattr(self, '_current_processing_response'):
+                self._current_processing_response = None
+            
+            # 触发垃圾回收（可选，Python会自动管理）
+            import gc
+            gc.collect()
+            
+            print(f"[内存释放] 已释放响应内存 - 文本长度: {text_length}, 句子数: {sentences_count}")
+            
+        except Exception as e:
+            print(f"[错误] 释放响应内存失败: {e}")

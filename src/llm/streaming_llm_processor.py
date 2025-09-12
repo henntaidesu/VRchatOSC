@@ -23,13 +23,7 @@ from .voice_llm_handler import VoiceLLMHandler, VoiceLLMResponse
 from remote_audio import RemoteAudioClient
 
 
-@dataclass
-class StreamingSentence:
-    """流式句子数据"""
-    text: str
-    timestamp: float
-    is_complete: bool
-    request_id: str
+# StreamingSentence类已移除，句子检测由voice_llm_handler统一处理
 
 
 class StreamingLLMProcessor:
@@ -49,17 +43,8 @@ class StreamingLLMProcessor:
         # LLM处理器
         self.llm_handler = VoiceLLMHandler(config=config)
         
-        # 句子检测相关
+        # 响应状态相关（句子检测由voice_llm_handler处理）
         self.current_response = ""  # 当前累积的回复文本
-        self.processed_sentences = []  # 已处理的句子
-        self.sentence_queue = queue.Queue()  # 待处理的句子队列
-        
-        # 句子分割正则表达式 - 支持中文、日文、英文
-        self.sentence_patterns = [
-            r'[。！？]+',  # 中文句号、感叹号、问号
-            r'[.!?]+\s*',  # 英文句号、感叹号、问号
-            r'[。！？.!?]+',  # 混合标点
-        ]
         
         # 音频相关
         self.remote_audio_client = None
@@ -301,12 +286,7 @@ class StreamingLLMProcessor:
         
         self.is_running = True
         
-        # 启动句子处理线程
-        self.sentence_processing_thread = threading.Thread(
-            target=self._sentence_processing_loop, 
-            daemon=True
-        )
-        self.sentence_processing_thread.start()
+        # 句子处理现在完全由voice_llm_handler处理，不再需要单独的处理线程
         
         print("[成功] 流式处理器已启动")
     
@@ -321,9 +301,7 @@ class StreamingLLMProcessor:
         if self.llm_handler:
             self.llm_handler.stop_processing()
         
-        # 等待处理线程结束
-        if self.sentence_processing_thread:
-            self.sentence_processing_thread.join(timeout=3.0)
+        # 句子处理线程已移除
         
         # 音频客户端不需要显式关闭，因为它是基于请求的
         
@@ -348,7 +326,6 @@ class StreamingLLMProcessor:
         
         # 清空之前的响应状态
         self.current_response = ""
-        self.processed_sentences.clear()
         
         # 提交到LLM处理器
         request_id = self.llm_handler.submit_voice_text(text)
@@ -404,20 +381,10 @@ class StreamingLLMProcessor:
         # 累积响应文本
         self.current_response = response.llm_response
 
-        # 检测完整句子
-        new_sentences = self._detect_complete_sentences()
-
-        # 语音合成完全由LLM Handler的voice_synthesis_callback处理
-        # 此处只记录检测到的句子，不再使用句子队列进行二次处理
-        if new_sentences:
-            for sentence in new_sentences:
-                print(f"[句子检测] 检测到完整句子: {sentence} (已由LLM Handler处理合成)")
-                if hasattr(self.main_app, 'log'):
-                    self.main_app.log(f"[句子检测] 检测到完整句子: {sentence[:30]}...")
-        else:
-            print(f"[流式完成] 无新句子，已处理句子数: {len(self.processed_sentences)}")
-            if hasattr(self.main_app, 'log'):
-                self.main_app.log(f"[流式完成] 无新句子，已处理句子数: {len(self.processed_sentences)}")
+        # 句子检测和语音合成完全由LLM Handler处理，此处不再重复检测
+        print(f"[流式处理] LLM响应长度: {len(response.llm_response)}，句子检测由voice_llm_handler处理")
+        if hasattr(self.main_app, 'log'):
+            self.main_app.log(f"[流式处理] 响应内容: {response.llm_response[:50]}...")
         
         # 调用额外的回调函数
         if self.additional_callback:
@@ -465,94 +432,8 @@ class StreamingLLMProcessor:
         else:
             self.main_app.log("[AI回复] AI端未连接，无法发送文本消息")
     
-    def _detect_complete_sentences(self) -> List[str]:
-        """
-        检测完整句子
-        
-        Returns:
-            新检测到的完整句子列表
-        """
-        if not self.current_response:
-            return []
-        
-        # 找出所有句子分割点
-        sentences = []
-        current_text = self.current_response
-        
-        # 使用正则表达式分割句子
-        for pattern in self.sentence_patterns:
-            parts = re.split(pattern, current_text)
-            if len(parts) > 1:
-                # 保留分割符
-                temp_sentences = []
-                splits = re.findall(pattern, current_text)
-                
-                for i, part in enumerate(parts[:-1]):
-                    if part.strip():
-                        sentence = part.strip()
-                        if i < len(splits):
-                            sentence += splits[i].strip()
-                        temp_sentences.append(sentence)
-                
-                sentences.extend(temp_sentences)
-                break
-        
-        # 过滤出新句子（未处理过的）
-        new_sentences = []
-        for sentence in sentences:
-            if sentence and sentence not in self.processed_sentences:
-                if len(sentence.strip()) >= 3:  # 至少3个字符才认为是完整句子
-                    new_sentences.append(sentence)
-                    self.processed_sentences.append(sentence)
-        
-        return new_sentences
     
-    def _sentence_processing_loop(self):
-        """句子处理循环"""
-        while self.is_running:
-            try:
-                # 获取待处理句子
-                sentence_data = self.sentence_queue.get(timeout=1.0)
-                
-                # 处理句子
-                self._process_sentence(sentence_data)
-                
-                # 标记任务完成
-                self.sentence_queue.task_done()
-                
-            except queue.Empty:
-                continue
-            except Exception as e:
-                print(f"[错误] 句子处理循环异常: {e}")
-    
-    def _process_sentence(self, sentence_data: StreamingSentence):
-        """
-        处理单个句子
-        
-        Args:
-            sentence_data: 句子数据
-        """
-        try:
-            sentence_text = sentence_data.text
-            print(f"[处理] 开始处理句子: {sentence_text}")
-            
-            # 语音合成已由LLM Handler的voice_synthesis_callback处理
-            # 此处不再重复合成，避免同一句子被合成两次
-            print(f"[句子处理] 句子已通过回调处理合成: {sentence_text}")
-            if hasattr(self.main_app, 'log'):
-                self.main_app.log(f"[句子处理] 跳过重复合成: {sentence_text[:30]}...")
-            
-            # 调用句子回调（如果有）
-            if self.sentence_callback:
-                try:
-                    self.sentence_callback(sentence_text)
-                except Exception as e:
-                    print(f"[错误] 句子回调执行失败: {e}")
-            
-        except Exception as e:
-            print(f"[错误] 处理句子失败: {e}")
-            import traceback
-            traceback.print_exc()
+    # 句子处理队列和循环已移除，所有句子检测和语音合成由voice_llm_handler统一处理
     
     def set_sentence_callback(self, callback: Callable[[str], None]):
         """
@@ -582,8 +463,8 @@ class StreamingLLMProcessor:
                 self.is_running)
     
     def get_queue_size(self) -> int:
-        """获取句子处理队列大小"""
-        return self.sentence_queue.qsize()
+        """获取句子处理队列大小（已移除队列机制）"""
+        return 0
     
     def clear_conversation_history(self):
         """清空对话历史"""

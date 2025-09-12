@@ -426,28 +426,32 @@ class GeminiClient:
                 print(f"[调试] 响应数据类型: {type(response_data)}")
                 
                 # 处理不同的响应格式
-                candidates = []
+                all_candidates = []
                 if isinstance(response_data, list):
                     print(f"[调试] 数组响应，长度: {len(response_data)}")
-                    # 如果响应是数组格式，取第一个元素
-                    if response_data and isinstance(response_data[0], dict):
-                        candidates = response_data[0].get("candidates", [])
-                        print(f"[调试] 从数组[0]获取到 {len(candidates)} 个候选")
+                    # 如果响应是数组格式，需要处理所有元素，它们是流式片段
+                    for i, item in enumerate(response_data):
+                        if isinstance(item, dict):
+                            item_candidates = item.get("candidates", [])
+                            all_candidates.extend(item_candidates)
+                            print(f"[调试] 从数组[{i}]获取到 {len(item_candidates)} 个候选")
+                    print(f"[调试] 总共收集到 {len(all_candidates)} 个候选")
                 elif isinstance(response_data, dict):
                     print("[调试] 字典响应格式")
                     # 如果响应是对象格式
-                    candidates = response_data.get("candidates", [])
-                    print(f"[调试] 从字典获取到 {len(candidates)} 个候选")
+                    all_candidates = response_data.get("candidates", [])
+                    print(f"[调试] 从字典获取到 {len(all_candidates)} 个候选")
                 
-                if candidates:
-                    candidate = candidates[0]
-                    content = candidate.get("content", {})
-                    parts = content.get("parts", [])
-                    
-                    # 提取所有文本内容
-                    for part in parts:
-                        if "text" in part:
-                            full_text += part["text"]
+                if all_candidates:
+                    # 合并所有候选的文本内容
+                    for candidate in all_candidates:
+                        content = candidate.get("content", {})
+                        parts = content.get("parts", [])
+                        
+                        # 提取所有文本内容
+                        for part in parts:
+                            if "text" in part:
+                                full_text += part["text"]
                     
                     if full_text:
                         chunk_count = 1
@@ -455,22 +459,46 @@ class GeminiClient:
                         
                         # 调用回调函数传递完整响应
                         if callback:
-                            callback(full_text, True)
+                            # 对于数组响应，我们逐个处理各个片段，然后发送最终完整响应
+                            if isinstance(response_data, list) and len(response_data) > 1:
+                                # 如果是多个片段，先逐个发送，再发送最终完成信号
+                                accumulated_text = ""
+                                for i, item in enumerate(response_data):
+                                    if isinstance(item, dict):
+                                        item_candidates = item.get("candidates", [])
+                                        item_text = ""
+                                        for candidate in item_candidates:
+                                            content = candidate.get("content", {})
+                                            parts = content.get("parts", [])
+                                            for part in parts:
+                                                if "text" in part:
+                                                    item_text += part["text"]
+                                        
+                                        if item_text:
+                                            accumulated_text += item_text
+                                            is_final = (i == len(response_data) - 1)
+                                            print(f"[流式片段 {i+1}/{len(response_data)}] 发送: {len(item_text)} 字符, is_final: {is_final}")
+                                            callback(item_text, is_final)
+                            else:
+                                # 单个响应，直接发送完整内容
+                                callback(full_text, True)
                         
                         # 如果是完整响应模式，跳过逐行解析
                         print(f"[流式结束] 完整响应模式，总文本长度: {len(full_text)}")
                         return full_text
                     
-                    # 检查完成状态
-                    finish_reason = candidate.get("finishReason", "")
-                    if finish_reason:
-                        print(f"[响应完成] 原因: {finish_reason}")
-                        if finish_reason == "LENGTH":
-                            print("[警告] 响应因长度限制被截断")
-                        elif finish_reason == "SAFETY":
-                            print("[警告] 响应被安全过滤器阻止")
-                        elif finish_reason == "RECITATION":
-                            print("[警告] 响应因版权问题被阻止")
+                    # 检查所有候选的完成状态
+                    for candidate in all_candidates:
+                        finish_reason = candidate.get("finishReason", "")
+                        if finish_reason:
+                            print(f"[响应完成] 原因: {finish_reason}")
+                            if finish_reason == "LENGTH":
+                                print("[警告] 响应因长度限制被截断")
+                            elif finish_reason == "SAFETY":
+                                print("[警告] 响应被安全过滤器阻止")
+                            elif finish_reason == "RECITATION":
+                                print("[警告] 响应因版权问题被阻止")
+                            break  # 只需要检查第一个有完成状态的候选
                         
             except (json.JSONDecodeError, AttributeError, KeyError) as e:
                 # 如果不是完整JSON，尝试逐行解析（兼容真正的流式响应）
