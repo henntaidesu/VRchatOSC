@@ -9,8 +9,6 @@ from .expression_mapper import ExpressionMapper
 from .character_manager import CharacterManager
 from .avatar_parameters import AvatarParameters
 from .ai_character_manager import AICharacterManager
-
-
 class AvatarController:
     """Avatar控制器主类"""
     
@@ -66,10 +64,6 @@ class AvatarController:
         """
         return self.expression_mapper.set_expression(emotion, intensity)
     
-    def clear_expressions(self) -> bool:
-        """清除所有表情，回到中性状态"""
-        return self.expression_mapper.clear_all_expressions()
-    
     def blink(self, intensity: float = 1.0) -> bool:
         """执行眨眼动作"""
         return self.expression_mapper.set_eye_blink(intensity)
@@ -113,35 +107,6 @@ class AvatarController:
         
         return success1 and success2
     
-    def update_voice_level(self, level: float) -> bool:
-        """更新语音强度（实时调用）"""
-        is_speaking = self.expression_mapper.is_speaking
-        return self.expression_mapper.set_voice_activity(is_speaking, level)
-    
-    # === 直接参数控制接口 ===
-    
-    def send_avatar_parameter(self, parameter_name: str, value) -> bool:
-        """发送Avatar参数
-        
-        Args:
-            parameter_name: 参数名称（不含/avatar/parameters/前缀）
-            value: 参数值
-            
-        Returns:
-            bool: 是否成功
-        """
-        if not self.osc_client:
-            return False
-            
-        # 验证参数值
-        full_path = f"/avatar/parameters/{parameter_name}"
-        if full_path in AvatarParameters.PARAMETER_TYPES:
-            validated_value = AvatarParameters.validate_parameter_value(full_path, value)
-            return self.osc_client.send_parameter(parameter_name, validated_value)
-        else:
-            # 未知参数，直接发送
-            return self.osc_client.send_parameter(parameter_name, value)
-    
     # === 角色管理接口 ===
     
     def add_character(self, name: str, x: float, y: float, z: float) -> bool:
@@ -159,10 +124,6 @@ class AvatarController:
     def get_character_distances(self):
         """获取角色距离信息"""
         return self.character_manager.get_character_distances()
-    
-    def get_distance_text(self, max_count: int = 5) -> str:
-        """获取距离信息文本"""
-        return self.character_manager.get_distance_info_text(max_count)
     
     def add_position_callback(self, callback: Callable):
         """添加位置更新回调"""
@@ -234,18 +195,6 @@ class AvatarController:
         else:
             return 'neutral'
     
-    def speak_with_emotion(self, text: str, voice_level: float = 0.8) -> bool:
-        """带情感的语音输出
-        
-        Args:
-            text: 要说的文本
-            voice_level: 语音强度
-            
-        Returns:
-            bool: 是否成功
-        """
-        emotion = self.analyze_text_emotion(text)
-        return self.start_speaking(text, emotion, voice_level)
     
     # === AI角色控制接口 ===
     
@@ -279,35 +228,9 @@ class AvatarController:
         """删除AI角色"""
         return self.ai_character_manager.remove_ai_character(name)
     
-    def get_ai_characters(self) -> list:
-        """获取所有AI角色名称"""
-        return self.ai_character_manager.list_character_names()
     
-    def get_active_ai_character(self) -> str:
-        """获取当前激活的AI角色名称"""
-        return self.ai_character_manager.active_character or ""
     
-    def make_ai_character_speak(self, text: str, emotion: str = "neutral") -> bool:
-        """让AI角色说话"""
-        return self.ai_character_manager.make_active_character_speak(text, emotion)
     
-    def make_ai_character_greet(self, target_name: str = "") -> bool:
-        """让AI角色打招呼"""
-        return self.ai_character_manager.make_active_character_greet(target_name)
     
-    def set_ai_character_personality(self, personality_type: str) -> bool:
-        """设置AI角色人格"""
-        from .ai_character import AIPersonality
-        try:
-            personality = AIPersonality(personality_type)
-            return self.ai_character_manager.set_active_character_personality(personality)
-        except ValueError:
-            return False
     
-    def get_ai_character_status(self) -> dict:
-        """获取所有AI角色状态"""
-        return self.ai_character_manager.get_all_character_status()
     
-    def has_active_ai_character(self) -> bool:
-        """检查是否有激活的AI角色"""
-        return self.ai_character_manager.has_active_character()
