@@ -342,23 +342,12 @@ class ConfigManager:
     def ai_character_last_personality(self) -> str:
         return self.get('AI_CHARACTER_VRC', 'last_character_personality')
     
-    def set_ai_character_host(self, host: str):
-        """设置AI角色主机地址"""
-        self.set('AI_CHARACTER_VRC', 'ai_host', host)
-    
-    def set_ai_character_ports(self, send_port: int, receive_port: int):
-        """设置AI角色OSC端口"""
-        self.set('AI_CHARACTER_VRC', 'ai_send_port', send_port)
-        self.set('AI_CHARACTER_VRC', 'ai_receive_port', receive_port)
     
     def set_ai_character_last_info(self, name: str, personality: str):
         """保存最后使用的AI角色信息"""
         self.set('AI_CHARACTER_VRC', 'last_character_name', name)
         self.set('AI_CHARACTER_VRC', 'last_character_personality', personality)
     
-    def set_ai_character_auto_connect(self, auto_connect: bool):
-        """设置是否自动连接"""
-        self.set('AI_CHARACTER_VRC', 'auto_connect', auto_connect)
     
     # 便捷方法：运行时配置
     @property
@@ -371,13 +360,6 @@ class ConfigManager:
         """是否禁用语音识别"""
         return self.get('Runtime', 'disable_speech_recognition', False)
     
-    def set_runtime_mode(self, mode: str):
-        """设置运行模式"""
-        self.set('Runtime', 'mode', mode)
-    
-    def set_disable_speech_recognition(self, disable: bool):
-        """设置是否禁用语音识别"""
-        self.set('Runtime', 'disable_speech_recognition', disable)
     
     # 便捷方法：VOICEVOX配置
     @property
@@ -390,10 +372,6 @@ class ConfigManager:
         """获取VOICEVOX服务器端口"""
         return self.get('VOICEVOX', 'port', 50021)
     
-    def set_voicevox_server(self, host: str, port: int):
-        """设置VOICEVOX服务器地址和端口"""
-        self.set('VOICEVOX', 'host', host)
-        self.set('VOICEVOX', 'port', port)
     
     @property
     def voicevox_last_period(self) -> str:

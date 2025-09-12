@@ -6,7 +6,7 @@ graph TB
     A2[Whisper 音声→テキスト変換]
     A3[Gemini API]
     A4[VOICEVOX 音声合成]
-    A5[remote_audio]
+    A5[remote_audio.py]
     A6[VB仮想サウンドカード]
     A7[AI_VRC]
     A8[VRC_service]

@@ -474,38 +474,12 @@ class ConfigManager:
         self.set('voicevox', 'last_speaker_style', speaker_style)
     
     # AI角色OSC相关setter方法
-    def set_ai_character_host(self, host: str):
-        """设置AI角色主机地址"""
-        self.set('ai_osc', 'ai_host', host)
-    
-    def set_ai_character_ports(self, send_port: int, receive_port: int):
-        """设置AI角色OSC端口"""
-        self.set('ai_osc', 'ai_send_port', send_port)
-        self.set('ai_osc', 'ai_receive_port', receive_port)
     
     def set_ai_character_last_info(self, name: str, personality: str):
         """保存最后使用的AI角色信息"""
         self.set('ai_osc', 'last_character_name', name)
         self.set('ai_osc', 'last_character_personality', personality)
     
-    def set_ai_character_auto_connect(self, auto_connect: bool):
-        """设置是否自动连接"""
-        self.set('ai_osc', 'auto_connect', auto_connect)
-    
-    # 运行时配置setter方法
-    def set_runtime_mode(self, mode: str):
-        """设置运行模式"""
-        self.set('runtime', 'mode', mode)
-    
-    def set_disable_speech_recognition(self, disable: bool):
-        """设置是否禁用语音识别"""
-        self.set('runtime', 'disable_speech_recognition', disable)
-    
-    # VOICEVOX setter方法
-    def set_voicevox_server(self, host: str, port: int):
-        """设置VOICEVOX服务器地址和端口"""
-        self.set('voicevox', 'host', host)
-        self.set('voicevox', 'port', port)
     
     # 兼容原有的setter属性
     @voicevox_last_speaker_name.setter

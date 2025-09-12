@@ -149,31 +149,6 @@ class VirtualMicrophone:
         
         return self.play_audio_to_device(file_path, cable_device, volume=0.8)
     
-    def test_virtual_microphone(self) -> bool:
-        """测试虚拟麦克风功能"""
-        print("\n🔊 虚拟麦克风测试")
-        print("-" * 40)
-        
-        # 显示可用设备
-        devices = self.list_devices()
-        if not devices:
-            print("❌ 未找到任何音频设备")
-            return False
-        
-        print("📱 可用音频设备:")
-        for device in devices[:10]:  # 只显示前10个
-            print(f"   {device['id']:2d}: {device['name']}")
-        
-        # 寻找虚拟设备
-        virtual_device = self.find_virtual_cable_device()
-        if virtual_device:
-            print(f"✅ 找到虚拟音频设备: ID {virtual_device}")
-            return True
-        else:
-            print("⚠️  未找到虚拟音频设备")
-            print("💡 建议安装 VB-Audio Virtual Cable:")
-            print("   https://vb-audio.com/Cable/")
-            return False
 
 
 # 创建全局实例
