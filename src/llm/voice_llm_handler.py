@@ -244,19 +244,20 @@ class VoiceLLMHandler:
                         print(f"[最终句子] 处理剩余文本: {remaining_text}")
                         self._trigger_voice_synthesis(remaining_text, request.request_id)
                 
-                # 始终触发回调（包含空内容的结束信号）
-                partial_response = VoiceLLMResponse(
-                    request_id=request.request_id,
-                    original_text=request.text,
-                    llm_response=current_response_text,
-                    timestamp=time.time(),
-                    processing_time=time.time() - start_time,
-                    success=True,
-                    error=None
-                )
-                # 调用回调函数传递流式结果
-                if self.response_callback:
-                    self.response_callback(partial_response)
+                # 只在最终完成时或有新内容时触发回调
+                if is_final or chunk_text:
+                    partial_response = VoiceLLMResponse(
+                        request_id=request.request_id,
+                        original_text=request.text,
+                        llm_response=current_response_text,
+                        timestamp=time.time(),
+                        processing_time=time.time() - start_time,
+                        success=True,
+                        error=None
+                    )
+                    # 调用回调函数传递流式结果
+                    if self.response_callback:
+                        self.response_callback(partial_response)
             
             # 只使用流式生成内容，传递对话历史
             print(f"[流式] 使用Gemini流式API，对话历史长度: {len(self.conversation_history)}")
@@ -505,7 +506,7 @@ class VoiceLLMHandler:
         import re
         
         # 句子结束标点符号（中文、日文、英文）+ 逗号（用于语音停顿）
-        sentence_endings = r'[。！？.!?，,、]'
+        sentence_endings = r'[。！？.!?，,]'
         
         # 按句子标点分割文本
         parts = re.split(f'({sentence_endings})', full_text)
@@ -545,12 +546,38 @@ class VoiceLLMHandler:
         Returns:
             剩余的未处理文本
         """
-        # 简单实现：移除所有已处理的句子后返回剩余部分
-        remaining = full_text
-        for sentence in processed_sentences:
-            remaining = remaining.replace(sentence, "", 1)
+        if not processed_sentences:
+            return full_text.strip()
         
-        return remaining.strip()
+        # 计算已处理文本的总长度
+        processed_length = sum(len(sentence) for sentence in processed_sentences)
+        
+        # 如果已处理长度大于等于总长度，说明没有剩余文本
+        if processed_length >= len(full_text):
+            return ""
+        
+        # 从已处理长度的位置开始取剩余文本
+        # 更安全的方法：基于位置而不是字符串替换
+        remaining_start = 0
+        temp_text = full_text
+        
+        # 逐个匹配已处理的句子，更新起始位置
+        for sentence in processed_sentences:
+            sentence_pos = temp_text.find(sentence, remaining_start)
+            if sentence_pos >= 0:
+                remaining_start = sentence_pos + len(sentence)
+                temp_text = full_text[remaining_start:]
+            else:
+                # 如果找不到句子，可能是匹配错误，返回当前剩余部分
+                break
+        
+        remaining = full_text[remaining_start:].strip()
+        
+        # 如果剩余文本太短或只包含标点，可能不需要处理
+        if len(remaining) < 2:
+            return ""
+            
+        return remaining
     
     def _trigger_voice_synthesis(self, sentence: str, request_id: str):
         """

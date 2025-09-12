@@ -46,6 +46,7 @@ class OSCClient:
         # VRChat状态
         self.vrc_is_speaking = False
         self.vrc_voice_level = 0.0
+        self._has_explicit_speaking_state = False  # 是否收到明确的按键状态参数
         
         # 位置追踪
         self.player_position = {"x": 0.0, "y": 0.0, "z": 0.0}
@@ -150,30 +151,41 @@ class OSCClient:
                 if parameter_name in ["Voice", "VoiceLevel", "MicLevel", "VRC_VoiceLevel"]:
                     self.vrc_voice_level = float(value) if value else 0.0
                 elif parameter_name in ["IsSpeaking", "Talking", "VoiceActivity", "Speech"]:
-                    # 布尔类型的语音状态
+                    # 布尔类型的语音状态 - 这是VRC按键触发的明确状态
                     self.vrc_is_speaking = bool(value)
+                    self._has_explicit_speaking_state = True  # 标记收到按键状态
                     if self.vrc_is_speaking and self.vrc_voice_level <= 0.01:
                         self.vrc_voice_level = 0.5  # 设置默认强度
+                    print(f"[VRC按键] 明确按键状态: {parameter_name}={value} -> {'开启麦克风' if self.vrc_is_speaking else '关闭麦克风'}")
                 elif parameter_name in ["Viseme", "MouthOpen", "MouthMove"]:
                     # 嘴部动作参数，可能表示说话
                     mouth_value = float(value) if value else 0.0
                     if mouth_value > 0.1:
                         self.vrc_voice_level = max(self.vrc_voice_level, mouth_value)
                 
-                # 更新说话状态 (使用更灵活的阈值)
+                # 优先使用明确的按键状态参数，避免被语音强度覆盖
+                # 只有当没有明确的按键状态参数时，才使用语音强度等推断状态
                 if parameter_name not in ["IsSpeaking", "Talking", "VoiceActivity", "Speech"]:
-                    # 如果有语音强度参数，使用阈值判断
-                    if parameter_name in ["Voice", "VoiceLevel", "MicLevel", "VRC_VoiceLevel"]:
-                        self.vrc_is_speaking = self.vrc_voice_level > 0.005
-                    # 如果是嘴部动作参数，使用更宽松的条件
-                    elif parameter_name in ["Viseme", "MouthOpen", "MouthMove"]:
-                        self.vrc_is_speaking = self.vrc_is_speaking or (float(value) if value else 0.0) > 0.02
+                    # 如果已经收到明确的按键状态，则完全忽略其他推断逻辑
+                    if hasattr(self, '_has_explicit_speaking_state') and self._has_explicit_speaking_state:
+                        print(f"[VRC按键保护] 忽略{parameter_name}={value}，已使用明确按键状态")
+                        # 跳过状态修改，保持按键状态不变
+                    else:
+                        # 如果之前没有收到明确的按键状态，才使用阈值判断作为备选
+                        print(f"[VRC备选检测] 使用{parameter_name}参数推断状态")
+                        if parameter_name in ["Voice", "VoiceLevel", "MicLevel", "VRC_VoiceLevel"]:
+                            self.vrc_is_speaking = self.vrc_voice_level > 0.005
+                        # 如果是嘴部动作参数，使用更宽松的条件
+                        elif parameter_name in ["Viseme", "MouthOpen", "MouthMove"]:
+                            self.vrc_is_speaking = self.vrc_is_speaking or (float(value) if value else 0.0) > 0.02
                 
                 # 调试输出语音状态变化
                 if self.debug_mode or (self.vrc_is_speaking != old_speaking):
                     status_text = "开始说话" if self.vrc_is_speaking else "停止说话"
-                    print(f"[OSC] {parameter_name}={value} -> {status_text} (强度:{self.vrc_voice_level:.3f})")
-                    print(f"VRChat语音状态: {status_text} (参数: {parameter_name}, 值: {value}, Level: {self.vrc_voice_level:.4f})")
+                    is_button_trigger = parameter_name in ["IsSpeaking", "Talking", "VoiceActivity", "Speech"]
+                    trigger_type = "按键触发" if is_button_trigger else "强度触发"
+                    print(f"[OSC] {parameter_name}={value} -> {status_text} (强度:{self.vrc_voice_level:.3f}) [{trigger_type}]")
+                    print(f"VRChat语音状态: {status_text} (参数: {parameter_name}, 值: {value}, Level: {self.vrc_voice_level:.4f}) [{trigger_type}]")
                 
                 # 通知状态变化
                 if self.parameter_callback:
@@ -197,6 +209,9 @@ class OSCClient:
             return False
             
         try:
+            # 重置按键状态检测
+            self.reset_speaking_state_detection()
+            
             self.server = BlockingOSCUDPServer(("127.0.0.1", self.receive_port), self.dispatcher)
             self.server_thread = threading.Thread(target=self._run_server, daemon=True)
             self.is_running = True
@@ -302,6 +317,13 @@ class OSCClient:
     def get_vrc_speaking_state(self) -> bool:
         """获取VRChat说话状态"""
         return self.vrc_is_speaking
+    
+    def reset_speaking_state_detection(self):
+        """重置按键状态检测标志（连接重置时使用）"""
+        self._has_explicit_speaking_state = False
+        self.vrc_is_speaking = False
+        self.vrc_voice_level = 0.0
+        print("[VRC重置] 麦克风状态检测已重置")
     
     def get_vrc_voice_level(self) -> float:
         """获取VRChat语音强度"""

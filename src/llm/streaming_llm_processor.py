@@ -371,27 +371,35 @@ class StreamingLLMProcessor:
         if hasattr(self.main_app, 'log'):
             self.main_app.log(f"[LLM返回] {response.llm_response}")
         
-        # 添加重复响应检测机制
-        if not hasattr(self, '_processed_responses'):
-            self._processed_responses = set()
+        # 流式处理的重复检测机制
+        if not hasattr(self, '_processed_requests'):
+            self._processed_requests = set()
+        if not hasattr(self, '_last_response_length'):
+            self._last_response_length = {}
         
-        # 创建响应唯一标识
-        response_key = f"{response.request_id}_{hash(response.llm_response)}"
+        # 检查是否是新的请求或内容有更新
+        current_length = len(response.llm_response)
+        last_length = self._last_response_length.get(response.request_id, 0)
         
-        if response_key in self._processed_responses:
-            print(f"[重复检测] 跳过重复的LLM响应处理: {response.request_id}")
+        # 如果这是已完成的请求且内容没有增长，跳过
+        if (response.request_id in self._processed_requests and 
+            current_length <= last_length):
+            print(f"[重复检测] 跳过重复的LLM响应处理: {response.request_id} (长度: {current_length})")
             if hasattr(self.main_app, 'log'):
                 self.main_app.log(f"[重复检测] 跳过重复的LLM响应处理: {response.request_id}")
             return
         
-        # 标记响应为已处理
-        self._processed_responses.add(response_key)
+        # 更新长度记录
+        self._last_response_length[response.request_id] = current_length
         
-        # 清理旧的响应记录（保持最近100个）
-        if len(self._processed_responses) > 100:
-            # 转换为列表并只保留最新的50个
-            response_list = list(self._processed_responses)
-            self._processed_responses = set(response_list[-50:])
+        # 如果响应完整，标记为已处理
+        if current_length > last_length:
+            # 清理旧的记录（保持最近50个请求）
+            if len(self._last_response_length) > 50:
+                oldest_keys = list(self._last_response_length.keys())[:-25]
+                for key in oldest_keys:
+                    self._last_response_length.pop(key, None)
+                    self._processed_requests.discard(key)
 
         # 累积响应文本
         self.current_response = response.llm_response
@@ -433,6 +441,10 @@ class StreamingLLMProcessor:
             self._record_conversation(self.current_user_input, response.llm_response)
             # 清空当前用户输入
             self.current_user_input = None
+            
+            # 标记请求为已完成（只有在有用户输入时才是完整的响应）
+            self._processed_requests.add(response.request_id)
+            print(f"[完成标记] 请求已完成: {response.request_id}")
 
         # 发送完整回复到AI端VRChat (而不是用户VRChat端)
         if (hasattr(self.main_app, 'ai_vrchat_area') and 

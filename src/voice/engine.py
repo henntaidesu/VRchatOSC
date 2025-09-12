@@ -313,9 +313,12 @@ class SpeechEngine:
                 print(f"[Whisper识别] 文本: '{text}'")
                 print(f"[Whisper识别] 检测到的语言: {detected_lang}")
                 
-                if text:
+                # 过滤Whisper的常见幻觉文本
+                if text and not self._is_whisper_hallucination(text):
                     return text
                 else:
+                    if text:
+                        print(f"[Whisper过滤] 检测到幻觉文本，已过滤: '{text}'")
                     return None
                     
             finally:
@@ -330,6 +333,61 @@ class SpeechEngine:
             import traceback
             traceback.print_exc()
             return None
+    
+    def _is_whisper_hallucination(self, text: str) -> bool:
+        """
+        检测Whisper常见的幻觉文本
+        
+        Args:
+            text: 要检测的文本
+            
+        Returns:
+            True如果是幻觉文本，False否则
+        """
+        # 常见的Whisper幻觉文本模式
+        hallucination_patterns = [
+            "ご視聴ありがとうございました",
+            "ご視聴ありがとうございます",
+            "視聴ありがとうございました",
+            "Thank you for watching",
+            "Thanks for watching", 
+            "Please subscribe",
+            "Don't forget to subscribe",
+            "Like and subscribe",
+            "Subscribe to our channel",
+            "字幕由 Amara.org 社区提供",
+            "Subtitles by the Amara.org community",
+            "www.amara.org",
+            "支援翻譯",
+            "Translation supported by",
+            "© 2019 Google Inc. All Rights Reserved.",
+            "Transcribed by ESO",
+            "Automatisk tekstning av YouTube",
+            "Automatic captions by YouTube",
+            "Auto-generated captions"
+        ]
+        
+        # 检查完全匹配
+        text_lower = text.lower().strip()
+        for pattern in hallucination_patterns:
+            if text == pattern or text_lower == pattern.lower():
+                return True
+        
+        # 检查包含模式（对于短文本）
+        if len(text) < 50:  # 只对短文本进行包含检查
+            for pattern in hallucination_patterns:
+                if pattern.lower() in text_lower:
+                    return True
+        
+        # 检查重复字符模式（如"......", "aaaa"等）
+        if len(text) > 3 and len(set(text.replace(' ', ''))) <= 2:
+            return True
+        
+        # 检查过短的文本（可能是噪音）
+        if len(text.strip()) <= 1:
+            return True
+            
+        return False
     
     def record_audio(self, duration: int = 5, sample_rate: int = 16000) -> Optional[np.ndarray]:
         """

@@ -48,7 +48,8 @@ class GeminiClient:
             "temperature": 0.7,
             "top_p": 0.8,
             "top_k": 40,
-            "max_output_tokens": 2048,
+            # 移除 max_output_tokens 限制，让 API 返回完整内容
+            # "max_output_tokens": 20480,
         }
         
         print(f"[成功] Gemini客户端初始化完成 (模型: {self.model})")
@@ -404,9 +405,19 @@ class GeminiClient:
             print("[流式响应] 开始接收数据流...")
             
             # 收集所有响应数据
+            line_count = 0
             for line in response.iter_lines(decode_unicode=True):
                 if line:
                     raw_data += line
+                    line_count += 1
+                    if line_count <= 3:  # 只打印前3行用于调试
+                        print(f"[流式数据] 第{line_count}行: {line[:200]}...")
+            
+            print(f"[流式数据] 总共收到 {line_count} 行，数据长度: {len(raw_data)}")
+            if len(raw_data) > 200:
+                print(f"[流式数据] 前200字符: {raw_data[:200]}")
+            else:
+                print(f"[流式数据] 完整数据: {raw_data}")
             
             # 尝试解析完整的JSON响应
             try:
@@ -451,8 +462,15 @@ class GeminiClient:
                         return full_text
                     
                     # 检查完成状态
-                    if candidate.get("finishReason"):
-                        print(f"[响应完成] 原因: {candidate.get('finishReason')}")
+                    finish_reason = candidate.get("finishReason", "")
+                    if finish_reason:
+                        print(f"[响应完成] 原因: {finish_reason}")
+                        if finish_reason == "LENGTH":
+                            print("[警告] 响应因长度限制被截断")
+                        elif finish_reason == "SAFETY":
+                            print("[警告] 响应被安全过滤器阻止")
+                        elif finish_reason == "RECITATION":
+                            print("[警告] 响应因版权问题被阻止")
                         
             except (json.JSONDecodeError, AttributeError, KeyError) as e:
                 # 如果不是完整JSON，尝试逐行解析（兼容真正的流式响应）
@@ -493,8 +511,15 @@ class GeminiClient:
                                 callback(chunk_text, is_final)
                         
                         # 检查是否完成
-                        if candidate.get("finishReason"):
-                            print(f"[流式完成] 原因: {candidate.get('finishReason')}")
+                        finish_reason = candidate.get("finishReason", "")
+                        if finish_reason:
+                            print(f"[流式完成] 原因: {finish_reason}")
+                            if finish_reason == "LENGTH":
+                                print("[警告] 流式响应因长度限制被截断")
+                            elif finish_reason == "SAFETY":
+                                print("[警告] 流式响应被安全过滤器阻止")
+                            elif finish_reason == "RECITATION":
+                                print("[警告] 流式响应因版权问题被阻止")
                             break
                             
                     except json.JSONDecodeError as e:
@@ -629,10 +654,20 @@ class GeminiClient:
             temperature: 温度参数 (0.0-1.0)
             top_p: Top-p参数 (0.0-1.0)  
             top_k: Top-k参数
-            max_output_tokens: 最大输出长度
+            max_output_tokens: 最大输出长度 (None表示无限制)
         """
         for key, value in kwargs.items():
-            if key in self.generation_config:
+            if key == "max_output_tokens":
+                # 特殊处理max_output_tokens
+                if value is None or value <= 0:
+                    # 移除限制
+                    if key in self.generation_config:
+                        del self.generation_config[key]
+                    print(f"[更新] 移除输出长度限制")
+                else:
+                    self.generation_config[key] = value
+                    print(f"[更新] 设置最大输出长度: {value}")
+            elif key in self.generation_config or key == "max_output_tokens":
                 self.generation_config[key] = value
                 print(f"[更新] 更新生成参数: {key} = {value}")
     
