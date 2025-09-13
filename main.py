@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-VRChat OSC 通信工具 - GUI启动程序
+VRChat OSC 通信工具 - 重构版GUI启动程序
 支持文字和语音传输，基于VRChat语音状态的本地Whisper语音识别
+
+注意：这是重构后的版本，采用了新的架构设计
+- UI组件与业务逻辑分离  
+- 按功能区域组织UI组件
+- 独立的服务层处理业务逻辑
 """
 
 import sys
@@ -10,15 +15,16 @@ import os
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
  
-from ui.vrchat_osc_gui import VRChatOSCGUI
+from ui import VRChatOSCGUI
 
 
 def main():
     """主启动函数"""
-    print("=" * 50)
-    print("    VRChat OSC 通信工具 v2.0")
+    print("=" * 60)
+    print("    VRChat OSC 通信工具 - 重构版")  
     print("    支持本地Whisper语音识别")
-    print("=" * 50)
+    print("    采用分层架构设计")
+    print("=" * 60)
     print()
     
     try:

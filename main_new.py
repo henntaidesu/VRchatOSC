@@ -28,7 +28,7 @@ def main():
     
     try:
         # 导入重构后的GUI类
-        from ui.vrchat_osc_gui_new import VRChatOSCGUI
+        from ui import VRChatOSCGUI
         
         # 创建并运行应用
         app = VRChatOSCGUI()
@@ -40,7 +40,7 @@ def main():
         print("注意：某些功能可能不可用")
         
         try:
-            from ui.vrchat_osc_gui_new import VRChatOSCGUI
+            from ui import VRChatOSCGUI
             app = VRChatOSCGUI()
             app.run()
         except Exception as retry_e:

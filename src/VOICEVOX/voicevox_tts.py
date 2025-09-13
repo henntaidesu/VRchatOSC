@@ -10,8 +10,15 @@ import io
 import logging
 import threading
 from typing import Dict, List, Optional, Tuple
-import pygame
 from pathlib import Path
+
+# 可选的pygame导入，用于音频播放
+try:
+    import pygame
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+    pygame = None
 
 
 class VOICEVOXClient:
@@ -42,8 +49,17 @@ class VOICEVOXClient:
         self.is_synthesizing = False  # 是否正在合成语音
         self.synthesis_lock = threading.Lock()  # 合成锁，防止并发合成
         
-        # 初始化pygame音频
-        pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+        # 初始化pygame音频（如果可用）
+        if PYGAME_AVAILABLE:
+            try:
+                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+                self.audio_playback_available = True
+            except Exception as e:
+                logging.warning(f"pygame音频初始化失败: {e}")
+                self.audio_playback_available = False
+        else:
+            self.audio_playback_available = False
+            logging.info("pygame不可用，音频播放功能已禁用")
         
         # 加载可用角色
         self.load_speakers()
@@ -284,6 +300,10 @@ class VOICEVOXClient:
         Returns:
             是否播放成功
         """
+        if not self.audio_playback_available:
+            self.logger.warning("音频播放功能不可用，跳过播放")
+            return False
+            
         try:
             # 将音频数据转换为pygame可播放的格式
             audio_file = io.BytesIO(audio_data)

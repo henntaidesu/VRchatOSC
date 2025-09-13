@@ -12,6 +12,7 @@ try:
     VOICEVOX_CLIENT_AVAILABLE = True
 except ImportError:
     VOICEVOX_CLIENT_AVAILABLE = False
+    VOICEVOXClient = None  # 避免NameError
 
 
 class VoicevoxService:

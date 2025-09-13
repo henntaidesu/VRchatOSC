@@ -171,18 +171,19 @@ class VoicevoxController:
                     raise Exception("连接测试失败")
                     
             except Exception as e:
-                self.safe_log(f"VOICEVOX连接失败: {e}")
+                error_msg = str(e)  # 保存错误信息到局部变量
+                self.safe_log(f"VOICEVOX连接失败: {error_msg}")
                 self.voicevox_connected = False
                 self.safe_ui_update(lambda: self.update_voicevox_ui([], False))
                 self.safe_ui_update(lambda: self.main_app.voicevox_connect_btn.config(
                     state="normal", text="连接"))
                 self.safe_ui_update(lambda: messagebox.showerror("连接失败", 
-                    f"无法连接到VOICEVOX服务器 {host}:{port}\n\n错误信息: {e}\n\n请检查:\n1. VOICEVOX Engine是否已启动\n2. IP地址和端口是否正确\n3. 防火墙设置"))
+                    f"无法连接到VOICEVOX服务器 {host}:{port}\n\n错误信息: {error_msg}\n\n请检查:\n1. VOICEVOX Engine是否已启动\n2. IP地址和端口是否正确\n3. 防火墙设置"))
         
         # 在后台线程中连接
         threading.Thread(target=connect_in_background, daemon=True).start()
     
-    def update_voicevox_ui(self, speaker_names, connected):
+    def update_voicevox_ui(self, speaker_names, connected, host=None, port=None):
         """更新VOICEVOX UI状态"""
         try:
             if connected:

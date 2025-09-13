@@ -131,7 +131,7 @@ class SettingsWindow:
         ttk.Label(voice_frame, text="识别语言:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         self.language_var = tk.StringVar(value=self.config.voice_language)
         language_combo = ttk.Combobox(voice_frame, textvariable=self.language_var, 
-                                     values=["zh-CN", "ja-JP"], width=18, state="readonly")
+                                     values=["zh", "ja", "en"], width=18, state="readonly")
         language_combo.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
         
         # 计算设备
@@ -284,8 +284,15 @@ class SettingsWindow:
         row = 0
         ttk.Label(interface_frame, text="界面语言:").grid(row=row, column=0, sticky=tk.W, padx=10, pady=5)
         self.ui_language_var = tk.StringVar(value=self.config.ui_language)
-        ui_lang_combo = ttk.Combobox(interface_frame, textvariable=self.ui_language_var,
-                                    values=["zh", "ja"], width=18, state="readonly")
+        
+        # 使用语言显示名称
+        from ui.languages.language_dict import get_language_display_names, DISPLAY_TO_LANGUAGE_MAP, LANGUAGE_DISPLAY_MAP
+        language_display_names = get_language_display_names()
+        current_display_name = LANGUAGE_DISPLAY_MAP.get(self.config.ui_language, "中文")
+        self.ui_language_display_var = tk.StringVar(value=current_display_name)
+        
+        ui_lang_combo = ttk.Combobox(interface_frame, textvariable=self.ui_language_display_var,
+                                    values=language_display_names, width=18, state="readonly")
         ui_lang_combo.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
         
         # 窗口宽度
@@ -618,7 +625,11 @@ class SettingsWindow:
         self.config.set('modes', 'vrc_detection_timeout', self.timeout_var.get())
         
         # 界面设置
-        self.config.set('interface', 'ui_language', self.ui_language_var.get())
+        # 将显示名称转换为语言代码
+        from ui.languages.language_dict import DISPLAY_TO_LANGUAGE_MAP
+        display_name = self.ui_language_display_var.get()
+        language_code = DISPLAY_TO_LANGUAGE_MAP.get(display_name, "zh")
+        self.config.set('interface', 'ui_language', language_code)
         self.config.set('interface', 'window_width', int(self.window_width_var.get()))
         self.config.set('interface', 'window_height', int(self.window_height_var.get()))
         

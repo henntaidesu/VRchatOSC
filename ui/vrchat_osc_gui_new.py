@@ -11,8 +11,7 @@ import threading
 import time
 import sys
 import os
-from PIL import Image, ImageTk
-import numpy as np
+# PIL 和 numpy 将在需要时动态导入，避免启动时的依赖问题
 
 # 添加路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -278,8 +277,7 @@ class VRChatOSCGUI:
         # 创建三列布局
         self.setup_three_column_layout(main_frame)
         
-        # 创建底部日志区域
-        self.setup_log_area(main_frame)
+        # 日志现在已合并到中央区域显示
         
         # 设置窗口关闭处理
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -438,9 +436,15 @@ class VRChatOSCGUI:
         
         self.setup_voice_recognition(voice_frame)
         
-        # 语音识别结果显示
-        result_frame = ttk.LabelFrame(parent, text="语音识别结果", padding="5")
-        result_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        # 系统日志显示区域 - 支持多语言
+        log_frame = ttk.LabelFrame(parent, text=self.get_text("log"), padding="5")
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 5))
+        
+        self.setup_system_log(log_frame)
+        
+        # 语音识别结果显示区域 - 支持多语言
+        result_frame = ttk.LabelFrame(parent, text=self.get_text("speech_output"), padding="5")
+        result_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 0))
         
         self.setup_voice_results(result_frame)
     
@@ -514,8 +518,24 @@ class VRChatOSCGUI:
         self.device_combo.pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Label(device_row, text="语言:", width=6).pack(side=tk.LEFT)
-        self.language_combo = ttk.Combobox(device_row, textvariable=self.language_var,
-                                         values=["zh-CN", "ja-JP", "en-US"], width=10, state="readonly")
+        
+        # 语音识别语言选择 - 使用友好显示名称
+        self.voice_language_display_var = tk.StringVar()
+        voice_lang_map = {"中文": "zh", "日本語": "ja", "English": "en"}
+        voice_lang_reverse = {"zh": "中文", "ja": "日本語", "en": "English"}
+        current_voice_lang = voice_lang_reverse.get(self.language_var.get(), "中文")
+        self.voice_language_display_var.set(current_voice_lang)
+        
+        self.language_combo = ttk.Combobox(device_row, textvariable=self.voice_language_display_var,
+                                         values=list(voice_lang_map.keys()), width=10, state="readonly")
+        
+        def on_voice_language_changed(event=None):
+            """语音识别语言切换事件"""
+            display_name = self.voice_language_display_var.get()
+            lang_code = voice_lang_map.get(display_name, "zh")
+            self.language_var.set(lang_code)
+            
+        self.language_combo.bind('<<ComboboxSelected>>', on_voice_language_changed)
         self.language_combo.pack(side=tk.LEFT, padx=(0, 5))
         
         # 语音监听控制行
@@ -557,10 +577,50 @@ class VRChatOSCGUI:
         self.uploaded_file_label = ttk.Label(upload_row, text="未选择文件", foreground="gray")
         self.uploaded_file_label.pack(side=tk.LEFT)
     
+    def setup_system_log(self, parent):
+        """设置系统日志显示区域"""
+        # 创建文本显示区域
+        self.log_text = scrolledtext.ScrolledText(parent, height=8, state='disabled', font=("", 8))
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 配置日志标签样式
+        self.log_text.tag_config('log', foreground='#666666', font=("", 8))  # 普通日志
+        self.log_text.tag_config('error', foreground='red', font=("", 8, "bold"))  # 错误日志
+        self.log_text.tag_config('success', foreground='green', font=("", 8))  # 成功日志
+        
+        # 创建控制按钮区域
+        log_control_frame = ttk.Frame(parent)
+        log_control_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.clear_log_btn = ttk.Button(log_control_frame, text=self.get_text("clear_log"), command=self.clear_log, width=10)
+        self.clear_log_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # UI语言选择
+        language_frame = ttk.Frame(log_control_frame)
+        language_frame.pack(side=tk.RIGHT, padx=(5, 5))
+        
+        ttk.Label(language_frame, text="语言:", font=("", 8)).pack(side=tk.LEFT, padx=(0, 2))
+        
+        # 语言显示名称下拉框
+        self.ui_language_display_var = tk.StringVar()
+        self.ui_language_combo = ttk.Combobox(language_frame, textvariable=self.ui_language_display_var,
+                                            values=get_language_display_names(), width=8, state="readonly",
+                                            font=("", 8))
+        self.ui_language_combo.pack(side=tk.LEFT, padx=(0, 5))
+        self.ui_language_combo.bind('<<ComboboxSelected>>', self.on_language_changed)
+        
+        # 设置当前语言显示
+        from ui.languages.language_dict import LANGUAGE_DISPLAY_MAP
+        current_display_name = LANGUAGE_DISPLAY_MAP.get(self.ui_language.get(), "中文")
+        self.ui_language_display_var.set(current_display_name)
+        
+        self.settings_btn = ttk.Button(log_control_frame, text=self.get_text("settings"), command=self.open_settings, width=8)
+        self.settings_btn.pack(side=tk.RIGHT)
+        
     def setup_voice_results(self, parent):
         """设置语音识别结果显示区域"""
         # 创建文本显示区域
-        self.speech_output = scrolledtext.ScrolledText(parent, height=15, state='disabled', font=("", 9))
+        self.speech_output = scrolledtext.ScrolledText(parent, height=8, state='disabled', font=("", 9))
         self.speech_output.pack(fill=tk.BOTH, expand=True)
         
         # 配置文本标签
@@ -568,6 +628,13 @@ class VRChatOSCGUI:
         self.speech_output.tag_config('ai', foreground='green', font=("", 9, "bold"))
         self.speech_output.tag_config('system', foreground='red', font=("", 9, "bold"))
         self.speech_output.tag_config('voice', foreground='purple', font=("", 9))
+        
+        # 创建控制按钮区域
+        result_control_frame = ttk.Frame(parent)
+        result_control_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.clear_results_btn = ttk.Button(result_control_frame, text=self.get_text("clear_speech"), command=self.clear_speech_results, width=10)
+        self.clear_results_btn.pack(side=tk.LEFT, padx=(0, 5))
     
     def setup_right_area(self, parent):
         """设置右侧区域 - 摄像头控制"""
@@ -733,27 +800,6 @@ class VRChatOSCGUI:
         self.dominant_emotion_label = ttk.Label(dominant_row, text="无数据", font=("", 8))
         self.dominant_emotion_label.pack(side=tk.LEFT, padx=(5, 0))
     
-    def setup_log_area(self, parent):
-        """设置日志区域"""
-        log_frame = ttk.LabelFrame(parent, text="系统日志", padding="5")
-        log_frame.pack(fill=tk.X, pady=(10, 0))
-        
-        # 创建日志显示区域
-        log_container = ttk.Frame(log_frame)
-        log_container.pack(fill=tk.X)
-        
-        self.log_text = scrolledtext.ScrolledText(log_container, height=8, state='disabled', font=("", 8))
-        self.log_text.pack(fill=tk.X)
-        
-        # 日志控制按钮
-        log_control_frame = ttk.Frame(log_frame)
-        log_control_frame.pack(fill=tk.X, pady=(5, 0))
-        
-        self.clear_log_btn = ttk.Button(log_control_frame, text="清空日志", command=self.clear_log, width=10)
-        self.clear_log_btn.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.settings_btn = ttk.Button(log_control_frame, text="设置", command=self.open_settings, width=8)
-        self.settings_btn.pack(side=tk.RIGHT)
     
     def _init_language_and_theme(self):
         """初始化语言和主题"""
@@ -823,17 +869,25 @@ class VRChatOSCGUI:
             return key
     
     def log(self, message: str):
-        """添加日志消息"""
+        """添加日志消息到系统日志区域"""
         try:
             import datetime
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+            
+            # 根据消息内容确定标签样式
+            tag = 'log'
+            if any(word in message for word in ['错误', '失败', 'Error', 'Failed']):
+                tag = 'error'
+            elif any(word in message for word in ['成功', '完成', 'Success', '已连接', '已启动']):
+                tag = 'success'
+            
             log_message = f"[{timestamp}] {message}\n"
             
             # 在主线程中更新日志显示
             def update_log():
                 try:
                     self.log_text.config(state='normal')
-                    self.log_text.insert(tk.END, log_message)
+                    self.log_text.insert(tk.END, log_message, tag)
                     self.log_text.see(tk.END)
                     self.log_text.config(state='disabled')
                 except:
@@ -843,21 +897,30 @@ class VRChatOSCGUI:
                 update_log()
             else:
                 self.root.after(0, update_log)
-            
+                
         except Exception as e:
             print(f"日志记录失败: {e}")
     
     def clear_log(self):
-        """清空日志"""
+        """清空系统日志"""
         try:
             self.log_text.config(state='normal')
             self.log_text.delete(1.0, tk.END)
             self.log_text.config(state='disabled')
         except Exception as e:
-            self.log(f"清空日志失败: {e}")
+            print(f"清空日志失败: {e}")
+            
+    def clear_speech_results(self):
+        """清空语音识别结果"""
+        try:
+            self.speech_output.config(state='normal')
+            self.speech_output.delete(1.0, tk.END)
+            self.speech_output.config(state='disabled')
+        except Exception as e:
+            self.log(f"清空语音结果失败: {e}")
     
     def add_speech_output(self, text: str, source: str = "用户", tag: str = None):
-        """添加语音识别结果到输出区域"""
+        """添加语音识别结果到语音识别结果区域"""
         try:
             import datetime
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -871,7 +934,7 @@ class VRChatOSCGUI:
                 else:
                     tag = "system"
             
-            # 在主线程中更新显示
+            # 在主线程中更新语音结果显示
             def update_output():
                 try:
                     self.speech_output.config(state='normal')
@@ -918,16 +981,91 @@ class VRChatOSCGUI:
     def update_ui_language(self):
         """更新界面语言"""
         try:
-            # 这里可以实现多语言界面更新
-            self.log("界面语言已更新")
+            current_language = self.ui_language.get()
+            
+            # 更新窗口标题
+            title = self.get_text("title")
+            if title != "title":  # 如果找到了翻译
+                self.root.title(f"{title} - 重构版")
+            
+            # 更新按钮文本
+            if hasattr(self, 'clear_log_btn'):
+                self.clear_log_btn.config(text=self.get_text("clear_log"))
+            if hasattr(self, 'settings_btn'):
+                self.settings_btn.config(text=self.get_text("settings"))  
+            if hasattr(self, 'clear_results_btn'):
+                self.clear_results_btn.config(text=self.get_text("clear_speech"))
+            
+            # 刷新语音语言下拉框的默认值
+            if hasattr(self, 'language_combo'):
+                try:
+                    current_voice_lang = self.language_var.get()
+                    # 确保当前选择仍然有效
+                    if current_voice_lang not in ["zh", "ja", "en"]:
+                        self.language_var.set("zh")
+                        
+                    # 更新语音识别语言显示
+                    if hasattr(self, 'voice_language_display_var'):
+                        voice_lang_reverse = {"zh": "中文", "ja": "日本語", "en": "English"}
+                        display_name = voice_lang_reverse.get(current_voice_lang, "中文")
+                        self.voice_language_display_var.set(display_name)
+                except:
+                    pass
+            
+            # 更新配置中的UI语言
+            self.config.ui_language = current_language
+            
+            # 根据选择的语言记录不同的日志信息
+            if current_language == "ja":
+                self.log("インターフェース言語が更新されました: 日本語")
+            elif current_language == "en": 
+                self.log("Interface language updated: English")
+            else:
+                self.log(f"界面语言已更新为: 中文")
+            
         except Exception as e:
             self.log(f"更新界面语言失败: {e}")
+    
+    def on_language_changed(self, event=None):
+        """语言切换事件处理"""
+        try:
+            from ui.languages.language_dict import DISPLAY_TO_LANGUAGE_MAP
+            
+            # 获取选择的显示名称并转换为语言代码
+            display_name = self.ui_language_display_var.get()
+            language_code = DISPLAY_TO_LANGUAGE_MAP.get(display_name, "zh")
+            
+            # 更新内部语言变量
+            self.ui_language.set(language_code)
+            
+            # 保存到配置
+            self.config.ui_language = language_code
+            self.config.save_config()
+            
+            # 更新界面
+            self.update_ui_language()
+            
+        except Exception as e:
+            self.log(f"语言切换失败: {e}")
     
     def open_settings(self):
         """打开设置窗口"""
         try:
-            settings_window = SettingsWindow(self.root, self.config)
-            settings_window.show()
+            def on_settings_saved():
+                """设置保存后的回调"""
+                # 更新UI语言变量
+                self.ui_language.set(self.config.ui_language)
+                
+                # 更新主界面语言下拉框显示
+                if hasattr(self, 'ui_language_display_var'):
+                    from ui.languages.language_dict import LANGUAGE_DISPLAY_MAP
+                    current_display_name = LANGUAGE_DISPLAY_MAP.get(self.config.ui_language, "中文")
+                    self.ui_language_display_var.set(current_display_name)
+                
+                # 更新界面语言
+                self.update_ui_language()
+                
+            settings_window = SettingsWindow(self.root, on_settings_saved, self)
         except Exception as e:
             self.log(f"打开设置窗口失败: {e}")
             messagebox.showerror("错误", f"无法打开设置窗口: {e}")
